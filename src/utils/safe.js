@@ -123,5 +123,12 @@ export function applySafeMode(data) {
     ...h,
     what: SENSITIVE_TEAMS.has(team[h.from]) || SENSITIVE_TEAMS.has(team[h.to]) ? '' : scrubText(h.what),
   }));
-  return { ...data, bots, handoffs };
+  const feed = (data.feed || []).map((f) => {
+    const t = team[f.bot];
+    const sensitive = SENSITIVE_TEAMS.has(t) || (f.to && SENSITIVE_TEAMS.has(team[f.to]));
+    const hideLink = !!f.url && (sensitive || isPrivateUrl(f.url));
+    const text = f.publicText || (sensitive ? GENERIC_BY_ID[f.bot] || GENERIC_BY_TEAM[t] || 'Finished a task' : capitalize(scrubText(f.text)));
+    return { ...f, text, url: hideLink ? '' : f.url };
+  });
+  return { ...data, bots, handoffs, feed };
 }

@@ -73,7 +73,15 @@ Important: safe mode only changes what the page shows. `data.json` is a public f
 
 ## Swap in real data
 
-Replace `public/data.json` (or have your pipeline overwrite `dist/data.json` after a build, or upload a new one with each deploy). The shape:
+The app reads its data from `VITE_DATA_URL` when that's set (on Vercel it's set for Preview builds only, pointing at a gist JSON that updates every 5 minutes). Without it, it falls back to `public/data.json`, which is example data with `_example: true`.
+
+To try a different data file locally, create `.env.local` (it's git-ignored) with:
+
+```
+VITE_DATA_URL=https://example.com/your-data.json
+```
+
+The shape:
 
 ```json
 {
@@ -96,6 +104,9 @@ Replace `public/data.json` (or have your pipeline overwrite `dist/data.json` aft
   ],
   "handoffs": [
     { "from": "spin", "to": "caption", "at": "2026-11-02T08:10:00-08:00", "what": "Council recap carousel" }
+  ],
+  "feed": [
+    { "bot": "spin", "to": "caption", "text": "Drafted LISN carousel", "url": "https://...", "at": "2026-11-02T08:10:00-08:00" }
   ]
 }
 ```
@@ -110,7 +121,11 @@ Rules:
 - `lastAction.publicText` (optional) is the wording to use in public-safe mode.
 - `note` (optional) is a short italic line on the bot's card. Claude's says "Launch and Chief drop by."
 - `minutesSaved.trackedSince` (optional, like `"2026-09-01"`) adds "Based on tracked tasks since Sep 1, 2026." to the ticker note.
-- `handoffs`: each handoff from the last 24 hours plays once. Handoffs naming a bot that isn't in `bots` are skipped.
+- `handoffs`: each handoff from the last 24 hours plays once. Handoffs naming a bot that isn't in `bots` are skipped. An empty list is fine: nobody walks.
+- `feed`: the Team activity lines, newest first, at most 40. `to` is optional. Entries from the last 24 hours show. Lines with a `url` are clickable; lines without one aren't.
+- Real data can be sparse. A bot with `"lastAction": { "text": "", "url": "", "at": null }` and `"status": "idle"` just relaxes with a drink, and its card says "Nothing logged yet" and "No link yet". The island never makes up activity when `_example` is false.
+- If a bot's `zone` is missing or unknown, the bot goes to its usual spot (by id), so the island still looks right.
+- Bot ids: chief, spin, caption, slide, poster, cue, echo, download, stamp, scout-local, vibe, desk, lead, tour, board, scoop, dottie, tracy, jet, trace, scout, nudge, benji, launch, flo, recon, brobot, nasty, claude. Claude lives in the `guestdesk` zone (the guest bungalow).
 - Timestamps should include a timezone offset (like `-08:00`).
 
 ### Avatars
@@ -118,6 +133,8 @@ Rules:
 Put square images at `public/avatars/<id>.png`, for example `public/avatars/spin.png`. Around 256×256 is plenty. Any bot without an image shows a colored circle with its first initial. To use a different path or host, set `avatarUrl` on that bot in `data.json`.
 
 ## Deploy to Vercel
+
+Every push to `main` deploys to production at bot-army-hq.vercel.app, which is public. Do work on a branch and open a pull request; Vercel builds a Preview for each branch (with the live `VITE_DATA_URL`).
 
 Option A: import the repo
 1. Push this folder to a GitHub repo.

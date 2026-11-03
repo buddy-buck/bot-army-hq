@@ -535,5 +535,197 @@
       "at": "2026-11-02T13:20:00-08:00",
       "what": "Course launch budget"
     }
+  ],
+  "feed": [
+    {
+      "bot": "claude",
+      "text": "Built the Bot Army HQ island and moved into the guest bungalow",
+      "url": "",
+      "at": "2026-11-02T15:55:00-08:00"
+    },
+    {
+      "bot": "chief",
+      "text": "Wrapped Monday standup and set this week's top 3 priorities",
+      "url": "https://example.com/chief/week-of-nov-2",
+      "at": "2026-11-02T15:40:00-08:00"
+    },
+    {
+      "bot": "echo",
+      "text": "Replied to 18 comments, flagged 2 for Buddy",
+      "url": "",
+      "at": "2026-11-02T15:20:00-08:00"
+    },
+    {
+      "bot": "board",
+      "text": "Started the Tuesday update for the Hoover listing",
+      "url": "https://docs.google.com/document/d/example-hoover-tuesday",
+      "at": "2026-11-02T14:45:00-08:00"
+    },
+    {
+      "bot": "poster",
+      "text": "Scheduled 3 posts for Instagram and Facebook this afternoon",
+      "url": "https://example.com/schedule/today",
+      "at": "2026-11-02T14:10:00-08:00"
+    },
+    {
+      "bot": "benji",
+      "text": "Checked the launch budget against this month's cash plan",
+      "url": "https://example.com/money/november-plan",
+      "at": "2026-11-02T13:50:00-08:00"
+    },
+    {
+      "bot": "tracy",
+      "text": "Inspection response due Wednesday for the Martinez sale, reminder set",
+      "url": "https://example.com/transactions/cherry-valley",
+      "at": "2026-11-02T13:30:00-08:00"
+    },
+    {
+      "bot": "launch",
+      "text": "Course launch checklist: 14 of 18 items done",
+      "url": "https://example.com/launch/course-checklist",
+      "at": "2026-11-02T13:20:00-08:00",
+      "to": "benji"
+    },
+    {
+      "bot": "desk",
+      "text": "Sorted 9 website messages, 1 event tip sent to Download",
+      "url": "https://mail.google.com/mail/u/0/#label/website",
+      "at": "2026-11-02T13:05:00-08:00"
+    },
+    {
+      "bot": "dottie",
+      "text": "Reviewed the offer on 1423 Riverview Ln: 2 items to flag before signing",
+      "url": "https://drive.google.com/file/d/example-riverview-offer",
+      "at": "2026-11-02T12:10:00-08:00"
+    },
+    {
+      "bot": "recon",
+      "text": "Daily learning brief: 4 new AI tools worth a look",
+      "url": "https://example.com/recon/brief-2026-11-02",
+      "at": "2026-11-02T12:05:00-08:00",
+      "to": "chief"
+    },
+    {
+      "bot": "board",
+      "to": "dottie",
+      "text": "Handed off: Riverview Ln offer to review",
+      "url": "",
+      "at": "2026-11-02T11:30:00-08:00"
+    },
+    {
+      "bot": "nudge",
+      "text": "Today's ping: congratulate a neighbor on the new job, plus 1 intro idea",
+      "url": "",
+      "at": "2026-11-02T11:20:00-08:00"
+    },
+    {
+      "bot": "cue",
+      "text": "Lined up 4 segments for Thursday's Duvall TV episode",
+      "url": "https://example.com/dtv/rundown-nov-5",
+      "at": "2026-11-02T11:15:00-08:00"
+    },
+    {
+      "bot": "scoop",
+      "text": "Pulled 6 comps for the Riverview Ln offer",
+      "url": "https://example.com/comps/riverview-ln",
+      "at": "2026-11-02T11:00:00-08:00"
+    },
+    {
+      "bot": "scout",
+      "text": "Updated 3 People files and started a Business file for a new bakery",
+      "url": "https://example.com/people/updates-nov-2",
+      "at": "2026-11-02T10:50:00-08:00",
+      "to": "nudge"
+    },
+    {
+      "bot": "tour",
+      "text": "Booked 3 Saturday showings in Duvall and Monroe",
+      "url": "https://example.com/showings/nov-7",
+      "at": "2026-11-02T10:30:00-08:00"
+    },
+    {
+      "bot": "trace",
+      "text": "Logged 5 people updates, including a new job at Duvall Coffee",
+      "url": "https://example-project.supabase.co/rest/v1/people",
+      "at": "2026-11-02T10:15:00-08:00",
+      "to": "scout"
+    },
+    {
+      "bot": "lead",
+      "text": "New prospect: buyer looking for Carnation acreage under $1.2M",
+      "url": "https://example.com/prospects/carnation-acreage",
+      "at": "2026-11-02T09:40:00-08:00",
+      "to": "board"
+    },
+    {
+      "bot": "caption",
+      "text": "Wrote captions for the council recap and October stats posts",
+      "url": "https://example.com/captions/2026-11-02",
+      "at": "2026-11-02T09:00:00-08:00",
+      "to": "poster"
+    },
+    {
+      "bot": "spin",
+      "text": "Drafted LISN carousel: Duvall council recap, 7 slides",
+      "url": "https://example.com/lisn/carousel-council-recap",
+      "at": "2026-11-02T08:10:00-08:00",
+      "to": "caption"
+    },
+    {
+      "bot": "flo",
+      "text": "Reminded the family about Parker's Wednesday practice pickup",
+      "url": "",
+      "at": "2026-11-02T07:30:00-08:00"
+    },
+    {
+      "bot": "stamp",
+      "text": "Finished October Valley Stats for all 5 valley cities",
+      "url": "https://example.com/stats/october-2026",
+      "at": "2026-11-02T06:30:00-08:00",
+      "to": "caption"
+    },
+    {
+      "bot": "scout-local",
+      "text": "Morning scan: 6 local stories, top pick is the Duvall council vote",
+      "url": "https://example.com/scan/2026-11-02",
+      "at": "2026-11-02T05:45:00-08:00",
+      "to": "spin"
+    },
+    {
+      "bot": "vibe",
+      "text": "Researched 3 Valley Vibes guests: a baker, a farmer, a fiddler",
+      "url": "",
+      "at": "2026-11-01T19:30:00-08:00"
+    },
+    {
+      "bot": "brobot",
+      "text": "Deep brief: short-term rental rules in King County",
+      "url": "https://example.com/brobot/str-rules",
+      "at": "2026-11-01T18:10:00-08:00"
+    },
+    {
+      "bot": "jet",
+      "text": "Queued 4 houseversary notes for this week",
+      "url": "",
+      "at": "2026-11-01T16:50:00-08:00"
+    },
+    {
+      "bot": "slide",
+      "text": "Built the BB Show recap carousel from Friday's episode",
+      "url": "https://example.com/bbshow/carousel-ep-44",
+      "at": "2026-11-01T14:20:00-08:00"
+    },
+    {
+      "bot": "nasty",
+      "text": "Set the Week 9 lineup and proposed a trade nobody will accept",
+      "url": "",
+      "at": "2026-11-01T09:55:00-08:00"
+    },
+    {
+      "bot": "download",
+      "text": "Sent Duvall Download #61 to 2,340 subscribers",
+      "url": "https://example.com/download/issue-61",
+      "at": "2026-11-01T07:00:00-08:00"
+    }
   ]
 }
