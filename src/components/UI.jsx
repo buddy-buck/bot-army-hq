@@ -50,10 +50,42 @@ export function ClockChip({ sky }) {
   );
 }
 
-export function StatusChips({ isExample, safe, sky, error }) {
+// Live / Demo switch. Live shows the real bot feed; Demo shows sample data
+// with busy bots and a climbing ticker (handy for showing the island off).
+export function ModeToggle({ mode, onMode, fellBack }) {
+  return (
+    <div className="mode-wrap">
+      <div className="mode-toggle" role="group" aria-label="Data: Live or Demo">
+        {[
+          ['live', 'Live'],
+          ['demo', 'Demo'],
+        ].map(([m, label]) => (
+          <button
+            key={m}
+            type="button"
+            className={`mode-btn${mode === m ? ' is-on' : ''}`}
+            aria-pressed={mode === m}
+            onClick={() => mode !== m && onMode(m)}
+            title={m === 'live' ? 'Show real bot activity' : 'Show sample data'}
+          >
+            {m === 'live' && <span className="mode-dot" aria-hidden="true" />}
+            {label}
+          </button>
+        ))}
+      </div>
+      {fellBack && mode === 'live' && (
+        <div className="mode-fallback" role="status">
+          Live feed unavailable, showing demo
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function StatusChips({ isExample, safe, sky, error, mode, hasLive, fellBack, onMode }) {
   return (
     <div className="hud-chips">
-      {isExample && <DemoNote />}
+      {hasLive ? <ModeToggle mode={mode} onMode={onMode} fellBack={fellBack} /> : isExample && <DemoNote />}
       {safe && <SafeNote />}
       <ClockChip sky={sky} />
       {error && <div className="chip chip-error">Couldn&rsquo;t refresh data. Retrying.</div>}
@@ -258,10 +290,10 @@ export function LoadingNotice({ error }) {
   );
 }
 
-export default function UI({ isExample, safe, sky, error, onRecenter, onRoster, rosterOpen }) {
+export default function UI({ isExample, safe, sky, error, mode, hasLive, fellBack, onMode, onRecenter, onRoster, rosterOpen }) {
   return (
     <div className="hud-row">
-      <StatusChips isExample={isExample} safe={safe} sky={sky} error={error} />
+      <StatusChips isExample={isExample} safe={safe} sky={sky} error={error} mode={mode} hasLive={hasLive} fellBack={fellBack} onMode={onMode} />
       <div className="hud-buttons">
         <RosterButton onClick={onRoster} open={rosterOpen} />
         <SoundToggle />

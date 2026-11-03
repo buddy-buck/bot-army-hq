@@ -14,7 +14,7 @@ import Feed from './components/Feed.jsx';
 import Roster from './components/Roster.jsx';
 import UI, { LoadingNotice, RecentHandoffs, Toast } from './components/UI.jsx';
 import { LabelDirector, labelState } from './components/labels.js';
-import useData from './hooks/useData.js';
+import useData, { HAS_LIVE, initialMode, saveMode } from './hooks/useData.js';
 import useSunPosition from './hooks/useSunPosition.js';
 import { DECKS, ISLAND, ZONES, groundY, islandWobble, layoutBots, nearestZone } from './utils/paths.js';
 import { applySafeMode, isSafeMode } from './utils/safe.js';
@@ -340,7 +340,12 @@ function CameraRig({ fly, reduced, holdRotate, insets, controlsRef, layout }) {
 const BUCK_LINES = ['Buck yeah!', 'The Buck stops here.', 'Oh deer, you found it.'];
 
 export default function App() {
-  const { data: rawData, error, version, pulseKeys } = useData();
+  const [mode, setModeState] = useState(initialMode);
+  const setMode = useCallback((m) => {
+    saveMode(m);
+    setModeState(m);
+  }, []);
+  const { data: rawData, error, version, pulseKeys, fellBack } = useData(mode);
   const safe = useMemo(() => isSafeMode(), []);
   const data = useMemo(() => (safe && rawData ? applySafeMode(rawData) : rawData), [rawData, safe]);
   const sky = useSunPosition();
@@ -449,10 +454,14 @@ export default function App() {
       </div>
 
       <div className="hud-top" ref={hudTopRef}>
-        <Ticker minutesSaved={data?.minutesSaved} version={version} isExample={!!data?.isExample} />
+        <Ticker key={`${mode}-${fellBack ? 1 : 0}`} minutesSaved={data?.minutesSaved} version={version} isExample={!!data?.isExample} />
         <UI
           isExample={!!data?.isExample}
           safe={safe}
+          mode={mode}
+          hasLive={HAS_LIVE}
+          fellBack={!!fellBack}
+          onMode={setMode}
           sky={sky}
           error={data ? error : null}
           onRecenter={recenter}

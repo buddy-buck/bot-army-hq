@@ -311,6 +311,70 @@ button {
   white-space: nowrap;
 }
 
+/* Live / Demo switch: small, but each half is a 44px-tall tap target. */
+.mode-wrap {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.mode-toggle {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--cream);
+  border: 1px solid var(--line);
+  box-shadow: 0 2px 8px rgba(14, 30, 45, 0.12);
+}
+
+.mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  min-width: 64px;
+  justify-content: center;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mode-btn.is-on {
+  background: var(--ink);
+  color: #ffffff;
+}
+
+.mode-btn:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.mode-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #1f9d55;
+}
+
+.mode-fallback {
+  padding: 3px 8px;
+  border-radius: var(--radius);
+  background: #fff6e0;
+  color: #6b4a00;
+  border: 1px solid var(--line);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .chip-error {
   background: #fff0ec;
   color: #8a2a12;
