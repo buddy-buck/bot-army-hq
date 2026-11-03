@@ -242,7 +242,7 @@
       "job": "Live deals, Tuesday drafts",
       "status": "working",
       "lastAction": {
-        "text": "Started the Tuesday update for the Hoover listing",
+        "text": "Started the Tuesday update for the Maplewood listing",
         "url": "https://docs.google.com/document/d/example-hoover-tuesday",
         "at": "2026-11-02T14:45:00-08:00"
       },
@@ -402,7 +402,7 @@
       "job": "Home pings for Eve, Parker, Penny",
       "status": "idle",
       "lastAction": {
-        "text": "Reminded the family about Parker's Wednesday practice pickup",
+        "text": "Reminded the family about Afternoon school pickup reminder",
         "url": "",
         "at": "2026-11-02T07:30:00-08:00"
       },
@@ -557,7 +557,7 @@
     },
     {
       "bot": "board",
-      "text": "Started the Tuesday update for the Hoover listing",
+      "text": "Started the Tuesday update for the Maplewood listing",
       "url": "https://docs.google.com/document/d/example-hoover-tuesday",
       "at": "2026-11-02T14:45:00-08:00"
     },
@@ -673,7 +673,7 @@
     },
     {
       "bot": "flo",
-      "text": "Reminded the family about Parker's Wednesday practice pickup",
+      "text": "Reminded the family about Afternoon school pickup reminder",
       "url": "",
       "at": "2026-11-02T07:30:00-08:00"
     },

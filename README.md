@@ -64,8 +64,8 @@ How it behaves:
 
 Use this link before sharing screenshots or a screen recording anywhere public (for example on X). In safe mode:
 
-- Real estate, networking, home and money bots show a generic line instead of their real action, like "Drafted a client update" instead of "Started the Tuesday update for the Hoover listing". To control the exact wording, add `lastAction.publicText` in `data.json`.
-- Other bots keep their text, with names that look like clients ("the Hoover listing"), street addresses, family names (Eve, Parker, Penny), emails and phone numbers swapped for generic words.
+- Real estate, networking, home and money bots show a generic line instead of their real action, like "Drafted a client update" instead of "Started the Tuesday update for the Maplewood listing". To control the exact wording, add `lastAction.publicText` in `data.json`.
+- Other bots keep their text, with names that look like clients ("the Maplewood listing"), street addresses, family names (Eve, Parker, Penny), emails and phone numbers swapped for generic words.
 - Links to Gmail, Google Docs/Drive/Sheets/Calendar, Supabase and local addresses are hidden, along with every link from the sensitive teams. The card says "Link hidden in public view".
 - A small "Public view" note shows at the top.
 
