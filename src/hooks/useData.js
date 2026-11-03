@@ -2,7 +2,49 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { TEAM_ZONE, ZONES } from '../utils/paths.js';
 
 const REFRESH_MS = 5 * 60 * 1000;
-const DATA_URL = import.meta.env.VITE_DATA_URL || `${import.meta.env.BASE_URL}data.json`;
+const LIVE_URL = import.meta.env.VITE_DATA_URL || '';
+const DEMO_URL = `${import.meta.env.BASE_URL}data.json`;
+const MODE_KEY = 'bah-data-mode';
+
+// True when this build has a real feed to show.
+export const HAS_LIVE = !!LIVE_URL;
+
+// Live / Demo choice: ?demo=1 or ?demo=0 wins (and is remembered), then the
+// saved choice, then Live when a real feed exists, otherwise Demo.
+export function initialMode() {
+  if (!HAS_LIVE) return 'demo';
+  try {
+    const q = new URLSearchParams(window.location.search).get('demo');
+    if (q === '1' || q === 'true') {
+      localStorage.setItem(MODE_KEY, 'demo');
+      return 'demo';
+    }
+    if (q === '0' || q === 'false') {
+      localStorage.setItem(MODE_KEY, 'live');
+      return 'live';
+    }
+    const saved = localStorage.getItem(MODE_KEY);
+    if (saved === 'demo' || saved === 'live') return saved;
+  } catch {
+    // storage blocked: fall through to the default
+  }
+  return 'live';
+}
+
+export function saveMode(mode) {
+  try {
+    localStorage.setItem(MODE_KEY, mode);
+  } catch {
+    // ignore
+  }
+}
+
+async function fetchJson(url) {
+  const sep = url.includes('?') ? '&' : '?';
+  const res = await fetch(`${url}${sep}t=${Date.now()}`, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
 
 const MAX_FEED = 40;
 
@@ -89,23 +131,37 @@ export function normalizeData(json) {
 
 const actionKey = (b) => `${b.lastAction.at || ''}|${b.lastAction.text}|${b.lastAction.url}`;
 
-// Fetches /data.json, refreshes every 5 minutes, and tracks which bots'
-// lastAction changed so they can pulse.
-export default function useData() {
-  const [state, setState] = useState({ data: null, error: null, version: 0, pulseKeys: {} });
+// Fetches the live feed (or /data.json in Demo mode), refreshes every 5
+// minutes, and tracks which bots' lastAction changed so they can pulse.
+// If the live feed can't load, it shows the demo data and sets fellBack.
+export default function useData(mode = HAS_LIVE ? 'live' : 'demo') {
+  const [state, setState] = useState({ data: null, error: null, version: 0, pulseKeys: {}, fellBack: false });
   const prevRef = useRef(null);
   const lastLoad = useRef(0);
   const loading = useRef(false);
+  const reqId = useRef(0);
 
   const load = useCallback(async () => {
     if (loading.current) return;
     loading.current = true;
+    const myReq = ++reqId.current;
     try {
-      const sep = DATA_URL.includes('?') ? '&' : '?';
-      const res = await fetch(`${DATA_URL}${sep}t=${Date.now()}`, { cache: 'no-store' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
+      const wantLive = mode === 'live' && HAS_LIVE;
+      let json;
+      let fellBack = false;
+      if (wantLive) {
+        try {
+          json = await fetchJson(LIVE_URL);
+        } catch {
+          json = await fetchJson(DEMO_URL);
+          fellBack = true;
+        }
+      } else {
+        json = await fetchJson(DEMO_URL);
+      }
+      if (myReq !== reqId.current) return; // mode changed mid-fetch
       const data = normalizeData(json);
+      if (!wantLive || fellBack) data.isExample = true;
       lastLoad.current = Date.now();
       setState((s) => {
         const version = s.version + 1;
@@ -119,16 +175,19 @@ export default function useData() {
           }
         }
         prevRef.current = data;
-        return { data, error: null, version, pulseKeys };
+        return { data, error: null, version, pulseKeys, fellBack };
       });
     } catch (err) {
-      setState((s) => ({ ...s, error: err.message || 'Could not load data.json' }));
+      if (myReq === reqId.current) setState((s) => ({ ...s, error: err.message || 'Could not load data.json' }));
     } finally {
-      loading.current = false;
+      if (myReq === reqId.current) loading.current = false;
     }
-  }, []);
+  }, [mode]);
 
   useEffect(() => {
+    // New mode: don't pulse every bot just because the data source changed.
+    prevRef.current = null;
+    loading.current = false;
     load();
     const timer = setInterval(load, REFRESH_MS);
     const onVisible = () => {
