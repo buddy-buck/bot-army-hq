@@ -5,7 +5,108 @@
     "total": 10459,
     "asOf": "2026-11-02T16:00:00-08:00",
     "perHourRate": 31.1,
-    "trackedSince": "2026-09-01"
+    "trackedSince": "2026-09-01",
+    "today": 212,
+    "week": 1418,
+    "ledgerTotal": 10459,
+    "recent": [
+      {
+        "at": "2026-11-02T15:55:00-08:00",
+        "bot": "claude",
+        "minutes": 25,
+        "what": "Built the island guest bungalow"
+      },
+      {
+        "at": "2026-11-02T15:40:00-08:00",
+        "bot": "chief",
+        "minutes": 18,
+        "what": "Set this week's top 3 priorities"
+      },
+      {
+        "at": "2026-11-02T15:20:00-08:00",
+        "bot": "caption",
+        "minutes": 12,
+        "what": "Wrote captions for the weekend posts"
+      },
+      {
+        "at": "2026-11-02T14:45:00-08:00",
+        "bot": "scoop",
+        "minutes": 30,
+        "what": "Pulled comps for a property"
+      },
+      {
+        "at": "2026-11-02T14:10:00-08:00",
+        "bot": "spin",
+        "minutes": 15,
+        "what": "Cut a short video from the show"
+      },
+      {
+        "at": "2026-11-02T13:30:00-08:00",
+        "bot": "recon",
+        "minutes": 22,
+        "what": "Scanned local event listings"
+      },
+      {
+        "at": "2026-11-02T12:05:00-08:00",
+        "bot": "board",
+        "minutes": 20,
+        "what": "Drafted a client update"
+      },
+      {
+        "at": "2026-11-02T11:00:00-08:00",
+        "bot": "poster",
+        "minutes": 10,
+        "what": "Designed a market stats graphic"
+      },
+      {
+        "at": "2026-11-02T10:15:00-08:00",
+        "bot": "nudge",
+        "minutes": 8,
+        "what": "Picked today's networking ping"
+      },
+      {
+        "at": "2026-11-02T09:00:00-08:00",
+        "bot": "echo",
+        "minutes": 14,
+        "what": "Replied to comments"
+      },
+      {
+        "at": "2026-11-02T07:30:00-08:00",
+        "bot": "launch",
+        "minutes": 38,
+        "what": "Shipped a website fix"
+      }
+    ],
+    "daily": [
+      {
+        "date": "2026-10-27",
+        "minutes": 176
+      },
+      {
+        "date": "2026-10-28",
+        "minutes": 241
+      },
+      {
+        "date": "2026-10-29",
+        "minutes": 198
+      },
+      {
+        "date": "2026-10-30",
+        "minutes": 263
+      },
+      {
+        "date": "2026-10-31",
+        "minutes": 122
+      },
+      {
+        "date": "2026-11-01",
+        "minutes": 206
+      },
+      {
+        "date": "2026-11-02",
+        "minutes": 212
+      }
+    ]
   },
   "bots": [
     {
@@ -459,7 +560,7 @@
     {
       "id": "claude",
       "name": "Claude",
-      "pronoun": "they",
+      "pronoun": "she",
       "team": "guest",
       "zone": "guestdesk",
       "color": "#D97757",
@@ -726,6 +827,48 @@
       "text": "Sent Duvall Download #61 to 2,340 subscribers",
       "url": "https://example.com/download/issue-61",
       "at": "2026-11-01T07:00:00-08:00"
+    }
+  ],
+  "nextUp": [
+    {
+      "bot": "recon",
+      "job": "Evening event scan",
+      "at": "2026-11-02T16:04:00-08:00"
+    },
+    {
+      "bot": "caption",
+      "job": "Tomorrow's caption batch",
+      "at": "2026-11-02T16:30:00-08:00"
+    },
+    {
+      "bot": "chief",
+      "job": "End-of-day wrap",
+      "at": "2026-11-02T17:15:00-08:00"
+    },
+    {
+      "bot": "spin",
+      "job": "Weekly show clips",
+      "at": "2026-11-02T18:14:00-08:00"
+    },
+    {
+      "bot": "benji",
+      "job": "Monthly money check-in",
+      "at": "2026-11-02T20:00:00-08:00"
+    },
+    {
+      "bot": "echo",
+      "job": "Comment sweep",
+      "at": "2026-11-02T22:30:00-08:00"
+    },
+    {
+      "bot": "stamp",
+      "job": "Morning market stats",
+      "at": "2026-11-03T05:00:00-08:00"
+    },
+    {
+      "bot": "lead",
+      "job": "New prospect review",
+      "at": "2026-11-03T07:30:00-08:00"
     }
   ]
 }

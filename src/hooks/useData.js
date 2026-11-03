@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { TEAM_ZONE, ZONES } from '../utils/paths.js';
 
-const REFRESH_MS = 5 * 60 * 1000;
+// Every 5 minutes. In local dev only, ?refresh=20 refreshes every 20 seconds for testing.
+const DEV_REFRESH = import.meta.env.DEV && typeof window !== 'undefined' ? Number(new URLSearchParams(window.location.search).get('refresh')) : 0;
+const REFRESH_MS = DEV_REFRESH >= 10 ? DEV_REFRESH * 1000 : 5 * 60 * 1000;
 const LIVE_URL = import.meta.env.VITE_DATA_URL || '';
 const DEMO_URL = `${import.meta.env.BASE_URL}data.json`;
 const MODE_KEY = 'bah-data-mode';
@@ -72,6 +74,91 @@ function resolveZone(id, zone, team) {
   return HOME_ZONE[id] || TEAM_ZONE[team] || 'tower';
 }
 
+// Pronouns come from the data ("he", "she", "he/him", ...). Anything else
+// falls back to the house list: these bots are he/him, everyone else she/her.
+const HE_BOTS = new Set(['chief', 'brobot', 'board', 'recon', 'nasty', 'benji', 'jet']);
+export function normalizePronoun(id, value) {
+  const v = String(value || '').trim().toLowerCase();
+  if (v === 'he' || v.startsWith('he/')) return 'he';
+  if (v === 'she' || v.startsWith('she/')) return 'she';
+  return HE_BOTS.has(id) ? 'he' : 'she';
+}
+export const pronounLabel = (p) => (p === 'he' ? 'he/him' : 'she/her');
+
+const num = (v) => (v === null || v === undefined || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));
+
+// minutesSaved: total/asOf/perHourRate as before, plus optional today, live,
+// ledgerTotal, week, recent [{ at, bot, minutes, what }] and daily [{ date, minutes }].
+function normalizeMinutes(raw, ids) {
+  const m = raw && typeof raw === 'object' ? raw : {};
+  const recent = Array.isArray(m.recent)
+    ? m.recent
+        .filter((r) => r && num(r.minutes) !== null && num(r.minutes) > 0)
+        .map((r) => ({
+          at: r.at || null,
+          bot: ids.has(r.bot) ? r.bot : null,
+          minutes: Number(r.minutes),
+          what: r.what ? String(r.what) : '',
+        }))
+        .sort((a, b) => (Date.parse(b.at) || 0) - (Date.parse(a.at) || 0))
+    : [];
+  const daily = Array.isArray(m.daily)
+    ? m.daily.filter((d) => d && d.date && num(d.minutes) !== null).map((d) => ({ date: String(d.date), minutes: Number(d.minutes) }))
+    : [];
+  return {
+    total: num(m.total) ?? 0,
+    asOf: m.asOf || null,
+    perHourRate: num(m.perHourRate) ?? 0,
+    trackedSince: m.trackedSince || null,
+    today: num(m.today),
+    live: num(m.live),
+    ledgerTotal: num(m.ledgerTotal),
+    week: num(m.week),
+    recent,
+    daily,
+  };
+}
+
+// Headline number: the live total when the feed has one, else total.
+export const headlineMinutes = (ms) => (ms ? ms.live ?? ms.total ?? 0 : 0);
+
+function normalizeNextUp(raw, ids) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((n) => n && ids.has(n.bot) && !Number.isNaN(Date.parse(n.at)))
+    .map((n) => ({ bot: n.bot, job: n.job ? String(n.job) : '', at: n.at }))
+    .sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+}
+
+// Demo freshness: slide every sample timestamp so the newest one lands near
+// "now". The shift is kept for the session (so countdowns really count down)
+// and is only redone when the sample data has gone more than 3 hours stale.
+let demoShift = null;
+const DAY_MS = 24 * 3600 * 1000;
+function shiftDates(node, ms, days) {
+  if (Array.isArray(node)) return node.map((n) => shiftDates(n, ms, days));
+  if (!node || typeof node !== 'object') return node;
+  const out = {};
+  for (const [k, v] of Object.entries(node)) {
+    if ((k === 'at' || k === 'asOf' || k === 'updatedAt') && typeof v === 'string' && !Number.isNaN(Date.parse(v))) {
+      out[k] = new Date(Date.parse(v) + ms).toISOString();
+    } else if (k === 'date' && typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
+      const d = new Date(`${v}T12:00:00Z`);
+      d.setUTCDate(d.getUTCDate() + days);
+      out[k] = d.toISOString().slice(0, 10);
+    } else {
+      out[k] = shiftDates(v, ms, days);
+    }
+  }
+  return out;
+}
+export function rebaseDemo(json, now = Date.now()) {
+  const anchor = Date.parse(json?.updatedAt || json?.minutesSaved?.asOf || '');
+  if (Number.isNaN(anchor)) return json;
+  if (demoShift === null || now - (anchor + demoShift) > 3 * 3600 * 1000) demoShift = now - anchor - 60 * 1000;
+  return shiftDates(json, demoShift, Math.round(demoShift / DAY_MS));
+}
+
 function normalizeBot(raw) {
   const id = String(raw.id || '').trim();
   const la = raw.lastAction || {};
@@ -79,7 +166,7 @@ function normalizeBot(raw) {
   return {
     id,
     name: raw.name || id.charAt(0).toUpperCase() + id.slice(1),
-    pronoun: raw.pronoun || 'they',
+    pronoun: normalizePronoun(id, raw.pronoun),
     team: raw.team || ZONE_TEAM[zone] || 'guest',
     zone,
     color: raw.color || '#8a8f98',
@@ -92,6 +179,7 @@ function normalizeBot(raw) {
       at: la.at || null,
     },
     note: raw.note || (id === 'claude' ? 'Launch and Chief drop by.' : ''),
+    minutesToday: num(raw.minutesToday),
     avatarUrl: raw.avatarUrl || `${import.meta.env.BASE_URL}avatars/${id}.png`,
   };
 }
@@ -123,11 +211,15 @@ export function normalizeData(json) {
     isExample: json?._example === true,
     feed,
     updatedAt: json?.updatedAt || null,
-    minutesSaved: json?.minutesSaved || { total: 0, asOf: new Date().toISOString(), perHourRate: 0 },
+    minutesSaved: normalizeMinutes(json?.minutesSaved, ids),
+    nextUp: normalizeNextUp(json?.nextUp, ids),
     bots,
     handoffs,
   };
 }
+
+const gainKey = (r) => `${r.at}|${r.bot}|${r.minutes}|${r.what}`;
+let gainId = 0;
 
 const actionKey = (b) => `${b.lastAction.at || ''}|${b.lastAction.text}|${b.lastAction.url}`;
 
@@ -135,7 +227,7 @@ const actionKey = (b) => `${b.lastAction.at || ''}|${b.lastAction.text}|${b.last
 // minutes, and tracks which bots' lastAction changed so they can pulse.
 // If the live feed can't load, it shows the demo data and sets fellBack.
 export default function useData(mode = HAS_LIVE ? 'live' : 'demo') {
-  const [state, setState] = useState({ data: null, error: null, version: 0, pulseKeys: {}, fellBack: false });
+  const [state, setState] = useState({ data: null, error: null, version: 0, pulseKeys: {}, fellBack: false, gains: [] });
   const prevRef = useRef(null);
   const lastLoad = useRef(0);
   const loading = useRef(false);
@@ -160,22 +252,34 @@ export default function useData(mode = HAS_LIVE ? 'live' : 'demo') {
         json = await fetchJson(DEMO_URL);
       }
       if (myReq !== reqId.current) return; // mode changed mid-fetch
-      const data = normalizeData(json);
-      if (!wantLive || fellBack) data.isExample = true;
+      const isDemo = !wantLive || fellBack;
+      const data = normalizeData(isDemo ? rebaseDemo(json) : json);
+      if (isDemo) data.isExample = true;
       lastLoad.current = Date.now();
+      // Diff against the previous load here, outside the state updater, so the
+      // updater stays pure (React may run it twice).
+      const prev = prevRef.current;
+      // New minutesSaved.recent entries since the last refresh: each one
+      // floats a "+N min" chip from the bot that earned it.
+      let gains = [];
+      if (prev && prev.isExample === data.isExample) {
+        const seen = new Set(prev.minutesSaved.recent.map(gainKey));
+        gains = data.minutesSaved.recent.filter((r) => !seen.has(gainKey(r))).map((r) => ({ ...r, id: ++gainId }));
+      }
+      const changed = [];
+      if (prev) {
+        const prevById = Object.fromEntries(prev.bots.map((b) => [b.id, b]));
+        for (const b of data.bots) {
+          const p = prevById[b.id];
+          if (p && actionKey(p) !== actionKey(b)) changed.push(b.id);
+        }
+      }
+      prevRef.current = data;
       setState((s) => {
         const version = s.version + 1;
         const pulseKeys = { ...s.pulseKeys };
-        const prev = prevRef.current;
-        if (prev) {
-          const prevById = Object.fromEntries(prev.bots.map((b) => [b.id, b]));
-          for (const b of data.bots) {
-            const p = prevById[b.id];
-            if (p && actionKey(p) !== actionKey(b)) pulseKeys[b.id] = version;
-          }
-        }
-        prevRef.current = data;
-        return { data, error: null, version, pulseKeys, fellBack };
+        for (const id of changed) pulseKeys[id] = version;
+        return { data, error: null, version, pulseKeys, fellBack, gains };
       });
     } catch (err) {
       if (myReq === reqId.current) setState((s) => ({ ...s, error: err.message || 'Could not load data.json' }));

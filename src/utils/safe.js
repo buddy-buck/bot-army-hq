@@ -39,6 +39,13 @@ const GENERIC_BY_TEAM = {
   money: 'Checked the budget',
 };
 
+const GENERIC_NEXT_BY_TEAM = {
+  realestate: 'Client updates',
+  networking: 'Networking check-in',
+  home: 'Home reminders',
+  money: 'Money check-in',
+};
+
 const PRIVATE_HOSTS = [
   /(^|\.)mail\.google\.com$/,
   /(^|\.)docs\.google\.com$/,
@@ -130,5 +137,14 @@ export function applySafeMode(data) {
     const text = f.publicText || (sensitive ? GENERIC_BY_ID[f.bot] || GENERIC_BY_TEAM[t] || 'Finished a task' : capitalize(scrubText(f.text)));
     return { ...f, text, url: hideLink ? '' : f.url };
   });
-  return { ...data, bots, handoffs, feed };
+  // Minutes ledger and the schedule: sensitive teams get no detail at all.
+  const ms = data.minutesSaved;
+  const minutesSaved = ms
+    ? { ...ms, recent: (ms.recent || []).map((r) => ({ ...r, what: r.bot && SENSITIVE_TEAMS.has(team[r.bot]) ? GENERIC_BY_ID[r.bot] || GENERIC_BY_TEAM[team[r.bot]] || 'Finished a task' : capitalize(scrubText(r.what)) })) }
+    : ms;
+  const nextUp = (data.nextUp || []).map((n) => ({
+    ...n,
+    job: SENSITIVE_TEAMS.has(team[n.bot]) ? GENERIC_NEXT_BY_TEAM[team[n.bot]] || 'Scheduled task' : capitalize(scrubText(n.job)),
+  }));
+  return { ...data, bots, handoffs, feed, minutesSaved, nextUp };
 }

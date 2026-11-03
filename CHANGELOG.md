@@ -1,5 +1,31 @@
 # Changelog
 
+## Island Round 3
+
+1. **No more blue blobs.** The far-ocean disk sat at y=-0.12 and poked through wave troughs (down to about -0.15). It now sits at y=-0.4.
+2. **Sea life.** Two great white shark fins circle slowly with wakes, a blue marlin leaps every 40 to 90 seconds with splashes, salmon hop off the end of Launch's Pier, and small fish schools swim in the shallows. All low-poly.
+3. **Compact scoreboard.** "Buddy's minutes saved" is now a single chip (at most 8% of screen height). Tap it for today, this week, all time, top bot this week, a 7-day sparkline and the latest gains.
+4. **Real-time minutes.** A higher total rolls up like an odometer. Each new `minutesSaved.recent` entry floats a "+18 min" chip from the bot that earned it, and that bot does a little cheer.
+5. **Lock icon for safe mode.** Safe mode stays on by default; a small lock says "Names hidden for sharing".
+6. **Past / Now / Next.** The activity panel has three tabs: real feed entries with PT times, who's working now (tap to fly), and upcoming runs from the new optional `nextUp` array with live countdowns and a spotlight at T-0.
+7. **Nasty's umbrella** has a red and white striped canopy with a navy crown and little white stars. Chair and cooler stay red.
+8. **"Chillin'"** everywhere: cards, Find a bot, the activity panel and the README.
+9. **Launch's Pier.** The dock has a new name everywhere.
+10. **Bigger drinks.** Mai tais, margaritas and coconuts are 60% bigger. Chillin' bots standing together clink glasses, and a bot that finishes a task does a happy sip-hop.
+11. **Kiosk mode** (button or `?kiosk=1`, remembered): keeps the screen awake where supported, hides secondary buttons, and drifts the camera and panels slightly to prevent burn-in.
+12. **Battery.** Pixel ratio capped at 1.5 on touch devices, about 30fps after 60 seconds with no touch, waves moved into a shader, and no 250ms ticker timer.
+13. **Bigger clock:** "Tue Nov 3, 1:07 PM PT" with a sun or moon.
+14. **Activity starts collapsed** as a slim chip and opens to a side drawer (bottom sheet in portrait).
+15. **Radar card.** Tap the radar for a bigger view with each ring labeled by team and its working count.
+16. **One chip system.** Every chip and icon button is 44px tall with the same corners, border and shadow.
+17. **Demo freshness.** Sample timestamps slide to "now" at load, so the demo never looks stale.
+18. **Bot card** shows "he/him" or "she/her", plus "Next run" and "Saved today" when the data has them.
+19. **Living world.** Seagulls, a sailboat on the horizon, a sea turtle that surfaces, dolphins at sunrise, fireflies at night and a faint bioluminescent shimmer along the shore.
+20. **Celebrations.** Crossing a round thousand fires confetti from Chief's Tower and a "Buck yeah!" toast.
+21. **Readability.** Muted text is #4a5363 or darker, small text is at least 16px, and every panel stays light at night.
+
+Also: the camera glides to the new framing when an iPad rotates, reduced motion skips sea life and effects while keeping every number and list, and every tap target is at least 44px.
+
 ## Round 1
 
 1. **Real feed.** Each bot's `lastAction` (`text`, `url`, `at`) drives the island. The looping handoff replay is gone: each real handoff from the last 24 hours plays once, and new ones play when the data refreshes. Sample data shows a small cream "Demo mode: sample data" note in place of the old EXAMPLE DATA badge. Real data shows no note.

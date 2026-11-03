@@ -151,54 +151,82 @@ function Terrain({ onTap }) {
   );
 }
 
-function Water({ tint, animate, onTap }) {
+// Waves run on the GPU: the vertex shader lifts each vertex, and flat
+// shading picks up the new slopes for free. At night a faint bioluminescent
+// shimmer glints in the shallows (skipped on low-power devices).
+const WAVE_GLSL = /* glsl */ `
+  uniform float uTime;
+  varying vec2 vXZ;
+  float waveY(vec2 p, float t) {
+    return 0.07 * sin(p.x * 0.35 + t * 0.8) + 0.05 * cos(p.y * 0.42 + t * 0.63) + 0.03 * sin((p.x + p.y) * 0.9 + t * 1.4);
+  }
+`;
+
+function Water({ tint, animate, onTap, glow = 0 }) {
   const ref = useRef();
-  const { geometry, bx, bz } = useMemo(() => {
+  const geometry = useMemo(() => {
     const g = new THREE.PlaneGeometry(170, 170, 84, 84);
     g.rotateX(-Math.PI / 2);
     const pos = g.attributes.position;
-    const bxArr = new Float32Array(pos.count);
-    const bzArr = new Float32Array(pos.count);
     const colors = new Float32Array(pos.count * 3);
     const shallow = new THREE.Color('#72e6da');
     const mid = new THREE.Color('#2bb9cb');
     const deep = new THREE.Color('#1784b3');
     const c = new THREE.Color();
     for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i);
-      const z = pos.getZ(i);
-      bxArr[i] = x;
-      bzArr[i] = z;
-      const e = islandE(x, z);
+      const e = islandE(pos.getX(i), pos.getZ(i));
       if (e < 2.0) c.copy(shallow).lerp(mid, Math.max(0, (e - 1.1) / 0.9));
       else c.copy(mid).lerp(deep, Math.min(1, (e - 2.0) / 4));
       c.toArray(colors, i * 3);
     }
     g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    return { geometry: g, bx: bxArr, bz: bzArr };
+    return g;
   }, []);
 
+  const uniforms = useMemo(() => ({ uTime: { value: 0 }, uGlow: { value: 0 } }), []);
+  const material = useMemo(() => {
+    const m = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, transparent: true, opacity: 0.82, roughness: 0.3, metalness: 0.05 });
+    m.onBeforeCompile = (shader) => {
+      shader.uniforms.uTime = uniforms.uTime;
+      shader.uniforms.uGlow = uniforms.uGlow;
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', `#include <common>\n${WAVE_GLSL}`)
+        .replace('#include <begin_vertex>', `#include <begin_vertex>\n  vXZ = position.xz;\n  transformed.y += waveY(position.xz, uTime);`);
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', `#include <common>\nuniform float uTime;\nuniform float uGlow;\nvarying vec2 vXZ;`)
+        .replace(
+          '#include <emissivemap_fragment>',
+          `#include <emissivemap_fragment>
+  if (uGlow > 0.0) {
+    float d = length(vXZ / vec2(13.0, 9.5));
+    float band = smoothstep(0.95, 1.08, d) * (1.0 - smoothstep(1.2, 1.55, d));
+    float s = sin(vXZ.x * 4.1 + uTime * 0.9) * sin(vXZ.y * 3.7 - uTime * 0.7) * sin((vXZ.x - vXZ.y) * 2.3 + uTime * 0.5);
+    totalEmissiveRadiance += vec3(0.2, 0.85, 1.0) * pow(max(s, 0.0), 12.0) * band * uGlow * 0.9;
+  }`
+        );
+    };
+    m.customProgramCacheKey = () => 'island-water-v1';
+    return m;
+  }, [uniforms]);
+
+  useEffect(() => {
+    material.color.set(tint);
+  }, [material, tint]);
+  useEffect(() => {
+    uniforms.uGlow.value = glow;
+  }, [uniforms, glow]);
+  useEffect(() => () => material.dispose(), [material]);
+
   useFrame((state) => {
-    if (!animate) return;
-    const t = state.clock.elapsedTime;
-    const pos = geometry.attributes.position;
-    const arr = pos.array;
-    for (let i = 0; i < pos.count; i++) {
-      const x = bx[i];
-      const z = bz[i];
-      arr[i * 3 + 1] =
-        0.07 * Math.sin(x * 0.35 + t * 0.8) + 0.05 * Math.cos(z * 0.42 + t * 0.63) + 0.03 * Math.sin((x + z) * 0.9 + t * 1.4);
-    }
-    pos.needsUpdate = true;
+    if (animate) uniforms.uTime.value = state.clock.elapsedTime;
   });
 
   return (
     <group>
-      <mesh ref={ref} geometry={geometry} onClick={onTap} renderOrder={1}>
-        <meshStandardMaterial vertexColors flatShading color={tint} transparent opacity={0.82} roughness={0.3} metalness={0.05} />
-      </mesh>
-      {/* Far ocean, static, fades into the horizon fog */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.12, 0]}>
+      <mesh ref={ref} geometry={geometry} material={material} onClick={onTap} renderOrder={1} />
+      {/* Far ocean, static, fades into the horizon fog. Sits well below the
+          wave troughs (lowest about -0.15) so it never pokes through. */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.4, 0]}>
         <circleGeometry args={[420, 48]} />
         <meshStandardMaterial color="#2a86c8" roughness={0.4} />
       </mesh>
@@ -839,6 +867,39 @@ function Lookout({ night, animate }) {
   );
 }
 
+// Nasty's umbrella: red and white striped canopy with a navy crown dotted
+// with little white stars. The vibe, not a literal flag.
+const CANOPY = (() => {
+  const seg = 14;
+  const g = new THREE.CylinderGeometry(0.46, 1.25, 0.34, seg, 1, true).toNonIndexed();
+  const n = g.attributes.position.count;
+  const colors = new Float32Array(n * 3);
+  const red = new THREE.Color('#c8202f');
+  const white = new THREE.Color('#fbf7ef');
+  for (let i = 0; i < n; i++) (Math.floor(i / 6) % 2 ? white : red).toArray(colors, i * 3);
+  g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  g.computeVertexNormals();
+  return g;
+})();
+const CANOPY_MAT = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.8, side: THREE.DoubleSide });
+const NAVY = std('#1f3a8a');
+const STAR_GEO = new THREE.OctahedronGeometry(0.045, 0).scale(1, 0.4, 1);
+
+function StarsAndStripesCanopy() {
+  return (
+    <group position={[0, 1.98, 0]}>
+      <mesh geometry={CANOPY} material={CANOPY_MAT} />
+      <Cone p={[0, 0.27, 0]} rad={0.5} h={0.2} seg={14} m={NAVY} />
+      {Array.from({ length: 7 }, (_, i) => {
+        const a = (i / 7) * Math.PI * 2;
+        return <mesh key={i} geometry={STAR_GEO} material={M.white} position={[Math.cos(a) * 0.3, 0.25, Math.sin(a) * 0.3]} rotation={[0.38 * Math.sin(a), a, -0.38 * Math.cos(a)]} />;
+      })}
+      <mesh geometry={STAR_GEO} material={M.white} position={[0, 0.38, 0]} />
+      <Cyl p={[0, 0.42, 0]} rt={0.04} h={0.08} m={M.white} />
+    </group>
+  );
+}
+
 function BeachChair() {
   const cx = 8.6;
   const cz = 6.0;
@@ -857,8 +918,7 @@ function BeachChair() {
       ))}
       <group position={[0.9, 0, -0.5]} rotation={[0, 0, -0.12]}>
         <Cyl p={[0, 1.0, 0]} rt={0.03} h={2.0} m={M.white} />
-        <Cone p={[0, 2.0, 0]} rad={1.2} h={0.42} m={M.nasty} />
-        <Cone p={[0, 2.25, 0]} rad={0.3} h={0.15} m={M.white} />
+        <StarsAndStripesCanopy />
       </group>
       {/* a cooler (Nasty keeps the coconut in hand) */}
       <group position={[-0.75, 0, 0.3]}>
@@ -992,12 +1052,12 @@ function ZoneLabels({ onZoneTap }) {
 
 // ---------------------------------------------------------------------------
 
-export default function Island({ sky, animate = true, onGroundTap, onZoneTap, showLabels = true }) {
+export default function Island({ sky, animate = true, onGroundTap, onZoneTap, showLabels = true, lowPower = false }) {
   const night = sky.stars;
   return (
     <group>
       <Terrain onTap={onGroundTap} />
-      <Water tint={sky.water} animate={animate} onTap={onGroundTap} />
+      <Water tint={sky.water} animate={animate} onTap={onGroundTap} glow={animate && !lowPower ? sky.stars : 0} />
       <Foam animate={animate} />
       <SandPaths />
       <Palms animate={animate} />
