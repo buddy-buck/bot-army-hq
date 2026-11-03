@@ -1,4 +1,4 @@
-// Public-safe mode (?safe=1): hides client names, family details and private
+// Public-safe mode (ON by default; ?safe=0 turns it off for testing): hides client names, family details and private
 // links so the island can be shown or screenshotted in public.
 //
 // Note: this only changes what the page shows. data.json itself is still a
@@ -6,9 +6,9 @@
 // truly private in it.
 
 export function isSafeMode() {
-  if (typeof window === 'undefined') return false;
+  if (typeof window === 'undefined') return true;
   const v = new URLSearchParams(window.location.search).get('safe');
-  return v === '1' || v === 'true';
+  return !(v === '0' || v === 'false');
 }
 
 // Teams whose work is mostly about clients, contacts, family or money.

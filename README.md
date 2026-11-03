@@ -25,7 +25,7 @@ Handy test switches (add to the URL):
 | `?hour=21` | Pretend it's 9 PM in Duvall (night sky, hammocks, lanterns). Any value 0 to 24 works. |
 | `?hour=6` / `?hour=18` | Sunrise / golden hour |
 | `?reduced=1` | Force the reduced-motion view (flat top-down, no animation) |
-| `?safe=1` | Public-safe view: hides client names, family details and private links (see below) |
+| `?safe=0` | Turns off public-safe view for testing. Safe view is ON by default (see below) |
 
 Note: if npm prints a warning that esbuild's install script was skipped, the build still works. If `npm run dev` ever fails because esbuild is missing, run `npm rebuild esbuild`.
 
@@ -60,12 +60,12 @@ How it behaves:
 - **Reduced motion**: if the phone or computer has "Reduce Motion" turned on, you get a still top-down view with all the same data, plus a "Recent handoffs" list.
 - **Data refresh**: `data.json` is re-fetched every 5 minutes. The ticker pulses on refresh, and any bot whose last action changed gets a ripple at its feet.
 
-## Public-safe mode (`?safe=1`)
+## Public-safe mode (on by default)
 
-Use this link before sharing screenshots or a screen recording anywhere public (for example on X). In safe mode:
+Safe mode is on for every visit, so screenshots and screen recordings are safe to share anywhere public (for example on X). Add `?safe=0` to turn it off for testing. In safe mode:
 
-- Real estate, networking, home and money bots show a generic line instead of their real action, like "Drafted a client update" instead of "Started the Tuesday update for the Maplewood listing". To control the exact wording, add `lastAction.publicText` in `data.json`.
-- Other bots keep their text, with names that look like clients ("the Maplewood listing"), street addresses, family names (Eve, Parker, Penny), emails and phone numbers swapped for generic words.
+- Real estate, networking, home and money bots show a generic line instead of their real action, like "Drafted a client update" instead of the real action text. To control the exact wording, add `lastAction.publicText` in `data.json`.
+- Other bots keep their text, with names that look like clients ("the Smith listing"), street addresses, family names, emails and phone numbers swapped for generic words.
 - Links to Gmail, Google Docs/Drive/Sheets/Calendar, Supabase and local addresses are hidden, along with every link from the sensitive teams. The card says "Link hidden in public view".
 - A small "Public view" note shows at the top.
 

@@ -43,7 +43,7 @@
     {
       "id": "caption",
       "name": "Caption",
-      "pronoun": "they",
+      "pronoun": "she",
       "team": "content",
       "zone": "cabana",
       "color": "#F09024",
@@ -59,7 +59,7 @@
     {
       "id": "slide",
       "name": "Slide",
-      "pronoun": "they",
+      "pronoun": "she",
       "team": "content",
       "zone": "cabana",
       "color": "#2F6FED",
@@ -75,7 +75,7 @@
     {
       "id": "poster",
       "name": "Poster",
-      "pronoun": "they",
+      "pronoun": "she",
       "team": "content",
       "zone": "cabana",
       "color": "#2BA84A",
@@ -91,7 +91,7 @@
     {
       "id": "cue",
       "name": "Cue",
-      "pronoun": "they",
+      "pronoun": "she",
       "team": "content",
       "zone": "cabana",
       "color": "#D63AF9",
@@ -123,7 +123,7 @@
     {
       "id": "download",
       "name": "Download",
-      "pronoun": "they",
+      "pronoun": "she",
       "team": "content",
       "zone": "cabana",
       "color": "#F09024",
@@ -139,7 +139,7 @@
     {
       "id": "stamp",
       "name": "Stamp",
-      "pronoun": "they",
+      "pronoun": "she",
       "team": "content",
       "zone": "cabana",
       "color": "#F09024",
@@ -171,7 +171,7 @@
     {
       "id": "vibe",
       "name": "Vibe",
-      "pronoun": "they",
+      "pronoun": "she",
       "team": "content",
       "zone": "cabana",
       "color": "#06B6D4",
@@ -187,7 +187,7 @@
     {
       "id": "desk",
       "name": "Desk",
-      "pronoun": "they",
+      "pronoun": "she",
       "team": "content",
       "zone": "cabana",
       "color": "#F09024",
@@ -203,7 +203,7 @@
     {
       "id": "lead",
       "name": "Lead",
-      "pronoun": "they",
+      "pronoun": "she",
       "team": "realestate",
       "zone": "lanai",
       "color": "#2F6FED",
@@ -219,7 +219,7 @@
     {
       "id": "tour",
       "name": "Tour",
-      "pronoun": "they",
+      "pronoun": "she",
       "team": "realestate",
       "zone": "lanai",
       "color": "#2F6FED",
@@ -235,15 +235,15 @@
     {
       "id": "board",
       "name": "Board",
-      "pronoun": "they",
+      "pronoun": "he",
       "team": "realestate",
       "zone": "lanai",
       "color": "#2F6FED",
       "job": "Live deals, Tuesday drafts",
       "status": "working",
       "lastAction": {
-        "text": "Started the Tuesday update for the Maplewood listing",
-        "url": "https://docs.google.com/document/d/example-hoover-tuesday",
+        "text": "Started a seller update",
+        "url": "https://docs.google.com/document/d/example-seller-update",
         "at": "2026-11-02T14:45:00-08:00"
       },
       "avatarUrl": "/avatars/board.png"
@@ -258,8 +258,8 @@
       "job": "Property intel and comps",
       "status": "working",
       "lastAction": {
-        "text": "Pulled 6 comps for the Riverview Ln offer",
-        "url": "https://example.com/comps/riverview-ln",
+        "text": "Pulled 6 comps for an offer",
+        "url": "https://example.com/comps/example-offer",
         "at": "2026-11-02T11:00:00-08:00"
       },
       "avatarUrl": "/avatars/scoop.png"
@@ -274,8 +274,8 @@
       "job": "Offer review",
       "status": "idle",
       "lastAction": {
-        "text": "Reviewed the offer on 1423 Riverview Ln: 2 items to flag before signing",
-        "url": "https://drive.google.com/file/d/example-riverview-offer",
+        "text": "Reviewed an offer: 2 items to flag before signing",
+        "url": "https://drive.google.com/file/d/example-offer",
         "at": "2026-11-02T12:10:00-08:00"
       },
       "avatarUrl": "/avatars/dottie.png"
@@ -290,8 +290,8 @@
       "job": "MA to closing",
       "status": "working",
       "lastAction": {
-        "text": "Inspection response due Wednesday for the Martinez sale, reminder set",
-        "url": "https://example.com/transactions/cherry-valley",
+        "text": "Inspection response due Wednesday for a sale, reminder set",
+        "url": "https://example.com/transactions/example-sale",
         "at": "2026-11-02T13:30:00-08:00"
       },
       "avatarUrl": "/avatars/tracy.png"
@@ -331,7 +331,7 @@
     {
       "id": "scout",
       "name": "Scout",
-      "pronoun": "he",
+      "pronoun": "she",
       "team": "networking",
       "zone": "tikihut",
       "color": "#2BA84A",
@@ -347,7 +347,7 @@
     {
       "id": "nudge",
       "name": "Nudge",
-      "pronoun": "they",
+      "pronoun": "she",
       "team": "networking",
       "zone": "tikihut",
       "color": "#8B5CF6",
@@ -363,7 +363,7 @@
     {
       "id": "benji",
       "name": "Benji",
-      "pronoun": "they",
+      "pronoun": "he",
       "team": "money",
       "zone": "moneydesk",
       "color": "#0F9D8A",
@@ -379,7 +379,7 @@
     {
       "id": "launch",
       "name": "Launch",
-      "pronoun": "they",
+      "pronoun": "she",
       "team": "product",
       "zone": "dock",
       "color": "#2BA84A",
@@ -395,11 +395,11 @@
     {
       "id": "flo",
       "name": "Flo",
-      "pronoun": "they",
+      "pronoun": "she",
       "team": "home",
       "zone": "bungalow",
       "color": "#8B5CF6",
-      "job": "Home pings for Eve, Parker, Penny",
+      "job": "Home and family pings",
       "status": "idle",
       "lastAction": {
         "text": "Reminded the family about Afternoon school pickup reminder",
@@ -411,7 +411,7 @@
     {
       "id": "recon",
       "name": "Recon",
-      "pronoun": "they",
+      "pronoun": "he",
       "team": "research",
       "zone": "lookout",
       "color": "#2BA84A",
@@ -427,7 +427,7 @@
     {
       "id": "brobot",
       "name": "Brobot",
-      "pronoun": "they",
+      "pronoun": "he",
       "team": "research",
       "zone": "lookout",
       "color": "#2BA84A",
@@ -443,7 +443,7 @@
     {
       "id": "nasty",
       "name": "Nasty",
-      "pronoun": "they",
+      "pronoun": "he",
       "team": "fun",
       "zone": "beachchair",
       "color": "#FF4500",
@@ -521,7 +521,7 @@
       "from": "board",
       "to": "dottie",
       "at": "2026-11-02T11:30:00-08:00",
-      "what": "Riverview Ln offer to review"
+      "what": "Offer to review"
     },
     {
       "from": "recon",
@@ -557,8 +557,8 @@
     },
     {
       "bot": "board",
-      "text": "Started the Tuesday update for the Maplewood listing",
-      "url": "https://docs.google.com/document/d/example-hoover-tuesday",
+      "text": "Started a seller update",
+      "url": "https://docs.google.com/document/d/example-seller-update",
       "at": "2026-11-02T14:45:00-08:00"
     },
     {
@@ -575,8 +575,8 @@
     },
     {
       "bot": "tracy",
-      "text": "Inspection response due Wednesday for the Martinez sale, reminder set",
-      "url": "https://example.com/transactions/cherry-valley",
+      "text": "Inspection response due Wednesday for a sale, reminder set",
+      "url": "https://example.com/transactions/example-sale",
       "at": "2026-11-02T13:30:00-08:00"
     },
     {
@@ -594,8 +594,8 @@
     },
     {
       "bot": "dottie",
-      "text": "Reviewed the offer on 1423 Riverview Ln: 2 items to flag before signing",
-      "url": "https://drive.google.com/file/d/example-riverview-offer",
+      "text": "Reviewed an offer: 2 items to flag before signing",
+      "url": "https://drive.google.com/file/d/example-offer",
       "at": "2026-11-02T12:10:00-08:00"
     },
     {
@@ -608,7 +608,7 @@
     {
       "bot": "board",
       "to": "dottie",
-      "text": "Handed off: Riverview Ln offer to review",
+      "text": "Handed off: Offer to review",
       "url": "",
       "at": "2026-11-02T11:30:00-08:00"
     },
@@ -626,8 +626,8 @@
     },
     {
       "bot": "scoop",
-      "text": "Pulled 6 comps for the Riverview Ln offer",
-      "url": "https://example.com/comps/riverview-ln",
+      "text": "Pulled 6 comps for an offer",
+      "url": "https://example.com/comps/example-offer",
       "at": "2026-11-02T11:00:00-08:00"
     },
     {

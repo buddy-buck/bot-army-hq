@@ -4,6 +4,7 @@
    Corners are 4 to 6px everywhere: no pills, no circles. No gold. */
 
 :root {
+  color-scheme: light;
   --cream: #fffbf2;
   --white: #ffffff;
   --ink: #1f2430;
