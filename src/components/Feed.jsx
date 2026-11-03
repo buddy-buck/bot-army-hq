@@ -22,6 +22,22 @@ export function recentFeed(feed, now = Date.now()) {
     .slice(0, MAX_ITEMS);
 }
 
+// Past tab: feed entries plus minutesSaved.recent entries from the last 24h.
+// A ledger entry that matches a feed line (same bot, within 2 minutes) adds
+// its "+N min" to that line instead of showing twice.
+export function pastItems(feed, recent, now = Date.now()) {
+  const items = recentFeed(feed, now).map((f) => ({ ...f, minutes: null }));
+  const gains = (recent || [])
+    .map((r) => ({ ...r, t: Date.parse(r.at) }))
+    .filter((r) => r.bot && !Number.isNaN(r.t) && now - r.t <= RECENT_MS && r.t - now < 5 * 60 * 1000);
+  for (const g of gains) {
+    const match = items.find((f) => f.bot === g.bot && f.minutes === null && Math.abs(f.t - g.t) <= 2 * 60 * 1000);
+    if (match) match.minutes = g.minutes;
+    else items.push({ bot: g.bot, text: g.what || 'Saved Buddy some time', url: '', at: g.at, t: g.t, to: null, minutes: g.minutes });
+  }
+  return items.sort((a, b) => b.t - a.t).slice(0, MAX_ITEMS);
+}
+
 export function upcoming(nextUp, now = Date.now()) {
   return (nextUp || []).filter((n) => Date.parse(n.at) > now - NOW_GRACE_MS);
 }
@@ -48,6 +64,7 @@ function PastLine({ item, bot, toBot, now }) {
           </>
         )}{' '}
         {item.text}
+        {item.minutes != null && <span className="gain feed-gain">+{item.minutes} min</span>}
         <span className="feed-time">
           {formatTimePT(item.at)} PT &middot; {timeAgo(item.at, now)}
         </span>
@@ -72,7 +89,7 @@ function PastLine({ item, bot, toBot, now }) {
   );
 }
 
-export default function Feed({ feed, bots, walks, nextUp, onFlyBot, forceClosed }) {
+export default function Feed({ feed, bots, walks, nextUp, minutesSaved, onFlyBot, forceClosed }) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState('past');
   const [now, setNow] = useState(() => Date.now());
@@ -93,7 +110,7 @@ export default function Feed({ feed, bots, walks, nextUp, onFlyBot, forceClosed 
   }, [open]);
 
   const byId = Object.fromEntries(bots.map((b) => [b.id, b]));
-  const past = recentFeed(feed, now).filter((f) => byId[f.bot]);
+  const past = pastItems(feed, minutesSaved?.recent, now).filter((f) => byId[f.bot]);
   const working = bots.filter((b) => b.status === 'working');
   const next = upcoming(nextUp, now).filter((n) => byId[n.bot]);
   const walking = walks?.[0];

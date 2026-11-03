@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Html, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
@@ -8,7 +8,6 @@ import Bot from './components/Bot.jsx';
 import Handoffs from './components/Handoff.jsx';
 import Sky from './components/Sky.jsx';
 import Scoreboard from './components/Scoreboard.jsx';
-import SeaLife from './components/SeaLife.jsx';
 import Radar from './components/Radar.jsx';
 import BotCard from './components/BotCard.jsx';
 import Feed from './components/Feed.jsx';
@@ -48,6 +47,9 @@ function useTabHidden() {
   }, []);
   return hidden;
 }
+
+// Sea life is decoration, so it loads after the island in its own small chunk.
+const SeaLife = lazy(() => import('./components/SeaLife.jsx'));
 
 // Device hints for battery and GPU budget.
 const IS_TOUCH = typeof navigator !== 'undefined' && (navigator.maxTouchPoints > 1 || /iPad|iPhone|Android/.test(navigator.userAgent));
@@ -735,7 +737,11 @@ export default function App() {
             <FrameThrottle fps={throttled ? 30 : 0} />
             <Sky sky={sky} animate={!reduced} useFog={!reduced} onBuck={onBuck} />
             <Island sky={sky} animate={!reduced} onGroundTap={onGroundTap} onZoneTap={flyTo} showLabels lowPower={LOW_POWER} />
-            {!reduced && <SeaLife sky={sky} lowPower={LOW_POWER} />}
+            {!reduced && (
+              <Suspense fallback={null}>
+                <SeaLife sky={sky} lowPower={LOW_POWER} />
+              </Suspense>
+            )}
             {bots.map((b) =>
               layout[b.id] ? (
                 <Bot
@@ -783,7 +789,7 @@ export default function App() {
 
       <div className="hud-bottom-left" ref={hudBottomRef}>
         {reduced && <RecentHandoffs handoffs={data?.handoffs} bots={bots} />}
-        {data && <Feed feed={data.feed} bots={bots} walks={walks} nextUp={data.nextUp} onFlyBot={pickBot} forceClosed={kiosk} />}
+        {data && <Feed feed={data.feed} bots={bots} walks={walks} nextUp={data.nextUp} minutesSaved={data.minutesSaved} onFlyBot={pickBot} forceClosed={kiosk} />}
       </div>
 
       {bots.length > 0 && <Radar bots={bots} onFly={flyTo} animate={!reduced} paused={hidden} />}

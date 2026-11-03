@@ -1,130 +1,160 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
-import { Html } from '@react-three/drei';
-import * as THREE from 'three';
 import { TEAM_ZONE, ZONES } from '../utils/paths.js';
 
-// Saturn radar: Chief is the planet, each team rides a tilted ring with its
-// bots as colored dots. Tap a ring (or a dot) to fly the camera to that zone.
+// Saturn radar, drawn in SVG (no extra WebGL context: the island is the only
+// one). Chief is the planet in the middle, each team rides a tilted ring with
+// its bots as colored dots. Tap the small radar for a bigger card with ring
+// labels and how many bots on each ring are working. Tap a ring, a label or a
+// row in the big card to fly to that team.
 
 const RINGS = [
-  { id: 'content', tagAngle: 155, label: 'Content', teams: ['content'], zone: 'cabana', R: 1.0, tilt: [-1.15, 0, 0.15], color: '#F09024', speed: 0.22 },
-  { id: 'realestate', tagAngle: 25, label: 'Real Estate', teams: ['realestate'], zone: 'lanai', R: 1.32, tilt: [-1.22, 0, -0.12], color: '#2F6FED', speed: 0.16 },
-  { id: 'networking', tagAngle: 270, label: 'Networking', teams: ['networking'], zone: 'tikihut', R: 1.62, tilt: [-1.05, 0, 0.25], color: '#8B5CF6', speed: 0.13 },
-  { id: 'research', tagAngle: 205, label: 'Research', teams: ['research'], zone: 'lookout', R: 1.9, tilt: [-1.28, 0, -0.2], color: '#2BA84A', speed: 0.1 },
-  { id: 'other', tagAngle: 335, label: 'Other teams', legend: 'Money, Product, Home, Fun, Guest', teams: ['money', 'product', 'home', 'fun', 'guest'], zone: 'tower', R: 2.18, tilt: [-1.12, 0, 0.06], color: '#0F9D8A', speed: 0.075 },
+  { id: 'content', label: 'Content', teams: ['content'], zone: 'cabana', R: 1.0, tilt: 8, color: '#F09024', speed: 0.22, tagAngle: 200 },
+  { id: 'realestate', label: 'Real Estate', teams: ['realestate'], zone: 'lanai', R: 1.32, tilt: -6, color: '#2F6FED', speed: 0.16, tagAngle: 340 },
+  { id: 'networking', label: 'Networking', teams: ['networking'], zone: 'tikihut', R: 1.62, tilt: 13, color: '#8B5CF6', speed: 0.13, tagAngle: 90 },
+  { id: 'research', label: 'Research', teams: ['research'], zone: 'lookout', R: 1.9, tilt: -10, color: '#2BA84A', speed: 0.1, tagAngle: 160 },
+  { id: 'other', label: 'Other teams', legend: 'Money, Product, Home, Fun, Guest', teams: ['money', 'product', 'home', 'fun', 'guest'], zone: 'tower', R: 2.18, tilt: 3, color: '#0F9D8A', speed: 0.075, tagAngle: 20 },
 ];
 
-const dotGeo = new THREE.SphereGeometry(0.085, 10, 8);
-const hitGeoCache = {};
+const SCALE = 46; // ring radius 1 -> 46 SVG units
+// How flat the rings look (Saturn seen from a little above), and the SVG box.
+const LOOK = {
+  small: { squash: 0.36, w: 236, h: 150 },
+  big: { squash: 0.52, w: 236, h: 160 },
+};
 
-function Ring({ ring, bots, animate, onPick, interactive, labelSide }) {
-  const spin = useRef();
-  const [hover, setHover] = useState(false);
-  const hitGeo = useMemo(() => (hitGeoCache[ring.R] ||= new THREE.TorusGeometry(ring.R, 0.13, 6, 48)), [ring.R]);
-  useFrame((_, dt) => {
-    if (animate && spin.current) spin.current.rotation.z += Math.min(dt, 0.1) * ring.speed;
-  });
-  const working = bots.filter((b) => b.status === 'working').length;
-  return (
-    <group rotation={ring.tilt}>
-      <mesh>
-        <torusGeometry args={[ring.R, hover ? 0.03 : 0.016, 6, 64]} />
-        <meshBasicMaterial color={ring.color} transparent opacity={hover ? 0.95 : 0.55} />
-      </mesh>
-      {interactive && (
-      <mesh
-        geometry={hitGeo}
-        onClick={(e) => {
-          e.stopPropagation();
-          onPick(ring.zone);
-        }}
-        onPointerOver={(e) => {
-          e.stopPropagation();
-          setHover(true);
-          document.body.style.cursor = 'pointer';
-        }}
-        onPointerOut={() => {
-          setHover(false);
-          document.body.style.cursor = '';
-        }}
-      >
-        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-      </mesh>
-      )}
-      {labelSide && (
-        <Html position={[Math.cos((ring.tagAngle * Math.PI) / 180) * ring.R, Math.sin((ring.tagAngle * Math.PI) / 180) * ring.R, 0]} center zIndexRange={[5, 0]}>
-          <button type="button" className="ring-tag" style={{ borderColor: ring.color }} onClick={() => onPick(ring.zone)}>
-            {ring.label} <span className="ring-count">{working}/{bots.length}</span>
-          </button>
-        </Html>
-      )}
-      <group ref={spin}>
-        {bots.map((b, i) => {
-          const a = (i / Math.max(1, bots.length)) * Math.PI * 2;
-          return (
-            <mesh
-              key={b.id}
-              geometry={dotGeo}
-              position={[Math.cos(a) * ring.R, Math.sin(a) * ring.R, 0]}
-              onClick={
-                interactive
-                  ? (e) => {
-                      e.stopPropagation();
-                      onPick(ZONES[b.zone] ? b.zone : ring.zone);
-                    }
-                  : undefined
-              }
-            >
-              <meshBasicMaterial color={b.color} />
-            </mesh>
-          );
-        })}
-      </group>
-    </group>
-  );
+function ringPoint(ring, a, squash) {
+  const rx = ring.R * SCALE;
+  const x = Math.cos(a) * rx;
+  const y = Math.sin(a) * rx * squash;
+  const t = (ring.tilt * Math.PI) / 180;
+  return [x * Math.cos(t) - y * Math.sin(t), x * Math.sin(t) + y * Math.cos(t)];
 }
 
-function Planet({ color, onPick, interactive }) {
-  return (
-    <group
-      onClick={
-        interactive
-          ? (e) => {
-              e.stopPropagation();
-              onPick('tower');
-            }
-          : undefined
+function RadarSvg({ chief, byRing, animate, big, onPick }) {
+  const dotRefs = useRef({});
+  const spin = useRef(0);
+  const { squash: SQUASH, w: VW, h: VH } = big ? LOOK.big : LOOK.small;
+
+  // Gentle orbit: one cheap timer at ~15fps, moving dots by attribute.
+  useEffect(() => {
+    if (!animate) return undefined;
+    let raf;
+    let last = performance.now();
+    let acc = 0;
+    const loop = (now) => {
+      raf = requestAnimationFrame(loop);
+      const dt = Math.min(0.2, (now - last) / 1000);
+      last = now;
+      acc += dt;
+      if (acc < 1 / 15) return;
+      spin.current += acc;
+      acc = 0;
+      for (const ring of RINGS) {
+        const list = byRing[ring.id];
+        list.forEach((b, i) => {
+          const el = dotRefs.current[`${ring.id}-${b.id}`];
+          if (!el) return;
+          const a = (i / Math.max(1, list.length)) * Math.PI * 2 + spin.current * ring.speed;
+          const [x, y] = ringPoint(ring, a, SQUASH);
+          el.setAttribute('cx', x.toFixed(1));
+          el.setAttribute('cy', y.toFixed(1));
+          el.setAttribute('opacity', Math.sin(a) < 0 ? '0.55' : '1');
+        });
       }
-    >
-      <mesh>
-        <icosahedronGeometry args={[0.5, 2]} />
-        <meshStandardMaterial color={color} flatShading roughness={0.5} emissive={color} emissiveIntensity={0.15} />
-      </mesh>
-      <mesh rotation={[-1.2, 0, 0.1]}>
-        <torusGeometry args={[0.66, 0.05, 6, 40]} />
-        <meshStandardMaterial color="#ffffff" flatShading />
-      </mesh>
-    </group>
-  );
-}
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [animate, byRing, SQUASH]);
 
-function RadarScene({ chief, byRing, animate, onPick, expanded }) {
+  const chiefColor = chief?.color || '#D63AF9';
+  const pr = big ? 15 : 17;
+
+  const ringEl = (ring, half) => {
+    const t = ring.tilt;
+    const rx = ring.R * SCALE;
+    // Back half (top of the ellipse) is drawn before the planet, front half after.
+    const d = half === 'back' ? `M ${-rx} 0 A ${rx} ${rx * SQUASH} 0 0 1 ${rx} 0` : `M ${rx} 0 A ${rx} ${rx * SQUASH} 0 0 1 ${-rx} 0`;
+    return (
+      <g key={`${ring.id}-${half}`} transform={`rotate(${t})`}>
+        <path d={d} fill="none" stroke={ring.color} strokeWidth={big ? 2.2 : 1.8} strokeOpacity={half === 'back' ? 0.45 : 0.8} />
+        {big && half === 'front' && (
+          <ellipse
+            rx={rx}
+            ry={rx * SQUASH}
+            fill="none"
+            stroke="transparent"
+            strokeWidth="12"
+            style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
+            onClick={() => onPick(ring.zone)}
+          >
+            <title>{ring.legend || ring.label}</title>
+          </ellipse>
+        )}
+      </g>
+    );
+  };
+
   return (
-    <>
-      <ambientLight intensity={1.2} />
-      <directionalLight position={[3, 5, 4]} intensity={1.6} />
-      <Planet color={chief?.color || '#D63AF9'} onPick={onPick} interactive={expanded} />
-      {RINGS.map((r) => (
-        <Ring key={r.id} ring={r} bots={byRing[r.id]} animate={animate} onPick={onPick} interactive={expanded} labelSide={expanded} />
-      ))}
-    </>
+    <svg className="radar-svg" viewBox={`${-VW / 2} ${-VH / 2} ${VW} ${VH}`} role="img" aria-label={`Team radar: ${RINGS.map((r) => `${r.label} ${byRing[r.id].filter((b) => b.status === 'working').length} of ${byRing[r.id].length} working`).join(', ')}`}>
+      {RINGS.map((r) => ringEl(r, 'back'))}
+      <g onClick={big ? () => onPick('tower') : undefined} style={big ? { cursor: 'pointer' } : undefined}>
+        <circle r={pr} fill={chiefColor} />
+        <circle r={pr} fill="url(#planet-shade)" />
+        <ellipse rx={pr * 1.45} ry={pr * 0.42} fill="none" stroke="#ffffff" strokeWidth="3" transform="rotate(-8)" />
+      </g>
+      {RINGS.map((r) => ringEl(r, 'front'))}
+      {RINGS.map((ring) =>
+        byRing[ring.id].map((b, i) => {
+          const a = (i / Math.max(1, byRing[ring.id].length)) * Math.PI * 2;
+          const [x, y] = ringPoint(ring, a, SQUASH);
+          return (
+            <circle
+              key={b.id}
+              ref={(el) => {
+                dotRefs.current[`${ring.id}-${b.id}`] = el;
+              }}
+              cx={x}
+              cy={y}
+              r={big ? 4.2 : 4}
+              fill={b.color}
+              opacity={Math.sin(a) < 0 ? 0.55 : 1}
+              stroke={b.status === 'working' ? '#ffffff' : 'none'}
+              strokeWidth="1.2"
+            />
+          );
+        })
+      )}
+      <defs>
+        <radialGradient id="planet-shade" cx="35%" cy="30%" r="75%">
+          <stop offset="0%" stopColor="#ffffff" stopOpacity="0.45" />
+          <stop offset="60%" stopColor="#ffffff" stopOpacity="0" />
+          <stop offset="100%" stopColor="#000000" stopOpacity="0.2" />
+        </radialGradient>
+      </defs>
+    </svg>
   );
 }
 
-// Small Saturn radar in the corner. Tap it for a bigger card with each ring
-// labeled by team and how many of its bots are working. Tap a ring, a dot,
-// or a row in the big card to fly to that team.
+// Ring labels for the big card, placed as HTML over the SVG so text stays crisp.
+function RingTags({ byRing, onPick }) {
+  return RINGS.map((ring) => {
+    const { squash, w, h } = LOOK.big;
+    const [x, y] = ringPoint(ring, (ring.tagAngle * Math.PI) / 180, squash);
+    const working = byRing[ring.id].filter((b) => b.status === 'working').length;
+    return (
+      <button
+        key={ring.id}
+        type="button"
+        className="ring-tag"
+        style={{ borderColor: ring.color, left: `${50 + (x / w) * 100}%`, top: `${50 + (y / h) * 100}%` }}
+        onClick={() => onPick(ring.zone)}
+      >
+        {ring.label} <span className="ring-count">{working}/{byRing[ring.id].length}</span>
+      </button>
+    );
+  });
+}
+
 export default function Radar({ bots, onFly, animate = true, paused = false, hidden = false }) {
   const [open, setOpen] = useState(false);
   const chief = bots.find((b) => b.id === 'chief');
@@ -148,25 +178,16 @@ export default function Radar({ bots, onFly, animate = true, paused = false, hid
 
   const pick = (zone) => {
     setOpen(false);
-    onFly(zone);
+    onFly(ZONES[zone] ? zone : 'tower');
   };
 
   const totalWorking = bots.filter((b) => b.status === 'working').length;
+  const moving = animate && !paused;
 
   return (
     <>
       <button type="button" className="radar panel" style={hidden ? { display: 'none' } : undefined} onClick={() => setOpen(true)} aria-label="Team radar. Tap for the bigger view.">
-        <Canvas
-          flat
-          dpr={[1, 1.5]}
-          frameloop={paused || open ? 'never' : animate ? 'always' : 'demand'}
-          camera={{ position: [0, 1.3, 7.4], fov: 35 }}
-          gl={{ alpha: true, antialias: true, powerPreference: 'low-power' }}
-          onCreated={({ camera }) => camera.lookAt(0, 0, 0)}
-          style={{ pointerEvents: 'none' }}
-        >
-          <RadarScene chief={chief} byRing={byRing} animate={animate} onPick={pick} expanded={false} />
-        </Canvas>
+        <RadarSvg chief={chief} byRing={byRing} animate={moving && !open} big={false} onPick={pick} />
       </button>
       {open && (
         <div className="card-backdrop radar-backdrop" onClick={() => setOpen(false)} onPointerDown={(e) => e.stopPropagation()}>
@@ -179,16 +200,8 @@ export default function Radar({ bots, onFly, animate = true, paused = false, hid
               Chief in the middle. {totalWorking} of {bots.length} bots working.
             </p>
             <div className="radar-big">
-              <Canvas
-                flat
-                dpr={[1, 1.5]}
-                frameloop={paused ? 'never' : animate ? 'always' : 'demand'}
-                camera={{ position: [0, 2.2, 6.3], fov: 40 }}
-                gl={{ alpha: true, antialias: true, powerPreference: 'low-power' }}
-                onCreated={({ camera }) => camera.lookAt(0, 0, 0)}
-              >
-                <RadarScene chief={chief} byRing={byRing} animate={animate} onPick={pick} expanded />
-              </Canvas>
+              <RadarSvg chief={chief} byRing={byRing} animate={moving} big onPick={pick} />
+              <RingTags byRing={byRing} onPick={pick} />
             </div>
             <ul className="radar-legend">
               <li>

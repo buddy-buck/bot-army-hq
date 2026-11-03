@@ -99,7 +99,7 @@ export default function BotCard({ bot, onClose, nextUp, minutesSaved }) {
             Open
           </a>
         ) : (
-          <div className="card-nolink">{lastAction.linkHidden ? 'Link hidden in public view' : 'No link yet'}</div>
+          <div className="card-nolink">{lastAction.linkHidden ? 'Link hidden' : 'No link yet'}</div>
         )}
       </div>
     </div>

@@ -56,13 +56,13 @@ How it behaves:
 - **Tap a bot** to see its card: avatar, name, team, job, last action, and an Open button (or "No link yet").
 - **Status** comes from `data.json`: working bots stand at their station with a tablet (and a lantern at night). Idle bots relax with a mai tai, margarita or coconut drink, some in hammocks. Sleeping bots are in hammocks with zzz's. When a status changes, the bot puts its drink down and walks to its new spot. Nasty always has a coconut.
 - **Activity** (slim chip, bottom left) shows a one-line summary. Tap it for a drawer (a side drawer on desktop and iPad landscape, a bottom sheet in portrait) with three tabs:
-  - **Past**: real feed entries from the last 24 hours with the PT time, the bot's name and color, and "12 min ago". Lines with a link open it in a new tab. Nothing recent says "All quiet. The team is chillin'."
+  - **Past**: real feed entries plus `minutesSaved.recent` entries from the last 24 hours, with the PT time, the bot's name and color, "12 min ago" and a "+N min" badge when minutes were logged. A ledger entry that matches a feed line (same bot, within 2 minutes) adds its badge to that line instead of showing twice. Lines with a link open it in a new tab. Nothing recent says "All quiet. The team is chillin'."
   - **Now**: every bot whose status is `working`. Tap one to fly to it.
   - **Next**: upcoming runs from the optional `nextUp` array, soonest first, with a live countdown ("in 2h 14m"). Tap to fly to the bot. When a run hits T-0 the bot gets a spotlight and a toast. Empty says "Nothing scheduled".
 - **Handoffs** only play what's in `data.json`. On page load, handoffs from the last 24 hours play once as a recap. After that, only new handoffs (from a data refresh) play. Nothing loops.
 - **Sky** follows the time in Duvall (America/Los_Angeles). At night there's a buck constellation low in the sky to the north-west. Tilt the view toward the horizon to find it, then tap it.
-- **Scoreboard** ("Buddy's minutes saved", top center) is a compact chip, at most 8% of the screen height. In Live mode it shows `minutesSaved.live` (or `total`) exactly as the data says. When a refresh brings a higher number, the digits roll up like an odometer, and each new `minutesSaved.recent` entry floats a "+18 min" chip from the bot that earned it while that bot does a little cheer. Crossing a round thousand fires confetti from Chief's Tower and a "Buck yeah!" toast. Tap the chip for a drawer: today, this week, all time, top bot this week, a 7-day sparkline (when `daily` is present) and the latest gains. Figures the data doesn't send show "Not reported" or are left out. In Demo mode a working bot earns a few sample minutes every minute or so, so all of this can be seen.
-- **Radar** (bottom right): Chief is the planet, teams ride the rings. Tap it for a bigger card with each ring labeled by team and how many of its bots are working. Tap a ring, a label or a row to fly to that team.
+- **Scoreboard** ("Buddy's minutes saved", top center) is a compact chip, at most 8% of the screen height. In Live mode it shows `minutesSaved.total` exactly as the data says (or `ledgerTotal + live` if `total` is missing). When a refresh brings a higher number, the digits roll up like an odometer, and each new `minutesSaved.recent` entry floats a "+18 min" chip from the bot that earned it while that bot does a little cheer. Crossing a round thousand fires confetti from Chief's Tower and a "Buck yeah!" toast. Tap the chip for a drawer: today, this week, all time, top bot this week, a 7-day sparkline (when `daily` is present) and the latest gains. Figures the data doesn't send show "Not reported" or are left out. In Demo mode a working bot earns a few sample minutes every minute or so, so all of this can be seen.
+- **Radar** (bottom right, drawn in SVG so the island is the only WebGL context): Chief is the planet, teams ride the rings. Tap it for a bigger card with each ring labeled by team and how many of its bots are working. Tap a ring, a label or a row to fly to that team.
 - **Clock** reads like "Tue Nov 3, 1:07 PM PT" with a sun or moon.
 - **Kiosk mode** (screen button, or `?kiosk=1`): keeps the screen awake with the Screen Wake Lock API where the browser supports it, hides the secondary buttons, keeps the clock and scoreboard, and slowly drifts the camera tilt and the panels a few pixels so nothing burns in.
 - **Sea life and the living world**: two great white shark fins circling with wakes, a blue marlin that leaps every 40 to 90 seconds with a splash, salmon hopping off Launch's Pier, fish schools in the shallows, seagulls, a sailboat on the horizon, a sea turtle that surfaces now and then, dolphins at sunrise, fireflies at night and a faint bioluminescent shimmer along the shore. All purely decorative.
@@ -79,7 +79,7 @@ Safe mode is on for every visit, so screenshots and screen recordings are safe t
 
 - Real estate, networking, home and money bots show a generic line instead of their real action, like "Drafted a client update" instead of the real action text. To control the exact wording, add `lastAction.publicText` in `data.json`.
 - Other bots keep their text, with names that look like clients ("the Smith listing"), street addresses, family names, emails and phone numbers swapped for generic words.
-- Links to Gmail, Google Docs/Drive/Sheets/Calendar, Supabase and local addresses are hidden, along with every link from the sensitive teams. The card says "Link hidden in public view".
+- Links to Gmail, Google Docs/Drive/Sheets/Calendar, Supabase and local addresses are hidden, along with every link from the sensitive teams. The card says "Link hidden".
 - A small lock icon shows at the top. Tap or hover it for "Names hidden for sharing".
 - `minutesSaved.recent[].what` and `nextUp[].job` are scrubbed the same way.
 
@@ -103,7 +103,7 @@ The shape:
   "updatedAt": "2026-11-02T16:00:00-08:00",
   "minutesSaved": {
     "total": 10459, "asOf": "2026-11-02T16:00:00-08:00", "perHourRate": 31.1,
-    "today": 212, "live": 10459, "ledgerTotal": 10459, "week": 1418,
+    "today": 212, "ledgerTotal": 10422, "live": 37, "liveEntries": 2, "week": 1418,
     "recent": [{ "at": "2026-11-02T15:40:00-08:00", "bot": "chief", "minutes": 18, "what": "Set this week's priorities" }],
     "daily": [{ "date": "2026-11-02", "minutes": 212 }]
   },
@@ -142,9 +142,9 @@ Rules:
 - `note` (optional) is a short italic line on the bot's card. Claude's says "Launch and Chief drop by."
 - `minutesSaved.trackedSince` (optional, like `"2026-09-01"`) adds "Tracked since Sep 1, 2026." to the scoreboard drawer.
 - Every field below is optional. Today's data works without any of them.
-  - `minutesSaved.live`: the headline number when present (else `total`).
+  - `minutesSaved.total` is the headline and "All time" number. It already includes live minutes (`total = ledgerTotal + live`).
+  - `minutesSaved.ledgerTotal` and `minutesSaved.live`: folded minutes and the unfolded minutes since the last fold. They're only used to rebuild the total when `total` is missing. `live` alone is never shown as the headline. `liveEntries` is accepted and ignored for now.
   - `minutesSaved.today`, `minutesSaved.week`: shown in the drawer. Without `week`, the drawer adds up `daily` when it has entries.
-  - `minutesSaved.ledgerTotal`: "All time" in the drawer.
   - `minutesSaved.recent`: `[{ at, bot, minutes, what }]`. New entries between refreshes float "+N min" chips. Also used for "Top bot this week" and a bot's "Saved today" on its card.
   - `minutesSaved.daily`: `[{ date: "YYYY-MM-DD", minutes }]` for the 7-day sparkline.
   - `nextUp`: `[{ bot, job, at }]` for the Next tab, countdowns, T-0 spotlights and "Next run" on the bot card.
@@ -214,4 +214,4 @@ src/utils/safe.js          public-safe mode
 src/styles.css             light UI panels, big readable type
 ```
 
-Performance notes: palms, flowers, rocks, fish and trails are instanced; waves run in a vertex shader; pixel ratio is capped at 2 (1.5 on touch devices); the view drops to about 30fps after a minute without input; rendering stops when the tab is hidden.
+Performance notes: one WebGL context (the island; the radar is SVG); three.js, the React 3D layer and React are split into their own cached chunks, and sea life loads lazily; palms, flowers, rocks, fish and trails are instanced; waves run in a vertex shader; pixel ratio is capped at 2 (1.5 on touch devices); the view drops to about 30fps after a minute without input; rendering stops when the tab is hidden.

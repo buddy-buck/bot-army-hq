@@ -106,12 +106,13 @@ function normalizeMinutes(raw, ids) {
     ? m.daily.filter((d) => d && d.date && num(d.minutes) !== null).map((d) => ({ date: String(d.date), minutes: Number(d.minutes) }))
     : [];
   return {
-    total: num(m.total) ?? 0,
+    total: num(m.total), // already ledgerTotal + live when the feed sends it
     asOf: m.asOf || null,
     perHourRate: num(m.perHourRate) ?? 0,
     trackedSince: m.trackedSince || null,
     today: num(m.today),
-    live: num(m.live),
+    live: num(m.live), // only the unfolded minutes since the last fold
+    liveEntries: num(m.liveEntries),
     ledgerTotal: num(m.ledgerTotal),
     week: num(m.week),
     recent,
@@ -119,8 +120,9 @@ function normalizeMinutes(raw, ids) {
   };
 }
 
-// Headline number: the live total when the feed has one, else total.
-export const headlineMinutes = (ms) => (ms ? ms.live ?? ms.total ?? 0 : 0);
+// Headline number: total (which already includes live minutes). Only when
+// total is missing, rebuild it from ledgerTotal + live. Never live alone.
+export const headlineMinutes = (ms) => (ms ? ms.total ?? (ms.ledgerTotal ?? 0) + (ms.live ?? 0) : 0);
 
 function normalizeNextUp(raw, ids) {
   if (!Array.isArray(raw)) return [];

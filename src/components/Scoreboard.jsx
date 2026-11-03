@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatAsOf, formatDay, formatNumber } from '../utils/ticker.js';
 import { dayKeyPT, formatTimePT } from '../utils/time.js';
+import { headlineMinutes } from '../hooks/useData.js';
 
 // Compact "Buddy's minutes saved" chip at the top. The number rolls up like
 // an odometer when it grows. Tap it for the drawer: today, this week, all
@@ -69,7 +70,7 @@ export function minuteStats(ms, now = Date.now()) {
     byBot[r.bot] = (byBot[r.bot] || 0) + r.minutes;
   }
   const top = Object.entries(byBot).sort((a, b) => b[1] - a[1])[0];
-  return { today, week, allTime: ms.ledgerTotal ?? ms.live ?? ms.total ?? 0, daily, topBot: top ? { id: top[0], minutes: top[1] } : null };
+  return { today, week, allTime: headlineMinutes(ms), daily, topBot: top ? { id: top[0], minutes: top[1] } : null };
 }
 
 export default function Scoreboard({ value, minutesSaved, isExample, version, bots, reduced }) {

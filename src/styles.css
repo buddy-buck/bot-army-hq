@@ -538,7 +538,7 @@ button.chip:focus-visible,
   left: calc(var(--safe-left) + 10px);
   bottom: calc(var(--safe-bottom) + 12px);
   z-index: 31; /* above the radar, so the open activity sheet covers it */
-  width: calc(100vw - 170px - var(--safe-left) - var(--safe-right));
+  width: calc(100vw - 200px - var(--safe-left) - var(--safe-right));
   max-width: 460px;
   display: flex;
   flex-direction: column;
@@ -831,8 +831,8 @@ button.chip:focus-visible,
   right: calc(var(--safe-right) + 10px);
   bottom: calc(var(--safe-bottom) + 12px);
   z-index: 30;
-  width: 124px;
-  height: 124px;
+  width: 158px;
+  height: 112px;
   border-radius: var(--radius);
   overflow: hidden;
   padding: 0;
@@ -865,14 +865,28 @@ button.chip:focus-visible,
   color: var(--ink-muted);
 }
 
+.radar-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.radar .radar-svg {
+  pointer-events: none;
+}
+
 .radar-big {
-  height: min(340px, 42vh);
-  margin: 6px -6px 0;
+  position: relative;
+  width: min(100%, calc(42vh * 236 / 160));
+  aspect-ratio: 236 / 160;
+  margin: 6px auto 0;
   border-radius: var(--radius);
   background: radial-gradient(circle at 50% 50%, #ffffff 0%, var(--cream) 72%);
 }
 
 .ring-tag {
+  position: absolute;
+  transform: translate(-50%, -50%);
   padding: 3px 8px;
   border-radius: var(--radius-sm);
   background: var(--white);
@@ -1406,7 +1420,7 @@ button.chip:focus-visible,
     font-size: 24px;
   }
   .hud-bottom-left {
-    width: calc(100vw - 154px - var(--safe-left) - var(--safe-right));
+    width: calc(100vw - 184px - var(--safe-left) - var(--safe-right));
   }
 }
 
@@ -1414,8 +1428,8 @@ button.chip:focus-visible,
 
 @media (min-width: 720px) {
   .radar {
-    width: 132px;
-    height: 132px;
+    width: 176px;
+    height: 124px;
   }
 }
 
@@ -1446,4 +1460,10 @@ button.chip:focus-visible,
   content: '';
   position: absolute;
   inset: -6px -4px;
+}
+
+.feed-gain {
+  display: inline-block;
+  margin-left: 6px;
+  vertical-align: 1px;
 }
