@@ -1,13 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
 import { formatAsOf } from '../utils/ticker.js';
 
-// Small light UI pieces: example-data tag, Duvall clock, sound toggle,
-// recenter button, "now walking" handoff note, and the reduced-motion list.
+// Small light UI pieces: demo-mode note, Duvall clock, sound toggle,
+// recenter and roster buttons, the reduced-motion handoff list, and toasts.
 
-export function ExampleTag() {
+export function DemoNote() {
   return (
-    <div className="chip chip-example" role="status">
-      EXAMPLE DATA
+    <div className="demo-note" role="status">
+      Demo mode: sample data
+    </div>
+  );
+}
+
+export function SafeNote() {
+  return (
+    <div className="demo-note" role="status">
+      Public view
     </div>
   );
 }
@@ -36,16 +44,17 @@ export function ClockChip({ sky }) {
     <div className="chip chip-clock">
       <SunIcon phase={sky.phase} />
       <span>
-        Duvall {sky.clock} · {sky.phaseLabel}
+        Duvall {sky.clock}
       </span>
     </div>
   );
 }
 
-export function StatusChips({ isExample, sky, error }) {
+export function StatusChips({ isExample, safe, sky, error }) {
   return (
     <div className="hud-chips">
-      {isExample && <ExampleTag />}
+      {isExample && <DemoNote />}
+      {safe && <SafeNote />}
       <ClockChip sky={sky} />
       {error && <div className="chip chip-error">Couldn&rsquo;t refresh data. Retrying.</div>}
     </div>
@@ -162,7 +171,7 @@ export function SoundToggle() {
   };
 
   return (
-    <button type="button" className="round-btn" onClick={toggle} aria-pressed={on} aria-label={on ? 'Turn ocean sound off' : 'Turn ocean sound on'} title={on ? 'Sound on' : 'Sound off'}>
+    <button type="button" className="square-btn" onClick={toggle} aria-pressed={on} aria-label={on ? 'Turn ocean sound off' : 'Turn ocean sound on'} title={on ? 'Sound on' : 'Sound off'}>
       <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
         <path d="M4 9h4l5-4v14l-5-4H4z" fill="#1f2430" />
         {on ? (
@@ -180,7 +189,7 @@ export function SoundToggle() {
 
 export function RecenterButton({ onClick }) {
   return (
-    <button type="button" className="round-btn" onClick={onClick} aria-label="Recenter the island" title="Recenter">
+    <button type="button" className="square-btn" onClick={onClick} aria-label="Recenter the island" title="Recenter">
       <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
         <circle cx="12" cy="12" r="7" stroke="#1f2430" strokeWidth="2" fill="none" />
         <circle cx="12" cy="12" r="2.5" fill="#1f2430" />
@@ -190,19 +199,24 @@ export function RecenterButton({ onClick }) {
   );
 }
 
-export function HandoffNote({ walks }) {
-  if (!walks || !walks.length) return null;
+export function RosterButton({ onClick, open }) {
   return (
-    <div className="handoff-note panel" aria-live="polite">
-      {walks.slice(0, 2).map((w) => (
-        <div key={w.key} className="handoff-line">
-          <span className="handoff-orb" style={{ background: w.color }} />
-          <span>
-            <strong>{w.fromName}</strong> → <strong>{w.toName}</strong>
-            {w.what ? <span className="handoff-what"> · {w.what}</span> : null}
-          </span>
-        </div>
-      ))}
+    <button type="button" className="square-btn" onClick={onClick} aria-expanded={open} aria-label="Find a bot" title="Find a bot">
+      <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+        <circle cx="10" cy="8" r="3.5" stroke="#1f2430" strokeWidth="2" fill="none" />
+        <path d="M3.5 19c.8-3.4 3.4-5.2 6.5-5.2s5.7 1.8 6.5 5.2" stroke="#1f2430" strokeWidth="2" fill="none" strokeLinecap="round" />
+        <circle cx="18" cy="9" r="2.6" stroke="#1f2430" strokeWidth="1.8" fill="none" />
+        <path d="M20.6 14.5l2 2" stroke="#1f2430" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    </button>
+  );
+}
+
+export function Toast({ message }) {
+  if (!message) return null;
+  return (
+    <div className="toast" role="status" aria-live="polite" key={message.id}>
+      {message.text}
     </div>
   );
 }
@@ -239,16 +253,17 @@ export function RecentHandoffs({ handoffs, bots }) {
 export function LoadingNotice({ error }) {
   return (
     <div className="loading panel" role="status">
-      {error ? `Couldn't load data.json (${error}). Retrying in a few minutes.` : 'Waking up the island…'}
+      {error ? `Couldn't load data.json (${error}). Retrying in a few minutes.` : 'Waking up the island...'}
     </div>
   );
 }
 
-export default function UI({ isExample, sky, error, onRecenter }) {
+export default function UI({ isExample, safe, sky, error, onRecenter, onRoster, rosterOpen }) {
   return (
     <div className="hud-row">
-      <StatusChips isExample={isExample} sky={sky} error={error} />
+      <StatusChips isExample={isExample} safe={safe} sky={sky} error={error} />
       <div className="hud-buttons">
+        <RosterButton onClick={onRoster} open={rosterOpen} />
         <SoundToggle />
         <RecenterButton onClick={onRecenter} />
       </div>

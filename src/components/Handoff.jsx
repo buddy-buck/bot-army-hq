@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { routeBetween } from '../utils/paths.js';
 
 // Handoffs: the sending bot walks a glowing package along the sand path to
-// the receiving bot, hands it over, and walks home. Handoffs from the last
-// 24 hours replay on a loop, spaced so only one or two bots walk at a time.
+// the receiving bot, hands it over, and walks home.
+//
+// Only real handoffs from data.json play, and each one plays once:
+//   - on page load, handoffs from the last 24 hours replay as a short recap
+//   - after that, only new handoffs (from a data refresh) play
+// Nothing loops. When there is nothing new, nobody walks.
 
 // Shared live state read by <Bot/> every frame.
 export const couriers = new Map(); // botId -> { x, y, z, heading }
@@ -17,25 +21,32 @@ const WALK_SPEED = 1.5; // units per second
 const MAX_LEG_SECONDS = 13;
 const PAUSE = 1.8; // handoff moment at the receiver
 const MIN_GAP = 5; // seconds between walk starts
-const DAY_MS = 24 * 3600 * 1000;
+const RECENT_MS = 24 * 3600 * 1000;
 
 const easeWalk = (u) => 0.5 - 0.5 * Math.cos(Math.PI * u);
+export const handoffKey = (h) => `${h.from}|${h.to}|${h.at}|${h.what}`;
 
-export function buildSchedule(handoffs, botsById, layout) {
-  const valid = (handoffs || [])
+// Handoffs that should play now: real ones, from the last 24 hours, not
+// already played, oldest first.
+export function pendingHandoffs(handoffs, botsById, layout, played, now = Date.now()) {
+  return (handoffs || [])
     .filter((h) => botsById[h.from] && botsById[h.to] && layout[h.from] && layout[h.to] && h.from !== h.to)
-    .map((h) => ({ ...h, t: Date.parse(h.at) }))
-    .filter((h) => !Number.isNaN(h.t));
-  if (!valid.length) return { items: [], period: 1 };
-  const newest = Math.max(...valid.map((h) => h.t));
-  const recent = valid.filter((h) => h.t >= newest - DAY_MS).sort((a, b) => a.t - b.t);
+    .map((h) => ({ ...h, t: Date.parse(h.at), key: handoffKey(h) }))
+    .filter((h) => !Number.isNaN(h.t) && now - h.t <= RECENT_MS && now - h.t >= -RECENT_MS && !played.has(h.key))
+    .sort((a, b) => a.t - b.t);
+}
 
+// Give each new handoff a start time after what's already queued, so only one
+// or two bots walk at once and no bot carries two packages at the same time.
+export function scheduleHandoffs(list, queue, botsById, layout, clockNow) {
   const items = [];
-  const ends = [];
+  let prevStart = Math.max(clockNow + 1.5 - MIN_GAP, ...queue.map((q) => q.start));
+  const ends = queue.map((q) => q.end);
   const busy = {};
-  let prevStart = -MIN_GAP;
-  recent.forEach((h, i) => {
-    const from = layout[h.from];
+  for (const q of queue) busy[q.from] = Math.max(busy[q.from] ?? -Infinity, q.end);
+  for (const h of list) {
+    const fromSlot = layout[h.from];
+    const from = fromSlot.raised ? fromSlot : { ...fromSlot, ...fromSlot.home, raised: fromSlot.home.raised };
     const to = layout[h.to];
     const route = routeBetween(from, to);
     const speed = Math.max(WALK_SPEED, route.length / MAX_LEG_SECONDS);
@@ -46,7 +57,7 @@ export function buildSchedule(handoffs, botsById, layout) {
     if (later.length >= 2) start = Math.max(start, later[1] + 0.3);
     const end = start + total;
     items.push({
-      key: `${i}-${h.from}-${h.to}`,
+      key: h.key,
       from: h.from,
       to: h.to,
       what: h.what,
@@ -57,14 +68,14 @@ export function buildSchedule(handoffs, botsById, layout) {
       T,
       start,
       end,
-      target: new THREE.Vector3(to.x, to.y + 0.62, to.z),
-      lastPulseCycle: -1,
+      target: new THREE.Vector3(to.x, to.y + 0.62 * 1.35, to.z),
+      pulsed: false,
     });
     ends.push(end);
     busy[h.from] = end;
     prevStart = start;
-  });
-  return { items, period: Math.max(...ends) + 4 };
+  }
+  return items;
 }
 
 function OrbSlot({ slotRef }) {
@@ -81,15 +92,15 @@ function OrbSlot({ slotRef }) {
       <group ref={group} visible={false}>
         <mesh ref={core}>
           <icosahedronGeometry args={[0.12, 1]} />
-          <meshBasicMaterial color="#fff6c2" />
+          <meshBasicMaterial color="#ffffff" />
         </mesh>
         <mesh ref={halo}>
           <sphereGeometry args={[0.26, 14, 10]} />
-          <meshBasicMaterial color="#ffd36b" transparent opacity={0.45} depthWrite={false} blending={THREE.AdditiveBlending} />
+          <meshBasicMaterial color="#9fe3ff" transparent opacity={0.45} depthWrite={false} blending={THREE.AdditiveBlending} />
         </mesh>
       </group>
       <instancedMesh ref={trail} args={[trailGeo, undefined, TRAIL]} visible={false} frustumCulled={false}>
-        <meshBasicMaterial color="#ffd36b" transparent opacity={0.5} depthWrite={false} blending={THREE.AdditiveBlending} />
+        <meshBasicMaterial color="#9fe3ff" transparent opacity={0.5} depthWrite={false} blending={THREE.AdditiveBlending} />
       </instancedMesh>
     </>
   );
@@ -98,32 +109,30 @@ function OrbSlot({ slotRef }) {
 const tmp = new THREE.Vector3();
 const tmpA = new THREE.Vector3();
 const dummy = new THREE.Object3D();
+const WHITE = new THREE.Color('#ffffff');
 
 export default function Handoffs({ bots, handoffs, layout, onActiveChange }) {
   const botsById = useMemo(() => Object.fromEntries(bots.map((b) => [b.id, b])), [bots]);
-  const schedule = useMemo(() => buildSchedule(handoffs, botsById, layout), [handoffs, botsById, layout]);
-  const t0 = useRef(null);
+  const clock = useThree((st) => st.clock);
+  const queue = useRef([]);
+  const played = useRef(new Set());
   const lastKey = useRef('');
   const slots = [useRef(null), useRef(null), useRef(null)];
 
+  // Queue any handoffs we haven't played yet.
   useEffect(() => {
-    t0.current = null;
-    return () => {
-      couriers.clear();
-    };
-  }, [schedule]);
+    const fresh = pendingHandoffs(handoffs, botsById, layout, played.current);
+    if (!fresh.length) return;
+    fresh.forEach((h) => played.current.add(h.key));
+    queue.current = [...queue.current, ...scheduleHandoffs(fresh, queue.current, botsById, layout, clock.elapsedTime)];
+  }, [handoffs, botsById, layout, clock]);
+
+  useEffect(() => () => couriers.clear(), []);
 
   useFrame((state) => {
-    const clock = state.clock.elapsedTime;
-    const { items, period } = schedule;
-    if (!items.length) {
-      if (couriers.size) couriers.clear();
-      return;
-    }
-    if (t0.current === null) t0.current = clock - 1.5;
-    const elapsed = clock - t0.current;
-    const cycle = Math.floor(elapsed / period);
-    const t = elapsed % period;
+    const t = state.clock.elapsedTime;
+    if (queue.current.length && queue.current.every((q) => t >= q.end)) queue.current = [];
+    const items = queue.current;
 
     const activeIds = new Set();
     const active = [];
@@ -160,7 +169,7 @@ export default function Handoffs({ bots, handoffs, layout, onActiveChange }) {
       if (phase !== 'back' && orbJobs.length < MAX_ORBS) {
         const fx = Math.sin(heading);
         const fz = Math.cos(heading);
-        const hands = new THREE.Vector3(p.x + fx * 0.28, p.y + 0.6, p.z + fz * 0.28);
+        const hands = new THREE.Vector3(p.x + fx * 0.36, p.y + 0.8, p.z + fz * 0.36);
         let pos = hands;
         let scale = 1;
         if (phase === 'pause') {
@@ -168,9 +177,9 @@ export default function Handoffs({ bots, handoffs, layout, onActiveChange }) {
           pos = tmpA.copy(hands).lerp(item.target, s).clone();
           pos.y += Math.sin(Math.PI * s) * 0.9;
           scale = s > 0.82 ? Math.max(0.05, (1 - s) / 0.18) : 1;
-          if (s > 0.8 && item.lastPulseCycle !== cycle) {
-            item.lastPulseCycle = cycle;
-            receivedPulses.set(item.to, clock);
+          if (s > 0.8 && !item.pulsed) {
+            item.pulsed = true;
+            receivedPulses.set(item.to, t);
           }
         }
         orbJobs.push({ key: item.key, pos, scale, color: item.color });
@@ -193,10 +202,10 @@ export default function Handoffs({ bots, handoffs, layout, onActiveChange }) {
       if (slot.key !== job.key) {
         slot.key = job.key;
         slot.hist.length = 0;
-        slot.halo.material.color.set(job.color).lerp(new THREE.Color('#ffe9a0'), 0.45);
-        slot.trail.material.color.set(job.color).lerp(new THREE.Color('#ffe9a0'), 0.3);
+        slot.halo.material.color.set(job.color).lerp(WHITE, 0.35);
+        slot.trail.material.color.set(job.color).lerp(WHITE, 0.25);
       }
-      const pulse = 1 + Math.sin(clock * 6) * 0.08;
+      const pulse = 1 + Math.sin(t * 6) * 0.08;
       slot.group.visible = true;
       slot.group.position.copy(job.pos);
       slot.group.scale.setScalar(job.scale * pulse);

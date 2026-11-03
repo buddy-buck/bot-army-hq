@@ -17,9 +17,11 @@ function normalizeBot(raw) {
     status: ['working', 'idle', 'sleeping'].includes(raw.status) ? raw.status : 'idle',
     lastAction: {
       text: la.text || '',
+      publicText: la.publicText || '',
       url: typeof la.url === 'string' ? la.url.trim() : '',
       at: la.at || null,
     },
+    note: raw.note || (id === 'claude' ? 'Launch and Chief drop by.' : ''),
     avatarUrl: raw.avatarUrl || `${import.meta.env.BASE_URL}avatars/${id}.png`,
   };
 }

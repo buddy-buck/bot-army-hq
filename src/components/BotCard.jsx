@@ -4,7 +4,7 @@ import { timeAgo } from '../utils/ticker.js';
 
 // Tap-a-bot card. Always light (cream background, dark text), day or night.
 
-const STATUS_LABEL = { working: 'Working', idle: 'Idle', sleeping: 'Sleeping' };
+const STATUS_LABEL = { working: 'Working', idle: 'Chilling', sleeping: 'Sleeping' };
 
 export function Avatar({ bot, size = 72 }) {
   const [failed, setFailed] = useState(false);
@@ -61,6 +61,7 @@ export default function BotCard({ bot, onClose }) {
           </div>
         </div>
         {bot.job && <div className="card-job">{bot.job}</div>}
+        {bot.note && <div className="card-note">{bot.note}</div>}
         <div className="card-section">
           <div className="card-label">Last action</div>
           <div className="card-action">{lastAction.text || 'Nothing logged yet'}</div>
@@ -71,7 +72,7 @@ export default function BotCard({ bot, onClose }) {
             Open
           </a>
         ) : (
-          <div className="card-nolink">No link yet</div>
+          <div className="card-nolink">{lastAction.linkHidden ? 'Link hidden in public view' : 'No link yet'}</div>
         )}
       </div>
     </div>

@@ -3,10 +3,20 @@ import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { couriers, receivedPulses } from './Handoff.jsx';
+import { labelState } from './labels.js';
+import { botHash, groundY } from '../utils/paths.js';
 
-// One bot: a small rounded robot in its team color. It idles, works (with a
-// tablet), sleeps (lying down, or in a hammock at night), walks handoffs, and
-// carries a lantern at night when working. Status always comes from data.json.
+// One bot: a small rounded robot in its team color. Status always comes from
+// data.json:
+//   working  : at its station with a tablet (plus a lantern at night)
+//   idle     : relaxing with a mai tai, margarita or coconut drink, either
+//              standing near its station or stretched out in a hammock
+//   sleeping : in a hammock with zzz's
+// When the status changes, the bot puts its drink down and walks to its new
+// spot. Nasty always has a coconut. Claude wears a lei and holds a mai tai.
+
+export const BOT_SCALE = 1.35;
+const WALK_SPEED = 1.3; // units per second
 
 const GEO = {
   body: new THREE.CapsuleGeometry(0.17, 0.2, 3, 8),
@@ -17,7 +27,7 @@ const GEO = {
   foot: new THREE.SphereGeometry(0.065, 6, 5),
   shadow: new THREE.CircleGeometry(0.32, 16).rotateX(-Math.PI / 2),
   ring: new THREE.RingGeometry(0.36, 0.46, 32).rotateX(-Math.PI / 2),
-  hit: new THREE.CylinderGeometry(0.45, 0.45, 1.25, 8),
+  hit: new THREE.CylinderGeometry(0.42, 0.42, 1.2, 8),
   tablet: new THREE.BoxGeometry(0.24, 0.15, 0.02),
   screen: new THREE.PlaneGeometry(0.2, 0.11),
   post: new THREE.CylinderGeometry(0.018, 0.018, 0.62, 4),
@@ -25,6 +35,21 @@ const GEO = {
   glow: new THREE.SphereGeometry(0.2, 10, 8),
   hammockPost: new THREE.CylinderGeometry(0.05, 0.07, 1.25, 6),
   tuft: new THREE.ConeGeometry(0.22, 0.3, 5),
+  // drinks (origin at the bottom of the glass)
+  tallGlass: new THREE.CylinderGeometry(0.052, 0.04, 0.15, 8).translate(0, 0.075, 0),
+  foam: new THREE.CylinderGeometry(0.053, 0.053, 0.025, 8).translate(0, 0.14, 0),
+  umbrella: new THREE.ConeGeometry(0.085, 0.045, 8),
+  stick: new THREE.CylinderGeometry(0.005, 0.005, 0.11, 3),
+  straw: new THREE.CylinderGeometry(0.008, 0.008, 0.17, 4),
+  stemBase: new THREE.CylinderGeometry(0.038, 0.038, 0.012, 8),
+  stem: new THREE.CylinderGeometry(0.009, 0.009, 0.07, 4).translate(0, 0.04, 0),
+  bowl: new THREE.ConeGeometry(0.07, 0.075, 10).rotateX(Math.PI).translate(0, 0.112, 0),
+  rim: new THREE.TorusGeometry(0.066, 0.008, 4, 14).rotateX(Math.PI / 2).translate(0, 0.15, 0),
+  lime: new THREE.IcosahedronGeometry(0.026, 0),
+  coconut: new THREE.IcosahedronGeometry(0.08, 1).translate(0, 0.075, 0),
+  // lei
+  leiRing: new THREE.TorusGeometry(0.155, 0.022, 5, 18).rotateX(Math.PI / 2),
+  flower: new THREE.IcosahedronGeometry(0.042, 0),
 };
 
 GEO.hammock = (() => {
@@ -48,30 +73,96 @@ GEO.hammock = (() => {
   return g;
 })();
 
+const std = (color, extra = {}) => new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: 0.6, ...extra });
+
 const MAT = {
-  face: new THREE.MeshStandardMaterial({ color: '#fff8ec', flatShading: true, roughness: 0.5 }),
+  face: std('#fff8ec', { roughness: 0.5 }),
   eye: new THREE.MeshBasicMaterial({ color: '#1d2230' }),
-  foot: new THREE.MeshStandardMaterial({ color: '#4a4f5c', flatShading: true }),
+  foot: std('#4a4f5c'),
   shadow: new THREE.MeshBasicMaterial({ color: '#13261b', transparent: true, opacity: 0.22, depthWrite: false }),
   hit: new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }),
-  tablet: new THREE.MeshStandardMaterial({ color: '#2a2f3a', flatShading: true }),
+  tablet: std('#2a2f3a'),
   screen: new THREE.MeshBasicMaterial({ color: '#9fe3ff' }),
-  post: new THREE.MeshStandardMaterial({ color: '#7a5232', flatShading: true }),
-  lantern: new THREE.MeshStandardMaterial({ color: '#ffcf6b', emissive: '#ffb340', emissiveIntensity: 1.8, flatShading: true }),
-  glow: new THREE.MeshBasicMaterial({ color: '#ffc861', transparent: true, opacity: 0.28, depthWrite: false, blending: THREE.AdditiveBlending }),
+  post: std('#7a5232'),
+  lantern: std('#ffd9a0', { emissive: '#ffb066', emissiveIntensity: 1.8 }),
+  glow: new THREE.MeshBasicMaterial({ color: '#ffc58a', transparent: true, opacity: 0.28, depthWrite: false, blending: THREE.AdditiveBlending }),
   hammock: new THREE.MeshStandardMaterial({ color: '#f2e2c4', flatShading: true, side: THREE.DoubleSide, roughness: 1 }),
-  palm: new THREE.MeshStandardMaterial({ color: '#9a6b43', flatShading: true }),
-  tuft: new THREE.MeshStandardMaterial({ color: '#4fb35a', flatShading: true }),
+  palm: std('#9a6b43'),
+  tuft: std('#4fb35a'),
+  maitai: std('#ff6b3d', { emissive: '#ff6b3d', emissiveIntensity: 0.15 }),
+  maitaiTop: std('#ffb07a'),
+  margarita: std('#b9ec6f', { emissive: '#b9ec6f', emissiveIntensity: 0.12 }),
+  glass: std('#e8f6ff', { roughness: 0.2 }),
+  salt: std('#ffffff'),
+  lime: std('#3fae4a'),
+  coconut: std('#6b4a2a'),
+  umbrellaPink: std('#ff4fa3'),
+  umbrellaTeal: std('#18c2c2'),
+  white: std('#ffffff'),
+  strawPink: std('#ff7ab8'),
+  strawTeal: std('#2fd3c4'),
+  leaf: std('#3fae5a'),
+  leiPink: std('#ff5fa2'),
+  leiWhite: std('#ffffff'),
+  leiCoral: std('#ff7a59'),
 };
 
-function hashPhase(id) {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-  return (h % 1000) / 1000 * Math.PI * 2;
+const DRINK_TYPES = ['maitai', 'margarita', 'coconut'];
+// Drinks these two never put down.
+const ALWAYS_DRINK = { nasty: 'coconut', claude: 'maitai' };
+
+function Drink({ type }) {
+  if (type === 'margarita') {
+    return (
+      <group>
+        <mesh geometry={GEO.stemBase} material={MAT.glass} />
+        <mesh geometry={GEO.stem} material={MAT.glass} />
+        <mesh geometry={GEO.bowl} material={MAT.margarita} />
+        <mesh geometry={GEO.rim} material={MAT.salt} />
+        <mesh geometry={GEO.lime} material={MAT.lime} position={[0.065, 0.15, 0]} />
+        <mesh geometry={GEO.straw} material={MAT.strawTeal} position={[-0.02, 0.17, 0]} rotation={[0, 0, 0.25]} />
+      </group>
+    );
+  }
+  if (type === 'coconut') {
+    return (
+      <group>
+        <mesh geometry={GEO.coconut} material={MAT.coconut} />
+        <mesh geometry={GEO.straw} material={MAT.strawPink} position={[-0.02, 0.19, 0]} rotation={[0, 0, 0.3]} />
+        <mesh geometry={GEO.stick} material={MAT.white} position={[0.03, 0.2, 0]} rotation={[0, 0, -0.35]} />
+        <mesh geometry={GEO.umbrella} material={MAT.umbrellaTeal} position={[0.05, 0.25, 0]} rotation={[0, 0, -0.35]} />
+      </group>
+    );
+  }
+  return (
+    <group>
+      <mesh geometry={GEO.tallGlass} material={MAT.maitai} />
+      <mesh geometry={GEO.foam} material={MAT.maitaiTop} />
+      <mesh geometry={GEO.straw} material={MAT.strawTeal} position={[-0.02, 0.18, 0]} rotation={[0, 0, 0.25]} />
+      <mesh geometry={GEO.stick} material={MAT.white} position={[0.03, 0.19, 0]} rotation={[0, 0, -0.35]} />
+      <mesh geometry={GEO.umbrella} material={MAT.umbrellaPink} position={[0.05, 0.24, 0]} rotation={[0, 0, -0.35]} />
+    </group>
+  );
 }
 
-const LABEL_DISTANCE = 15.5;
-const tmpV = new THREE.Vector3();
+const LEI_COLORS = [MAT.leiPink, MAT.leiWhite, MAT.leiCoral];
+function Lei() {
+  const n = 11;
+  return (
+    <group position={[0, 0.6, 0]}>
+      <mesh geometry={GEO.leiRing} material={MAT.leaf} />
+      {Array.from({ length: n }, (_, i) => {
+        const a = (i / n) * Math.PI * 2;
+        const droop = Math.max(0, Math.cos(a)) * 0.05; // hangs a little lower in front
+        return <mesh key={i} geometry={GEO.flower} material={LEI_COLORS[i % 3]} position={[Math.sin(a) * 0.165, -0.01 - droop, Math.cos(a) * 0.165]} />;
+      })}
+    </group>
+  );
+}
+
+function hashPhase(id) {
+  return ((botHash(id) % 1000) / 1000) * Math.PI * 2;
+}
 
 function lerpAngle(a, b, t) {
   let d = b - a;
@@ -80,7 +171,7 @@ function lerpAngle(a, b, t) {
   return a + d * t;
 }
 
-function Bot({ bot, slot, isNight, selected, onSelect, pulseKey, animate = true, labelsAlways = false, labelDistance = LABEL_DISTANCE }) {
+function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, animate = true }) {
   const outer = useRef();
   const pose = useRef();
   const head = useRef();
@@ -90,7 +181,13 @@ function Bot({ bot, slot, isNight, selected, onSelect, pulseKey, animate = true,
   const ringRef = useRef();
   const pulseRef = useRef();
   const lanternRef = useRef();
+  const handDrink = useRef();
+  const restDrink = useRef();
+  const tabletRef = useRef();
+  const zzzRef = useRef();
   const pulseStart = useRef(null);
+  const cur = useRef(null);
+  const curRaised = useRef(false);
   const phase = useMemo(() => hashPhase(bot.id), [bot.id]);
 
   const bodyMat = useMemo(
@@ -109,10 +206,19 @@ function Bot({ bot, slot, isNight, selected, onSelect, pulseKey, animate = true,
     if (pulseKey) pulseStart.current = -1;
   }, [pulseKey]);
 
+  useEffect(() => {
+    const id = bot.id;
+    return () => labelState.positions.delete(id);
+  }, [bot.id]);
+
   const status = bot.status;
-  const inHammock = status === 'sleeping' && isNight && !slot.lounge;
+  const mode = slot.mode;
+  const home = slot.home;
   const working = status === 'working';
-  const lounge = slot.lounge;
+  const sleeping = status === 'sleeping';
+  const drinkType = ALWAYS_DRINK[bot.id] || (status === 'idle' ? DRINK_TYPES[botHash(bot.id) % 3] : null);
+  const restPos = mode === 'lounge' ? [0.3, 0.42, 0.42] : [0.12, 0.6, 0.14];
+  const isClaude = bot.id === 'claude';
 
   useFrame((state, delta) => {
     const g = outer.current;
@@ -124,56 +230,91 @@ function Bot({ bot, slot, isNight, selected, onSelect, pulseKey, animate = true,
     const dt = Math.min(delta, 0.1);
     const c = couriers.get(bot.id);
 
-    // Position and facing
-    if (c) {
-      g.position.set(c.x, c.y, c.z);
-      g.rotation.y = lerpAngle(g.rotation.y, c.heading, Math.min(1, dt * 8));
-    } else if (inHammock) {
-      g.position.set(slot.hammock.x, slot.hammock.y, slot.hammock.z);
-      g.rotation.y = slot.hammock.rotY;
-    } else {
-      g.position.set(slot.x, slot.y, slot.z);
-      g.rotation.y = animate ? lerpAngle(g.rotation.y, slot.rotY, Math.min(1, dt * 4)) : slot.rotY;
+    if (!cur.current) {
+      cur.current = new THREE.Vector3(home.x, home.y, home.z);
+      curRaised.current = !!home.raised;
+      g.rotation.y = home.rotY;
     }
+    const pos = cur.current;
+
+    // Position: carrying a handoff, walking to a new spot, or settled.
+    let walking = false;
+    if (c) {
+      pos.set(c.x, c.y, c.z);
+      curRaised.current = false;
+      g.rotation.y = lerpAngle(g.rotation.y, c.heading, Math.min(1, dt * 8));
+      walking = true;
+    } else {
+      const dx = home.x - pos.x;
+      const dz = home.z - pos.z;
+      const d = Math.hypot(dx, dz);
+      const jump = !!home.raised !== curRaised.current; // up to a tower or lookout: no stairs, just pop over
+      if (!animate || jump || d < 0.04 || d > 30) {
+        pos.set(home.x, home.y, home.z);
+        curRaised.current = !!home.raised;
+        g.rotation.y = animate && !jump ? lerpAngle(g.rotation.y, home.rotY, Math.min(1, dt * 4)) : home.rotY;
+      } else {
+        const step = Math.min(d, WALK_SPEED * dt);
+        pos.x += (dx / d) * step;
+        pos.z += (dz / d) * step;
+        const left = d - step;
+        pos.y = left < 0.6 ? THREE.MathUtils.lerp(home.y, groundY(pos.x, pos.z), left / 0.6) : groundY(pos.x, pos.z);
+        g.rotation.y = lerpAngle(g.rotation.y, Math.atan2(dx, dz), Math.min(1, dt * 8));
+        walking = true;
+      }
+    }
+    g.position.copy(pos);
+
+    const lying = !walking && mode === 'hammock';
+    const lounging = !walking && mode === 'lounge';
+    labelState.positions.set(bot.id, { x: pos.x, y: pos.y, z: pos.z, labelY: (lying ? 0.95 : lounging ? 1.15 : 1.42) * BOT_SCALE, name: bot.name });
 
     // Pose
     let lift = 0;
     p.rotation.set(0, 0, 0);
     p.position.set(0, 0, 0);
+    p.scale.set(1, 1, 1);
     h.rotation.set(0, 0, 0);
     feet[0].current.position.z = 0;
     feet[1].current.position.z = 0;
-    const eyeScale = status === 'sleeping' && !c ? 0.18 : 1;
+    const eyeScale = lying && sleeping ? 0.18 : 1;
     eyes[0].current.scale.y = eyeScale;
     eyes[1].current.scale.y = eyeScale;
 
-    if (c) {
+    let sip = 0;
+    if (walking) {
       const w = clock * 9;
       lift = Math.abs(Math.sin(w)) * 0.06;
       p.rotation.z = Math.sin(w) * 0.07;
       feet[0].current.position.z = Math.sin(w) * 0.09;
       feet[1].current.position.z = -Math.sin(w) * 0.09;
-    } else if (lounge) {
+    } else if (lounging) {
       p.rotation.x = -1.0;
       p.position.set(0, 0.34, 0.35);
       h.rotation.y = Math.sin(t * 0.3) * 0.35;
       h.rotation.x = 0.35;
-    } else if (status === 'sleeping') {
+    } else if (lying) {
       p.rotation.z = Math.PI / 2;
-      if (inHammock) p.position.set(0.48, 0.42, 0);
-      else p.position.set(0.48, 0.14, 0);
-      const breathe = 1 + Math.sin(t * 1.2) * 0.025;
-      p.scale.set(breathe, 1, breathe);
+      p.position.set(0.48, 0.42, 0);
+      if (sleeping) {
+        const breathe = 1 + Math.sin(t * 1.2) * 0.025;
+        p.scale.set(breathe, 1, breathe);
+      } else {
+        h.rotation.x = -0.35 + Math.sin(t * 0.4) * 0.15; // idle: looking around from the hammock
+      }
     } else if (working) {
       lift = Math.abs(Math.sin(t * 3)) * 0.015;
       h.rotation.x = 0.18 + Math.sin(t * 5) * 0.07;
       h.rotation.y = Math.sin(t * 0.7) * 0.12;
     } else {
+      // chilling: slow sway, a sip every few seconds
       lift = (Math.sin(t * 1.5) + 1) * 0.008;
+      p.rotation.z = Math.sin(t * 0.8) * 0.05;
       h.rotation.y = Math.sin(t * 0.45) * 0.5;
-      h.rotation.z = Math.sin(t * 0.3) * 0.05;
+      const cyc = (t * 0.16) % 1;
+      sip = cyc > 0.82 ? Math.sin(((cyc - 0.82) / 0.18) * Math.PI) : 0;
+      h.rotation.x = -sip * 0.3;
     }
-    if (status !== 'sleeping' || c) p.scale.set(1, 1, 1);
 
     // Little hop when a package arrives
     const got = receivedPulses.get(bot.id);
@@ -183,10 +324,28 @@ function Bot({ bot, slot, isNight, selected, onSelect, pulseKey, animate = true,
     }
     p.position.y += lift;
 
-    // Selection ring
+    // Drink: in hand while standing or walking, resting on the bot when lying back.
+    if (handDrink.current) {
+      handDrink.current.visible = !lying && !lounging;
+      handDrink.current.position.set(0.25 - sip * 0.1, 0.3 + sip * 0.32, 0.1 + sip * 0.1);
+      handDrink.current.rotation.z = sip * 0.5;
+    }
+    if (restDrink.current) restDrink.current.visible = lying || lounging;
+    if (tabletRef.current) tabletRef.current.visible = working;
+    if (lanternRef.current) {
+      lanternRef.current.parent.visible = working && isNight && !walking;
+      if (animate) lanternRef.current.scale.setScalar(1 + Math.sin(clock * 7 + phase) * 0.06 + Math.sin(clock * 11.3) * 0.04);
+    }
+    if (zzzRef.current) {
+      const show = lying && sleeping ? '' : 'none';
+      if (zzzRef.current.style.display !== show) zzzRef.current.style.display = show;
+    }
+
+    // Selection / spotlight ring
     if (ringRef.current) {
-      ringRef.current.visible = selected;
-      if (selected) ringRef.current.rotation.y += dt * 1.2;
+      const on = selected || spotlight;
+      ringRef.current.visible = on;
+      if (on) ringRef.current.rotation.y += dt * 1.2;
     }
 
     // Data-change pulse ring
@@ -202,17 +361,9 @@ function Bot({ bot, slot, isNight, selected, onSelect, pulseKey, animate = true,
       }
     }
 
-    // Lantern flicker
-    if (lanternRef.current && animate) {
-      const f = 1 + Math.sin(clock * 7 + phase) * 0.06 + Math.sin(clock * 11.3) * 0.04;
-      lanternRef.current.scale.setScalar(f);
-    }
-
-    // Name tag: when close, selected, walking, or in reduced-motion view
+    // Name tag: the label director decides (zoom level, hover, overlap).
     if (labelRef.current) {
-      g.getWorldPosition(tmpV);
-      const show = labelsAlways || selected || !!c || state.camera.position.distanceTo(tmpV) < labelDistance;
-      const op = show ? '1' : '0';
+      const op = labelState.visible.has(bot.id) ? '1' : '0';
       if (labelRef.current.style.opacity !== op) labelRef.current.style.opacity = op;
     }
   });
@@ -223,10 +374,12 @@ function Bot({ bot, slot, isNight, selected, onSelect, pulseKey, animate = true,
     onSelect?.(bot.id);
   };
 
+  const hammock = mode === 'hammock' ? slot.hammock : null;
+
   return (
-    <group ref={outer} position={[slot.x, slot.y, slot.z]} rotation={[0, slot.rotY, 0]}>
-      {inHammock && (
-        <group>
+    <>
+      {hammock && (
+        <group position={[hammock.x, hammock.y, hammock.z]} rotation={[0, hammock.rotY, 0]} scale={BOT_SCALE}>
           <mesh geometry={GEO.hammockPost} material={MAT.palm} position={[-0.78, 0.62, 0]} />
           <mesh geometry={GEO.hammockPost} material={MAT.palm} position={[0.78, 0.62, 0]} />
           <mesh geometry={GEO.tuft} material={MAT.tuft} position={[-0.78, 1.32, 0]} />
@@ -235,69 +388,81 @@ function Bot({ bot, slot, isNight, selected, onSelect, pulseKey, animate = true,
         </group>
       )}
 
-      <mesh geometry={GEO.shadow} material={MAT.shadow} position={[inHammock || (status === 'sleeping' && !lounge) ? 0.0 : 0, 0.025, 0]} />
-      <mesh ref={ringRef} geometry={GEO.ring} material={ringMat} position={[0, 0.04, 0]} visible={selected} />
-      <mesh ref={pulseRef} geometry={GEO.ring} material={pulseMat} position={[0, 0.05, 0]} visible={false} />
+      <group ref={outer} position={[home.x, home.y, home.z]} rotation={[0, home.rotY, 0]} scale={BOT_SCALE}>
+        <mesh geometry={GEO.shadow} material={MAT.shadow} position={[0, 0.025, 0]} />
+        <mesh ref={ringRef} geometry={GEO.ring} material={ringMat} position={[0, 0.04, 0]} visible={selected || spotlight} />
+        <mesh ref={pulseRef} geometry={GEO.ring} material={pulseMat} position={[0, 0.05, 0]} visible={false} />
 
-      <group ref={pose}>
-        <mesh ref={feet[0]} geometry={GEO.foot} material={MAT.foot} position={[-0.08, 0.06, 0]} />
-        <mesh ref={feet[1]} geometry={GEO.foot} material={MAT.foot} position={[0.08, 0.06, 0]} />
-        <mesh geometry={GEO.body} material={bodyMat} position={[0, 0.38, 0]} />
-        <group ref={head} position={[0, 0.74, 0]}>
-          <mesh geometry={GEO.head} material={MAT.face} position={[0, 0.04, 0]} />
-          <mesh ref={eyes[0]} geometry={GEO.eye} material={MAT.eye} position={[-0.07, 0.06, 0.165]} />
-          <mesh ref={eyes[1]} geometry={GEO.eye} material={MAT.eye} position={[0.07, 0.06, 0.165]} />
-          <mesh geometry={GEO.antenna} material={MAT.foot} position={[0, 0.29, 0]} />
-          <mesh geometry={GEO.bulb} material={bulbMat} position={[0, 0.38, 0]} />
-        </group>
-        {working && (
-          <group position={[0, 0.44, 0.22]} rotation={[-0.6, 0, 0]}>
+        <group ref={pose}>
+          <mesh ref={feet[0]} geometry={GEO.foot} material={MAT.foot} position={[-0.08, 0.06, 0]} />
+          <mesh ref={feet[1]} geometry={GEO.foot} material={MAT.foot} position={[0.08, 0.06, 0]} />
+          <mesh geometry={GEO.body} material={bodyMat} position={[0, 0.38, 0]} />
+          {isClaude && <Lei />}
+          <group ref={head} position={[0, 0.74, 0]}>
+            <mesh geometry={GEO.head} material={MAT.face} position={[0, 0.04, 0]} />
+            <mesh ref={eyes[0]} geometry={GEO.eye} material={MAT.eye} position={[-0.07, 0.06, 0.165]} />
+            <mesh ref={eyes[1]} geometry={GEO.eye} material={MAT.eye} position={[0.07, 0.06, 0.165]} />
+            <mesh geometry={GEO.antenna} material={MAT.foot} position={[0, 0.29, 0]} />
+            <mesh geometry={GEO.bulb} material={bulbMat} position={[0, 0.38, 0]} />
+          </group>
+          <group ref={tabletRef} position={[0, 0.44, 0.22]} rotation={[-0.6, 0, 0]} visible={working}>
             <mesh geometry={GEO.tablet} material={MAT.tablet} />
             <mesh geometry={GEO.screen} material={MAT.screen} position={[0, 0, 0.011]} />
           </group>
-        )}
-      </group>
+          {drinkType && (
+            <group ref={handDrink} position={[0.25, 0.3, 0.1]}>
+              <Drink type={drinkType} />
+            </group>
+          )}
+        </group>
 
-      {working && isNight && (
-        <group position={[0.42, 0, 0.12]}>
+        {drinkType && (
+          <group ref={restDrink} position={restPos} visible={false}>
+            <Drink type={drinkType} />
+          </group>
+        )}
+
+        <group position={[0.42, 0, 0.12]} visible={false}>
           <mesh geometry={GEO.post} material={MAT.post} position={[0, 0.31, 0]} />
           <group ref={lanternRef} position={[0, 0.66, 0]}>
             <mesh geometry={GEO.lantern} material={MAT.lantern} />
             <mesh geometry={GEO.glow} material={MAT.glow} />
           </group>
         </group>
-      )}
 
-      {/* Generous invisible tap target */}
-      <mesh
-        geometry={GEO.hit}
-        material={MAT.hit}
-        position={[0, 0.6, 0]}
-        onClick={handleClick}
-        onPointerOver={(e) => {
-          e.stopPropagation();
-          document.body.style.cursor = 'pointer';
-        }}
-        onPointerOut={() => {
-          document.body.style.cursor = '';
-        }}
-      />
+        {/* Generous invisible tap target */}
+        <mesh
+          geometry={GEO.hit}
+          material={MAT.hit}
+          position={[0, 0.6, 0]}
+          onClick={handleClick}
+          onPointerOver={(e) => {
+            e.stopPropagation();
+            labelState.hovered = bot.id;
+            document.body.style.cursor = 'pointer';
+          }}
+          onPointerOut={() => {
+            if (labelState.hovered === bot.id) labelState.hovered = null;
+            document.body.style.cursor = '';
+          }}
+        />
 
-      <Html position={[0, status === 'sleeping' && !lounge ? 0.85 : 1.38, 0]} center zIndexRange={[10, 0]} pointerEvents="none">
-        <div ref={labelRef} className={`bot-tag${selected ? ' is-selected' : ''}`} style={{ opacity: labelsAlways ? 1 : 0, borderColor: bot.color }}>
-          {bot.name}
-        </div>
-      </Html>
-      {status === 'sleeping' && !lounge && (
-        <Html position={[-0.2, inHammock ? 1.15 : 0.75, 0]} center zIndexRange={[9, 0]} pointerEvents="none">
-          <div className="zzz" aria-hidden="true">
-            <span>z</span>
-            <span>z</span>
-            <span>z</span>
+        <Html position={[0, mode === 'hammock' ? 0.95 : mode === 'lounge' ? 1.15 : 1.42, 0]} center zIndexRange={[10, 0]} pointerEvents="none">
+          <div ref={labelRef} className={`bot-tag${selected ? ' is-selected' : ''}`} style={{ opacity: 0, borderColor: bot.color }}>
+            {bot.name}
           </div>
         </Html>
-      )}
-    </group>
+        {sleeping && mode === 'hammock' && (
+          <Html position={[-0.2, 1.15, 0]} center zIndexRange={[9, 0]} pointerEvents="none">
+            <div ref={zzzRef} className="zzz" aria-hidden="true" style={{ display: 'none' }}>
+              <span>z</span>
+              <span>z</span>
+              <span>z</span>
+            </div>
+          </Html>
+        )}
+      </group>
+    </>
   );
 }
 

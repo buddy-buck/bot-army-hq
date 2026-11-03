@@ -4,6 +4,7 @@ import * as THREE from 'three';
 
 // Dynamic sky: gradient dome, sun or moon, stars at night, drifting
 // low-poly clouds, and the scene's lights and fog, all from Duvall time.
+// At night a buck constellation hides low in the northern sky.
 
 const DOME_RADIUS = 170;
 
@@ -79,6 +80,114 @@ function Stars({ opacity, animate }) {
     <points ref={ref} geometry={geometry} frustumCulled={false} visible={opacity > 0.02}>
       <pointsMaterial color="#ffffff" size={2.2} sizeAttenuation={false} transparent opacity={opacity} depthWrite={false} fog={false} />
     </points>
+  );
+}
+
+// Easter egg: a buck (deer with antlers) drawn in the stars, low in the
+// northern sky. Night only. Tap it and it lights up.
+// Points are (u, v) on a small grid; the deer faces left.
+const BUCK_STARS = {
+  nose: [-2.7, 2.15],
+  head: [-1.95, 2.75],
+  ear: [-1.5, 2.95],
+  antlerBase: [-1.85, 3.1],
+  a1: [-2.45, 3.85],
+  a2: [-2.15, 4.65],
+  a3: [-3.05, 4.3],
+  a4: [-1.35, 3.85],
+  a5: [-0.95, 4.6],
+  a6: [-0.55, 3.75],
+  chest: [-1.7, 1.15],
+  shoulder: [-0.95, 1.75],
+  back: [1.55, 1.6],
+  rump: [2.45, 1.25],
+  tail: [2.9, 1.7],
+  belly: [-0.85, 0.55],
+  flank: [1.85, 0.55],
+  frontHoof: [-1.05, -1.25],
+  frontHoof2: [-0.45, -1.2],
+  backHoof: [1.75, -1.25],
+  backHoof2: [2.4, -1.15],
+};
+const BUCK_LINES = [
+  ['nose', 'head'], ['head', 'ear'], ['head', 'antlerBase'],
+  ['antlerBase', 'a1'], ['a1', 'a2'], ['a1', 'a3'],
+  ['antlerBase', 'a4'], ['a4', 'a5'], ['a4', 'a6'],
+  ['nose', 'chest'], ['ear', 'shoulder'], ['shoulder', 'back'], ['back', 'rump'], ['rump', 'tail'],
+  ['chest', 'belly'], ['belly', 'flank'], ['flank', 'rump'],
+  ['belly', 'frontHoof'], ['belly', 'frontHoof2'], ['flank', 'backHoof'], ['flank', 'backHoof2'],
+];
+const BUCK = { scale: 3.9, base: 5, dist: 150, turn: 0.5 }; // low in the sky, north-west, beside the tower
+
+function buckPoint([u, v]) {
+  return [u * BUCK.scale, BUCK.base + (v + 1.3) * BUCK.scale, -BUCK.dist];
+}
+
+function BuckConstellation({ visible, animate, onTap }) {
+  const lineMat = useRef();
+  const starMat = useRef();
+  const glowStart = useRef(-100);
+  const { invalidate, clock } = useThree();
+  const { starGeo, lineGeo, hitPos, hitSize } = useMemo(() => {
+    const names = Object.keys(BUCK_STARS);
+    const pts = names.map((n) => buckPoint(BUCK_STARS[n]));
+    const sg = new THREE.BufferGeometry();
+    sg.setAttribute('position', new THREE.Float32BufferAttribute(pts.flat(), 3));
+    const lp = [];
+    for (const [a, b] of BUCK_LINES) lp.push(...buckPoint(BUCK_STARS[a]), ...buckPoint(BUCK_STARS[b]));
+    const lg = new THREE.BufferGeometry();
+    lg.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3));
+    const xs = pts.map((p) => p[0]);
+    const ys = pts.map((p) => p[1]);
+    const pad = 4;
+    return {
+      starGeo: sg,
+      lineGeo: lg,
+      hitPos: [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2, -BUCK.dist + 0.5],
+      hitSize: [Math.max(...xs) - Math.min(...xs) + pad * 2, Math.max(...ys) - Math.min(...ys) + pad * 2],
+    };
+  }, []);
+
+  useFrame((state) => {
+    if (!lineMat.current || !starMat.current) return;
+    const k = (state.clock.elapsedTime - glowStart.current) / 3.5;
+    const glow = k >= 0 && k < 1 ? Math.sin(Math.min(1, k * 4) * Math.PI * 0.5) * (1 - k) : 0;
+    const twinkle = animate ? 0.9 + 0.1 * Math.sin(state.clock.elapsedTime * 1.3) : 1;
+    lineMat.current.opacity = (0.2 + glow * 0.75) * twinkle;
+    starMat.current.size = 3.4 + glow * 4;
+    starMat.current.color.set(glow > 0.05 ? '#ffffff' : '#e4ecff');
+    if (glow > 0) invalidate();
+  });
+
+  if (!visible) return null;
+  return (
+    <group rotation={[0, BUCK.turn, 0]}>
+      <lineSegments geometry={lineGeo} frustumCulled={false}>
+        <lineBasicMaterial ref={lineMat} color="#cfe0ff" transparent opacity={0.2} depthWrite={false} fog={false} />
+      </lineSegments>
+      <points geometry={starGeo} frustumCulled={false}>
+        <pointsMaterial ref={starMat} color="#e4ecff" size={3.4} sizeAttenuation={false} transparent depthWrite={false} fog={false} />
+      </points>
+      <mesh
+        position={hitPos}
+        onClick={(e) => {
+          e.stopPropagation();
+          glowStart.current = clock.elapsedTime;
+          invalidate();
+          onTap?.();
+        }}
+        onPointerOver={(e) => {
+          e.stopPropagation();
+          document.body.style.cursor = 'pointer';
+        }}
+        onPointerOut={() => {
+          document.body.style.cursor = '';
+        }}
+      >
+        <planeGeometry args={hitSize} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} fog={false} />
+      </mesh>
+    </group>
   );
 }
 
@@ -161,7 +270,7 @@ function Lights({ sky }) {
   );
 }
 
-export default function Sky({ sky, animate = true, useFog = true }) {
+export default function Sky({ sky, animate = true, useFog = true, onBuck }) {
   const { scene } = useThree();
   useEffect(() => {
     scene.background = new THREE.Color(sky.horizon);
@@ -172,6 +281,7 @@ export default function Sky({ sky, animate = true, useFog = true }) {
     <>
       <SkyDome top={sky.top} horizon={sky.horizon} />
       <Stars opacity={sky.stars} animate={animate} />
+      <BuckConstellation visible={sky.isNight && sky.stars > 0.5} animate={animate} onTap={onBuck} />
       <SunMoon sky={sky} />
       <Clouds color={sky.cloud} animate={animate} />
       <Lights sky={sky} />

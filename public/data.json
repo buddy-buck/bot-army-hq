@@ -4,7 +4,8 @@
   "minutesSaved": {
     "total": 10459,
     "asOf": "2026-11-02T16:00:00-08:00",
-    "perHourRate": 31.1
+    "perHourRate": 31.1,
+    "trackedSince": "2026-09-01"
   },
   "bots": [
     {
@@ -16,7 +17,11 @@
       "color": "#D63AF9",
       "job": "Chief of staff, runs the week",
       "status": "working",
-      "lastAction": { "text": "Wrapped Monday standup and set this week's top 3 priorities", "url": "https://example.com/chief/week-of-nov-2", "at": "2026-11-02T15:40:00-08:00" },
+      "lastAction": {
+        "text": "Wrapped Monday standup and set this week's top 3 priorities",
+        "url": "https://example.com/chief/week-of-nov-2",
+        "at": "2026-11-02T15:40:00-08:00"
+      },
       "avatarUrl": "/avatars/chief.png"
     },
     {
@@ -25,10 +30,14 @@
       "pronoun": "she",
       "team": "content",
       "zone": "cabana",
-      "color": "#F3B624",
+      "color": "#F09024",
       "job": "LISN and DTV carousels",
       "status": "working",
-      "lastAction": { "text": "Drafted LISN carousel: Duvall council recap, 7 slides", "url": "https://example.com/lisn/carousel-council-recap", "at": "2026-11-02T08:10:00-08:00" },
+      "lastAction": {
+        "text": "Drafted LISN carousel: Duvall council recap, 7 slides",
+        "url": "https://example.com/lisn/carousel-council-recap",
+        "at": "2026-11-02T08:10:00-08:00"
+      },
       "avatarUrl": "/avatars/spin.png"
     },
     {
@@ -37,10 +46,14 @@
       "pronoun": "they",
       "team": "content",
       "zone": "cabana",
-      "color": "#F3B624",
+      "color": "#F09024",
       "job": "Writes every social caption",
       "status": "working",
-      "lastAction": { "text": "Wrote captions for the council recap and October stats posts", "url": "https://example.com/captions/2026-11-02", "at": "2026-11-02T09:00:00-08:00" },
+      "lastAction": {
+        "text": "Wrote captions for the council recap and October stats posts",
+        "url": "https://example.com/captions/2026-11-02",
+        "at": "2026-11-02T09:00:00-08:00"
+      },
       "avatarUrl": "/avatars/caption.png"
     },
     {
@@ -52,7 +65,11 @@
       "color": "#2F6FED",
       "job": "Weekly BB Show carousel",
       "status": "idle",
-      "lastAction": { "text": "Built the BB Show recap carousel from Friday's episode", "url": "https://example.com/bbshow/carousel-ep-44", "at": "2026-11-01T14:20:00-08:00" },
+      "lastAction": {
+        "text": "Built the BB Show recap carousel from Friday's episode",
+        "url": "https://example.com/bbshow/carousel-ep-44",
+        "at": "2026-11-01T14:20:00-08:00"
+      },
       "avatarUrl": "/avatars/slide.png"
     },
     {
@@ -64,7 +81,11 @@
       "color": "#2BA84A",
       "job": "Schedules posts",
       "status": "working",
-      "lastAction": { "text": "Scheduled 3 posts for Instagram and Facebook this afternoon", "url": "https://example.com/schedule/today", "at": "2026-11-02T14:10:00-08:00" },
+      "lastAction": {
+        "text": "Scheduled 3 posts for Instagram and Facebook this afternoon",
+        "url": "https://example.com/schedule/today",
+        "at": "2026-11-02T14:10:00-08:00"
+      },
       "avatarUrl": "/avatars/poster.png"
     },
     {
@@ -76,7 +97,11 @@
       "color": "#D63AF9",
       "job": "DTV show producer",
       "status": "idle",
-      "lastAction": { "text": "Lined up 4 segments for Thursday's Duvall TV episode", "url": "https://example.com/dtv/rundown-nov-5", "at": "2026-11-02T11:15:00-08:00" },
+      "lastAction": {
+        "text": "Lined up 4 segments for Thursday's Duvall TV episode",
+        "url": "https://example.com/dtv/rundown-nov-5",
+        "at": "2026-11-02T11:15:00-08:00"
+      },
       "avatarUrl": "/avatars/cue.png"
     },
     {
@@ -88,7 +113,11 @@
       "color": "#D63AF9",
       "job": "Comment replies and analytics",
       "status": "working",
-      "lastAction": { "text": "Replied to 18 comments, flagged 2 for Buddy", "url": "", "at": "2026-11-02T15:20:00-08:00" },
+      "lastAction": {
+        "text": "Replied to 18 comments, flagged 2 for Buddy",
+        "url": "",
+        "at": "2026-11-02T15:20:00-08:00"
+      },
       "avatarUrl": "/avatars/echo.png"
     },
     {
@@ -97,10 +126,14 @@
       "pronoun": "they",
       "team": "content",
       "zone": "cabana",
-      "color": "#F3B624",
+      "color": "#F09024",
       "job": "Duvall Download newsletter",
       "status": "sleeping",
-      "lastAction": { "text": "Sent Duvall Download #61 to 2,340 subscribers", "url": "https://example.com/download/issue-61", "at": "2026-11-01T07:00:00-08:00" },
+      "lastAction": {
+        "text": "Sent Duvall Download #61 to 2,340 subscribers",
+        "url": "https://example.com/download/issue-61",
+        "at": "2026-11-01T07:00:00-08:00"
+      },
       "avatarUrl": "/avatars/download.png"
     },
     {
@@ -109,10 +142,14 @@
       "pronoun": "they",
       "team": "content",
       "zone": "cabana",
-      "color": "#F3B624",
+      "color": "#F09024",
       "job": "Monthly Valley Stats",
       "status": "sleeping",
-      "lastAction": { "text": "Finished October Valley Stats for all 5 valley cities", "url": "https://example.com/stats/october-2026", "at": "2026-11-02T06:30:00-08:00" },
+      "lastAction": {
+        "text": "Finished October Valley Stats for all 5 valley cities",
+        "url": "https://example.com/stats/october-2026",
+        "at": "2026-11-02T06:30:00-08:00"
+      },
       "avatarUrl": "/avatars/stamp.png"
     },
     {
@@ -121,10 +158,14 @@
       "pronoun": "she",
       "team": "content",
       "zone": "cabana",
-      "color": "#F3B624",
+      "color": "#F09024",
       "job": "Morning local news scan",
       "status": "idle",
-      "lastAction": { "text": "Morning scan: 6 local stories, top pick is the Duvall council vote", "url": "https://example.com/scan/2026-11-02", "at": "2026-11-02T05:45:00-08:00" },
+      "lastAction": {
+        "text": "Morning scan: 6 local stories, top pick is the Duvall council vote",
+        "url": "https://example.com/scan/2026-11-02",
+        "at": "2026-11-02T05:45:00-08:00"
+      },
       "avatarUrl": "/avatars/scout-local.png"
     },
     {
@@ -136,7 +177,11 @@
       "color": "#06B6D4",
       "job": "Valley Vibes research",
       "status": "sleeping",
-      "lastAction": { "text": "Researched 3 Valley Vibes guests: a baker, a farmer, a fiddler", "url": "", "at": "2026-11-01T19:30:00-08:00" },
+      "lastAction": {
+        "text": "Researched 3 Valley Vibes guests: a baker, a farmer, a fiddler",
+        "url": "",
+        "at": "2026-11-01T19:30:00-08:00"
+      },
       "avatarUrl": "/avatars/vibe.png"
     },
     {
@@ -145,10 +190,14 @@
       "pronoun": "they",
       "team": "content",
       "zone": "cabana",
-      "color": "#F3B624",
+      "color": "#F09024",
       "job": "Website inbox",
       "status": "working",
-      "lastAction": { "text": "Sorted 9 website messages, 1 event tip sent to Download", "url": "", "at": "2026-11-02T13:05:00-08:00" },
+      "lastAction": {
+        "text": "Sorted 9 website messages, 1 event tip sent to Download",
+        "url": "https://mail.google.com/mail/u/0/#label/website",
+        "at": "2026-11-02T13:05:00-08:00"
+      },
       "avatarUrl": "/avatars/desk.png"
     },
     {
@@ -160,7 +209,11 @@
       "color": "#2F6FED",
       "job": "New prospects",
       "status": "working",
-      "lastAction": { "text": "New prospect: buyer looking for Carnation acreage under $1.2M", "url": "https://example.com/prospects/carnation-acreage", "at": "2026-11-02T09:40:00-08:00" },
+      "lastAction": {
+        "text": "New prospect: buyer looking for Carnation acreage under $1.2M",
+        "url": "https://example.com/prospects/carnation-acreage",
+        "at": "2026-11-02T09:40:00-08:00"
+      },
       "avatarUrl": "/avatars/lead.png"
     },
     {
@@ -172,7 +225,11 @@
       "color": "#2F6FED",
       "job": "Showings",
       "status": "idle",
-      "lastAction": { "text": "Booked 3 Saturday showings in Duvall and Monroe", "url": "https://example.com/showings/nov-7", "at": "2026-11-02T10:30:00-08:00" },
+      "lastAction": {
+        "text": "Booked 3 Saturday showings in Duvall and Monroe",
+        "url": "https://example.com/showings/nov-7",
+        "at": "2026-11-02T10:30:00-08:00"
+      },
       "avatarUrl": "/avatars/tour.png"
     },
     {
@@ -184,7 +241,11 @@
       "color": "#2F6FED",
       "job": "Live deals, Tuesday drafts",
       "status": "working",
-      "lastAction": { "text": "Updated the live deals board and started Tuesday client drafts", "url": "https://example.com/deals/board", "at": "2026-11-02T14:45:00-08:00" },
+      "lastAction": {
+        "text": "Started the Tuesday update for the Hoover listing",
+        "url": "https://docs.google.com/document/d/example-hoover-tuesday",
+        "at": "2026-11-02T14:45:00-08:00"
+      },
       "avatarUrl": "/avatars/board.png"
     },
     {
@@ -196,7 +257,11 @@
       "color": "#2F6FED",
       "job": "Property intel and comps",
       "status": "working",
-      "lastAction": { "text": "Pulled 6 comps for the Riverview Ln offer", "url": "https://example.com/comps/riverview-ln", "at": "2026-11-02T11:00:00-08:00" },
+      "lastAction": {
+        "text": "Pulled 6 comps for the Riverview Ln offer",
+        "url": "https://example.com/comps/riverview-ln",
+        "at": "2026-11-02T11:00:00-08:00"
+      },
       "avatarUrl": "/avatars/scoop.png"
     },
     {
@@ -208,7 +273,11 @@
       "color": "#2F6FED",
       "job": "Offer review",
       "status": "idle",
-      "lastAction": { "text": "Reviewed the Riverview Ln offer: 2 items to flag before signing", "url": "", "at": "2026-11-02T12:10:00-08:00" },
+      "lastAction": {
+        "text": "Reviewed the offer on 1423 Riverview Ln: 2 items to flag before signing",
+        "url": "https://drive.google.com/file/d/example-riverview-offer",
+        "at": "2026-11-02T12:10:00-08:00"
+      },
       "avatarUrl": "/avatars/dottie.png"
     },
     {
@@ -220,7 +289,11 @@
       "color": "#2F6FED",
       "job": "MA to closing",
       "status": "working",
-      "lastAction": { "text": "Inspection response due Wednesday, reminder set for the seller", "url": "https://example.com/transactions/cherry-valley", "at": "2026-11-02T13:30:00-08:00" },
+      "lastAction": {
+        "text": "Inspection response due Wednesday for the Martinez sale, reminder set",
+        "url": "https://example.com/transactions/cherry-valley",
+        "at": "2026-11-02T13:30:00-08:00"
+      },
       "avatarUrl": "/avatars/tracy.png"
     },
     {
@@ -232,7 +305,11 @@
       "color": "#2F6FED",
       "job": "Past client touchpoints",
       "status": "sleeping",
-      "lastAction": { "text": "Queued 4 houseversary notes for this week", "url": "", "at": "2026-11-01T16:50:00-08:00" },
+      "lastAction": {
+        "text": "Queued 4 houseversary notes for this week",
+        "url": "",
+        "at": "2026-11-01T16:50:00-08:00"
+      },
       "avatarUrl": "/avatars/jet.png"
     },
     {
@@ -244,7 +321,11 @@
       "color": "#8B5CF6",
       "job": "People updates from texts/email",
       "status": "working",
-      "lastAction": { "text": "Logged 5 people updates, including a new job at Duvall Coffee", "url": "", "at": "2026-11-02T10:15:00-08:00" },
+      "lastAction": {
+        "text": "Logged 5 people updates, including a new job at Duvall Coffee",
+        "url": "https://example-project.supabase.co/rest/v1/people",
+        "at": "2026-11-02T10:15:00-08:00"
+      },
       "avatarUrl": "/avatars/trace.png"
     },
     {
@@ -256,7 +337,11 @@
       "color": "#2BA84A",
       "job": "Writes People and Business files",
       "status": "working",
-      "lastAction": { "text": "Updated 3 People files and started a Business file for a new bakery", "url": "https://example.com/people/updates-nov-2", "at": "2026-11-02T10:50:00-08:00" },
+      "lastAction": {
+        "text": "Updated 3 People files and started a Business file for a new bakery",
+        "url": "https://example.com/people/updates-nov-2",
+        "at": "2026-11-02T10:50:00-08:00"
+      },
       "avatarUrl": "/avatars/scout.png"
     },
     {
@@ -268,7 +353,11 @@
       "color": "#8B5CF6",
       "job": "Daily ping and intro",
       "status": "working",
-      "lastAction": { "text": "Today's ping: congratulate a neighbor on the new job, plus 1 intro idea", "url": "", "at": "2026-11-02T11:20:00-08:00" },
+      "lastAction": {
+        "text": "Today's ping: congratulate a neighbor on the new job, plus 1 intro idea",
+        "url": "",
+        "at": "2026-11-02T11:20:00-08:00"
+      },
       "avatarUrl": "/avatars/nudge.png"
     },
     {
@@ -277,10 +366,14 @@
       "pronoun": "they",
       "team": "money",
       "zone": "moneydesk",
-      "color": "#F3B624",
+      "color": "#0F9D8A",
       "job": "Money and retirement",
       "status": "sleeping",
-      "lastAction": { "text": "Checked the launch budget against this month's cash plan", "url": "https://example.com/money/november-plan", "at": "2026-11-02T13:50:00-08:00" },
+      "lastAction": {
+        "text": "Checked the launch budget against this month's cash plan",
+        "url": "https://example.com/money/november-plan",
+        "at": "2026-11-02T13:50:00-08:00"
+      },
       "avatarUrl": "/avatars/benji.png"
     },
     {
@@ -292,7 +385,11 @@
       "color": "#2BA84A",
       "job": "Finish line for products",
       "status": "working",
-      "lastAction": { "text": "Course launch checklist: 14 of 18 items done", "url": "https://example.com/launch/course-checklist", "at": "2026-11-02T13:20:00-08:00" },
+      "lastAction": {
+        "text": "Course launch checklist: 14 of 18 items done",
+        "url": "https://example.com/launch/course-checklist",
+        "at": "2026-11-02T13:20:00-08:00"
+      },
       "avatarUrl": "/avatars/launch.png"
     },
     {
@@ -304,7 +401,11 @@
       "color": "#8B5CF6",
       "job": "Home pings for Eve, Parker, Penny",
       "status": "idle",
-      "lastAction": { "text": "Reminded the family about Parker's Wednesday practice pickup", "url": "", "at": "2026-11-02T07:30:00-08:00" },
+      "lastAction": {
+        "text": "Reminded the family about Parker's Wednesday practice pickup",
+        "url": "",
+        "at": "2026-11-02T07:30:00-08:00"
+      },
       "avatarUrl": "/avatars/flo.png"
     },
     {
@@ -316,7 +417,11 @@
       "color": "#2BA84A",
       "job": "Daily learning brief",
       "status": "working",
-      "lastAction": { "text": "Daily learning brief: 4 new AI tools worth a look", "url": "https://example.com/recon/brief-2026-11-02", "at": "2026-11-02T12:05:00-08:00" },
+      "lastAction": {
+        "text": "Daily learning brief: 4 new AI tools worth a look",
+        "url": "https://example.com/recon/brief-2026-11-02",
+        "at": "2026-11-02T12:05:00-08:00"
+      },
       "avatarUrl": "/avatars/recon.png"
     },
     {
@@ -328,7 +433,11 @@
       "color": "#2BA84A",
       "job": "Deep briefs on demand",
       "status": "sleeping",
-      "lastAction": { "text": "Deep brief: short-term rental rules in King County", "url": "https://example.com/brobot/str-rules", "at": "2026-11-01T18:10:00-08:00" },
+      "lastAction": {
+        "text": "Deep brief: short-term rental rules in King County",
+        "url": "https://example.com/brobot/str-rules",
+        "at": "2026-11-01T18:10:00-08:00"
+      },
       "avatarUrl": "/avatars/brobot.png"
     },
     {
@@ -340,7 +449,11 @@
       "color": "#FF4500",
       "job": "Fantasy football GM",
       "status": "idle",
-      "lastAction": { "text": "Set the Week 9 lineup and proposed a trade nobody will accept", "url": "", "at": "2026-11-01T09:55:00-08:00" },
+      "lastAction": {
+        "text": "Set the Week 9 lineup and proposed a trade nobody will accept",
+        "url": "",
+        "at": "2026-11-01T09:55:00-08:00"
+      },
       "avatarUrl": "/avatars/nasty.png"
     },
     {
@@ -349,23 +462,78 @@
       "pronoun": "they",
       "team": "guest",
       "zone": "guestdesk",
-      "color": "#D97706",
+      "color": "#D97757",
       "job": "Visiting consultant",
       "status": "working",
-      "lastAction": { "text": "Built the Bot Army HQ island", "url": "", "at": "2026-11-02T15:55:00-08:00" },
-      "avatarUrl": "/avatars/claude.png"
+      "lastAction": {
+        "text": "Built the Bot Army HQ island and moved into the guest bungalow",
+        "url": "",
+        "at": "2026-11-02T15:55:00-08:00"
+      },
+      "avatarUrl": "/avatars/claude.png",
+      "note": "Launch and Chief drop by."
     }
   ],
   "handoffs": [
-    { "from": "scout-local", "to": "spin", "at": "2026-11-02T05:45:00-08:00", "what": "Duvall council story" },
-    { "from": "stamp", "to": "caption", "at": "2026-11-02T06:30:00-08:00", "what": "October Valley Stats numbers" },
-    { "from": "spin", "to": "caption", "at": "2026-11-02T08:10:00-08:00", "what": "Council recap carousel" },
-    { "from": "caption", "to": "poster", "at": "2026-11-02T09:00:00-08:00", "what": "Captions for 3 posts" },
-    { "from": "lead", "to": "board", "at": "2026-11-02T09:40:00-08:00", "what": "New Carnation acreage prospect" },
-    { "from": "trace", "to": "scout", "at": "2026-11-02T10:15:00-08:00", "what": "Job change at Duvall Coffee" },
-    { "from": "scout", "to": "nudge", "at": "2026-11-02T10:50:00-08:00", "what": "Intro idea for today's ping" },
-    { "from": "board", "to": "dottie", "at": "2026-11-02T11:30:00-08:00", "what": "Riverview Ln offer to review" },
-    { "from": "recon", "to": "chief", "at": "2026-11-02T12:05:00-08:00", "what": "Daily learning brief" },
-    { "from": "launch", "to": "benji", "at": "2026-11-02T13:20:00-08:00", "what": "Course launch budget" }
+    {
+      "from": "scout-local",
+      "to": "spin",
+      "at": "2026-11-02T05:45:00-08:00",
+      "what": "Duvall council story"
+    },
+    {
+      "from": "stamp",
+      "to": "caption",
+      "at": "2026-11-02T06:30:00-08:00",
+      "what": "October Valley Stats numbers"
+    },
+    {
+      "from": "spin",
+      "to": "caption",
+      "at": "2026-11-02T08:10:00-08:00",
+      "what": "Council recap carousel"
+    },
+    {
+      "from": "caption",
+      "to": "poster",
+      "at": "2026-11-02T09:00:00-08:00",
+      "what": "Captions for 3 posts"
+    },
+    {
+      "from": "lead",
+      "to": "board",
+      "at": "2026-11-02T09:40:00-08:00",
+      "what": "New Carnation acreage prospect"
+    },
+    {
+      "from": "trace",
+      "to": "scout",
+      "at": "2026-11-02T10:15:00-08:00",
+      "what": "Job change at Duvall Coffee"
+    },
+    {
+      "from": "scout",
+      "to": "nudge",
+      "at": "2026-11-02T10:50:00-08:00",
+      "what": "Intro idea for today's ping"
+    },
+    {
+      "from": "board",
+      "to": "dottie",
+      "at": "2026-11-02T11:30:00-08:00",
+      "what": "Riverview Ln offer to review"
+    },
+    {
+      "from": "recon",
+      "to": "chief",
+      "at": "2026-11-02T12:05:00-08:00",
+      "what": "Daily learning brief"
+    },
+    {
+      "from": "launch",
+      "to": "benji",
+      "at": "2026-11-02T13:20:00-08:00",
+      "what": "Course launch budget"
+    }
   ]
 }

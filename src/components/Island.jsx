@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import {
@@ -19,6 +19,7 @@ import {
   terrainY,
   zonePathCurve,
 } from '../utils/paths.js';
+import { labelState } from './labels.js';
 
 // ---------------------------------------------------------------------------
 // Shared materials and geometry
@@ -37,7 +38,6 @@ const M = {
   stone: std('#9aa3a8'),
   dark: std('#3b3430'),
   lisnGreen: std('#2E5248'),
-  lisnGold: std('#F3B624'),
   lisnOrange: std('#F09024'),
   bbBlue: std('#19469D'),
   bbYellow: std('#FFDE69'),
@@ -45,8 +45,11 @@ const M = {
   nasty: std('#FF4500'),
   launch: std('#2BA84A'),
   research: std('#2BA84A'),
-  claude: std('#D97706'),
-  gold: std('#F3B624', { metalness: 0.45, roughness: 0.35 }),
+  claude: std('#D97757'),
+  claudeSoft: std('#f2c4ae'),
+  cash: std('#5fae6e'),
+  cashBand: std('#ffffff'),
+  shell: std('#ffd6e4'),
   football: std('#8a4b26'),
   coconut: std('#6b4a2a'),
   screenDTV: new THREE.MeshStandardMaterial({ color: '#FF04A0', emissive: '#FF04A0', emissiveIntensity: 0.7, flatShading: true }),
@@ -389,6 +392,30 @@ function Palms({ animate }) {
     updateFronds(0);
   }, [palms]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Close-up views: palms between the camera and what it's looking at fold
+  // their fronds away so they don't block the view.
+  const fold = useMemo(() => new Float32Array(palms.length).fill(1), [palms]);
+  const controls = useThree((st) => st.controls);
+  const seg = useMemo(() => ({ a: new THREE.Vector3(), b: new THREE.Vector3(), line: new THREE.Line3(), q: new THREE.Vector3() }), []);
+
+  function updateFolds(camera, dt) {
+    const target = controls?.target;
+    const close = target && camera.position.distanceTo(target) < 18;
+    if (close) {
+      seg.line.set(camera.position, target);
+    }
+    palms.forEach((p, i) => {
+      let want = 1;
+      if (close) {
+        seg.line.closestPointToPoint(p.top, true, seg.q);
+        const d = seg.q.distanceTo(p.top);
+        const toTarget = p.top.distanceTo(target);
+        if (d < 2.4 && toTarget > 1.2) want = 0.15;
+      }
+      fold[i] += (want - fold[i]) * Math.min(1, dt * 4);
+    });
+  }
+
   function updateFronds(t) {
     const mesh = frondRef.current;
     if (!mesh) return;
@@ -397,8 +424,8 @@ function Palms({ animate }) {
         const yaw = p.yaw + (f / FRONDS) * Math.PI * 2 + Math.sin(t * 0.7 + i + f) * 0.035;
         const droop = 0.35 + (f % 2) * 0.18 + Math.sin(t * 0.9 + i * 1.7 + f * 0.6) * 0.05;
         dummy.position.copy(p.top);
-        dummy.rotation.set(-Math.PI / 2 - droop, yaw, 0, 'YXZ');
-        dummy.scale.setScalar(p.s);
+        dummy.rotation.set(-Math.PI / 2 - droop * (2 - fold[i]), yaw, 0, 'YXZ');
+        dummy.scale.setScalar(p.s * fold[i]);
         dummy.updateMatrix();
         mesh.setMatrixAt(i * FRONDS + f, dummy.matrix);
       }
@@ -406,8 +433,9 @@ function Palms({ animate }) {
     mesh.instanceMatrix.needsUpdate = true;
   }
 
-  useFrame((state) => {
-    if (animate) updateFronds(state.clock.elapsedTime);
+  useFrame((state, delta) => {
+    updateFolds(state.camera, animate ? Math.min(delta, 0.1) : 1);
+    updateFronds(animate ? state.clock.elapsedTime : 0);
   });
 
   return (
@@ -559,7 +587,7 @@ function Cabana({ night }) {
       <Roof p={[0, 2.12 + 0.18, 0]} halfX={2.8} halfZ={2.15} h={0.42} m={M.thatchDark} />
       {/* LISN banner under the front of the roof */}
       <Box p={[0, 1.88, 1.46]} s={[1.9, 0.36, 0.05]} m={M.lisnGreen} />
-      <Box p={[0, 1.76, 1.49]} s={[1.9, 0.07, 0.03]} m={M.lisnGold} />
+      <Box p={[0, 1.76, 1.49]} s={[1.9, 0.07, 0.03]} m={M.lisnOrange} />
       {/* work table + laptops */}
       <Box p={[0, 0.75, -0.4]} s={[2.8, 0.08, 0.75]} m={M.wood} />
       {[[-1.3, -0.7], [1.3, -0.7], [-1.3, -0.1], [1.3, -0.1]].map(([x, z], i) => (
@@ -694,10 +722,14 @@ function MoneyDesk({ night }) {
       <Cyl p={[0, 0.36, 0]} rt={0.06} h={0.72} m={M.darkWood} />
       <Cyl p={[0, 0.74, 0]} rt={0.58} h={0.06} seg={10} m={M.white} />
       <Cyl p={[0, 1.3, 0]} rt={0.03} h={2.6} m={M.white} />
-      <Cone p={[0, 2.3, 0]} rad={1.2} h={0.45} m={M.lisnGold} />
+      <Cone p={[0, 2.3, 0]} rad={1.2} h={0.45} m={M.lisnGreen} />
       <Cone p={[0, 2.56, 0]} rad={0.25} h={0.16} m={M.white} />
-      {[[-0.22, 0.1], [0.05, 0.22], [0.2, -0.08]].map(([x, z], i) => (
-        <Cyl key={i} p={[x, 0.8 + i * 0.03, z]} rt={0.08} h={0.06 + i * 0.06} seg={8} m={M.gold} />
+      {/* stacks of cash */}
+      {[[-0.22, 0.1, 2], [0.08, 0.22, 3], [0.22, -0.1, 1]].map(([x, z, n], i) => (
+        <group key={i} position={[x, 0.77, z]} rotation={[0, i * 0.5, 0]}>
+          <Box p={[0, n * 0.025, 0]} s={[0.2, n * 0.05, 0.1]} m={M.cash} />
+          <Box p={[0, n * 0.025, 0]} s={[0.05, n * 0.05 + 0.004, 0.104]} m={M.cashBand} />
+        </group>
       ))}
       <Lantern p={[0.4, 0.86, -0.2]} night={night} />
     </group>
@@ -828,14 +860,10 @@ function BeachChair() {
         <Cone p={[0, 2.0, 0]} rad={1.2} h={0.42} m={M.nasty} />
         <Cone p={[0, 2.25, 0]} rad={0.3} h={0.15} m={M.white} />
       </group>
-      {/* side table with a coconut drink */}
-      <group position={[-0.7, 0, 0.3]}>
-        <Cyl p={[0, 0.2, 0]} rt={0.18} h={0.04} seg={8} m={M.wood} />
-        <Cyl p={[0, 0.1, 0]} rt={0.03} h={0.2} m={M.wood} />
-        <mesh position={[0, 0.3, 0]} material={M.coconut}>
-          <icosahedronGeometry args={[0.1, 0]} />
-        </mesh>
-        <Cyl p={[0.03, 0.42, 0]} rt={0.01} h={0.18} r={[0, 0, -0.3]} m={M.nasty} />
+      {/* a cooler (Nasty keeps the coconut in hand) */}
+      <group position={[-0.75, 0, 0.3]}>
+        <Box p={[0, 0.13, 0]} s={[0.42, 0.26, 0.3]} m={M.white} />
+        <Box p={[0, 0.28, 0]} s={[0.44, 0.05, 0.32]} m={M.nasty} />
       </group>
       {/* a fantasy football on the sand */}
       <mesh position={[-0.6, 0.1, 1.0]} rotation={[0, 0.6, 0]} scale={[0.17, 0.11, 0.11]} material={M.football}>
@@ -845,47 +873,121 @@ function BeachChair() {
   );
 }
 
-function GuestDesk({ showTag }) {
-  const cx = -2.6;
-  const cz = 2.9;
+// Claude's VIP guest bungalow: a cozy little hut with a porch, a lei-pink
+// door, glowing windows at night, potted plants and a "Welcome Claude" sign.
+function GuestBungalow({ night, onTap, showSign }) {
+  const zone = ZONES.guestdesk;
+  const cx = zone.x;
+  const cz = zone.z;
   const g = groundY(cx, cz);
+  const windowMat = useGlowMaterial('#ffe1b8', night, 0.08, 1.5);
+  const signX = -1.55;
+  const signZ = 0.95;
+  const signTagPos = [signX, 1.3, signZ];
   return (
     <group position={[cx, g, cz]}>
-      <Box p={[0, 0.55, 0]} s={[0.9, 0.06, 0.5]} m={M.white} />
-      {[[-0.4, -0.2], [0.4, -0.2], [-0.4, 0.2], [0.4, 0.2]].map(([x, z], i) => (
-        <Box key={i} p={[x, 0.27, z]} s={[0.05, 0.54, 0.05]} m={M.wood} />
+      {/* stilts and porch deck */}
+      {[[-0.85, -0.55], [0.85, -0.55], [-0.85, 0.95], [0.85, 0.95]].map(([x, z], i) => (
+        <Cyl key={i} p={[x, 0.02, z]} rt={0.06} h={0.3} m={M.darkWood} />
       ))}
-      <Box p={[0, 0.65, 0.18]} s={[0.5, 0.13, 0.05]} r={[-0.3, 0, 0]} m={M.claude} />
-      <group position={[-0.15, 0.6, -0.05]}>
-        <Box p={[0, 0, 0]} s={[0.34, 0.025, 0.22]} m={M.dark} />
-        <Box p={[0, 0.11, -0.1]} s={[0.34, 0.22, 0.02]} r={[-0.25, 0, 0]} m={M.screen} />
+      <Box p={[0, 0.1, 0.2]} s={[1.95, 0.08, 1.75]} m={M.plank} />
+      {/* walls, door and windows */}
+      <Box p={[0, 0.66, -0.15]} s={[1.6, 1.05, 1.0]} m={M.white} />
+      <Box p={[0.15, 0.55, 0.36]} s={[0.4, 0.78, 0.04]} m={M.claude} />
+      <Box p={[-0.48, 0.78, 0.36]} s={[0.36, 0.3, 0.04]} m={windowMat} />
+      <Box p={[0.65, 0.78, 0.36]} s={[0.22, 0.3, 0.04]} m={windowMat} />
+      <Box p={[-0.81, 0.78, -0.15]} s={[0.04, 0.3, 0.4]} m={windowMat} />
+      {/* thatch roof with a little overhang over the porch */}
+      <Roof p={[0, 1.18 + 0.4, -0.05]} halfX={1.1} halfZ={0.9} h={0.8} m={M.thatch} />
+      <Roof p={[0, 1.18 + 0.1, -0.05]} halfX={1.22} halfZ={1.02} h={0.3} m={M.thatchDark} />
+      {/* porch posts and a lantern */}
+      <Cyl p={[-0.85, 0.62, 0.95]} rt={0.04} h={1.0} m={M.wood} />
+      <Cyl p={[0.85, 0.62, 0.95]} rt={0.04} h={1.0} m={M.wood} />
+      <Box p={[0, 1.1, 0.95]} s={[1.8, 0.06, 0.06]} m={M.wood} />
+      <Lantern p={[0.85, 1.25, 0.95]} night={night} />
+      {/* a hanging lei garland over the door */}
+      {Array.from({ length: 7 }, (_, i) => {
+        const x = -0.3 + i * 0.1 + 0.15;
+        const y = 1.02 - Math.sin((i / 6) * Math.PI) * 0.1;
+        return (
+          <mesh key={i} position={[x, y, 0.39]} material={i % 2 ? M.shell : M.claudeSoft}>
+            <icosahedronGeometry args={[0.04, 0]} />
+          </mesh>
+        );
+      })}
+      {/* potted plants by the steps */}
+      {[-0.65, 0.95].map((x, i) => (
+        <group key={i} position={[x, 0.14, 1.0]}>
+          <Cyl p={[0, 0.08, 0]} rt={0.09} rb={0.07} h={0.16} seg={8} m={M.claude} />
+          <Cone p={[0, 0.28, 0]} rad={0.13} h={0.3} seg={6} m={M.launch} />
+        </group>
+      ))}
+      {/* welcome sign on a post */}
+      <group position={[signX, 0, signZ]} rotation={[0, 0.35, 0]}>
+        <Cyl p={[0, 0.45, 0]} rt={0.035} h={0.9} m={M.darkWood} />
+        <Box p={[0, 0.88, 0.02]} s={[0.78, 0.32, 0.05]} m={M.plank} />
+        <Box p={[0, 0.88, 0.05]} s={[0.66, 0.22, 0.01]} m={M.white} />
       </group>
-      {showTag && (
-        <Html position={[0, 0.25, 0.4]} center zIndexRange={[10, 0]} pointerEvents="none">
-          <div className="nameplate">Claude (visiting)</div>
-        </Html>
-      )}
+      {showSign && <WelcomeSign onTap={onTap} position={signTagPos} />}
     </group>
+  );
+}
+
+function WelcomeSign({ onTap, position }) {
+  const zone = ZONES.guestdesk;
+  const g = groundY(zone.x, zone.z);
+  const world = useMemo(() => [zone.x + position[0], g + position[1], zone.z + position[2]], [zone, g, position]);
+  // Rendered in island space so the tag lines up with the label director.
+  return (
+    <group position={[-zone.x, -g, -zone.z]}>
+      <ZoneTag zoneKey="guestdesk" tagKey="welcome" zone={zone} label="Welcome Claude" className="welcome-sign" position={world} onZoneTap={onTap} />
+    </group>
+  );
+}
+
+// A clickable tag floating over a zone. tagKey is its slot in the label
+// director (so tags never overlap); zoneKey is where tapping flies to.
+function ZoneTag({ zoneKey, tagKey = zoneKey, zone, label = zone.label, position, className = '', onZoneTap }) {
+  const ref = useRef();
+  const pos = useMemo(() => position || [zone.x, groundY(zone.x, zone.z) + zone.labelY, zone.z], [zone, position]);
+  useEffect(() => {
+    labelState.zones.set(tagKey, { x: pos[0], y: pos[1], z: pos[2], name: label });
+    return () => labelState.zones.delete(tagKey);
+  }, [tagKey, pos, label]);
+  // Hide this tag while it would overlap a nearer one (the label director decides).
+  useFrame(() => {
+    const el = ref.current;
+    if (!el) return;
+    const show = labelState.visibleZones.has(tagKey);
+    const op = show ? '1' : '0';
+    if (el.style.opacity !== op) {
+      el.style.opacity = op;
+      el.style.pointerEvents = show ? 'auto' : 'none';
+      el.tabIndex = show ? 0 : -1;
+    }
+  });
+  return (
+    <Html position={pos} center zIndexRange={[10, 0]}>
+      <button
+        ref={ref}
+        type="button"
+        className={`zone-tag ${className}`}
+        style={{ opacity: 0 }}
+        onClick={(e) => {
+          e.stopPropagation();
+          onZoneTap?.(zoneKey);
+        }}
+      >
+        {label}
+      </button>
+    </Html>
   );
 }
 
 function ZoneLabels({ onZoneTap }) {
   return Object.entries(ZONES)
     .filter(([, z]) => !z.noLabel)
-    .map(([key, z]) => (
-      <Html key={key} position={[z.x, groundY(z.x, z.z) + z.labelY, z.z]} center zIndexRange={[10, 0]}>
-        <button
-          type="button"
-          className="zone-tag"
-          onClick={(e) => {
-            e.stopPropagation();
-            onZoneTap?.(key);
-          }}
-        >
-          {z.label}
-        </button>
-      </Html>
-    ));
+    .map(([key, z]) => <ZoneTag key={key} zoneKey={key} zone={z} onZoneTap={onZoneTap} />);
 }
 
 // ---------------------------------------------------------------------------
@@ -910,7 +1012,7 @@ export default function Island({ sky, animate = true, onGroundTap, onZoneTap, sh
       <Bungalow night={night} />
       <Lookout night={night} animate={animate} />
       <BeachChair />
-      <GuestDesk showTag={showLabels} />
+      <GuestBungalow night={night} onTap={onZoneTap} showSign={showLabels} />
       {showLabels && <ZoneLabels onZoneTap={onZoneTap} />}
     </group>
   );

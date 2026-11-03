@@ -7,11 +7,11 @@ import { TEAM_ZONE, ZONES } from '../utils/paths.js';
 // bots as colored dots. Tap a ring (or a dot) to fly the camera to that zone.
 
 const RINGS = [
-  { id: 'content', teams: ['content'], zone: 'cabana', R: 1.0, tilt: [-1.15, 0, 0.15], color: '#F3B624', speed: 0.22 },
+  { id: 'content', teams: ['content'], zone: 'cabana', R: 1.0, tilt: [-1.15, 0, 0.15], color: '#F09024', speed: 0.22 },
   { id: 'realestate', teams: ['realestate'], zone: 'lanai', R: 1.32, tilt: [-1.22, 0, -0.12], color: '#2F6FED', speed: 0.16 },
   { id: 'networking', teams: ['networking'], zone: 'tikihut', R: 1.62, tilt: [-1.05, 0, 0.25], color: '#8B5CF6', speed: 0.13 },
   { id: 'research', teams: ['research'], zone: 'lookout', R: 1.9, tilt: [-1.28, 0, -0.2], color: '#2BA84A', speed: 0.1 },
-  { id: 'other', teams: ['money', 'product', 'home', 'fun', 'guest'], zone: 'tower', R: 2.18, tilt: [-1.12, 0, 0.06], color: '#F09024', speed: 0.075 },
+  { id: 'other', teams: ['money', 'product', 'home', 'fun', 'guest'], zone: 'tower', R: 2.18, tilt: [-1.12, 0, 0.06], color: '#0F9D8A', speed: 0.075 },
 ];
 
 const dotGeo = new THREE.SphereGeometry(0.085, 10, 8);

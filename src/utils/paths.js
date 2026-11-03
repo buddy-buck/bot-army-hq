@@ -91,7 +91,7 @@ export const ZONES = {
   bungalow: { label: "Flo's Bungalow", x: 1.8, z: -7.3, entry: [1.7, -5.4], labelY: 2.8, bend: -0.4 },
   lookout: { label: 'Research Lookout', x: 5.2, z: -3.0, entry: [5.2, -1.0], labelY: 3.6, bend: 0.5 },
   beachchair: { label: "Nasty's Chair", x: 8.6, z: 6.0, entry: [7.6, 4.9], labelY: 2.0, bend: -0.6 },
-  guestdesk: { label: 'Guest Desk', x: -2.6, z: 2.9, entry: [-2.4, 1.8], labelY: 1.6, bend: 0.3, noLabel: true },
+  guestdesk: { label: 'Guest Bungalow', x: -3.0, z: 3.4, entry: [-1.9, 3.7], labelY: 2.6, bend: 0.3, noLabel: true },
 };
 
 export const TEAM_ZONE = {
@@ -173,10 +173,79 @@ const SLOT_RULES = {
   bungalow: (n) => arc(1.8, -7.3, 1.5, 70, 110, n),
   lookout: (n) => grid(5.2, -3.0, 2, 0.75, 0.6, n).map((p) => ({ ...p, y: lookoutTopY(), raised: true })),
   beachchair: (n) => [{ x: 8.6, z: 6.0, lounge: true }, ...arc(8.6, 6.0, 1.5, 200, 340, Math.max(0, n - 1))],
-  guestdesk: (n) => [{ x: -2.6, z: 2.35 }, ...arc(-2.6, 2.9, 1.1, 200, 340, Math.max(0, n - 1))],
+  guestdesk: (n) => [{ x: -2.55, z: 4.75 }, ...arc(-3.0, 3.4, 1.9, 20, 160, Math.max(0, n - 1))],
 };
 
-// Returns { [botId]: { id, zone, x, y, z, rotY, raised, lounge, doorstep, hammock } }
+// Porch height on Claude's guest bungalow.
+export const GUEST_PORCH_H = 0.14;
+
+// Hand-placed hammocks where the "step outward" rule would land in the water
+// or on top of the desk (the Real Estate Lanai is a crowded deck).
+const HAMMOCK_SPOTS = {
+  lanai: [
+    { x: 11.35, z: 2.72, rotY: 0 },
+    { x: 13.5, z: 2.72, rotY: 0 },
+    { x: 8.4, z: -1.9, rotY: 0.35 },
+    { x: 8.3, z: 3.7, rotY: -0.35 },
+  ],
+};
+
+export function botHash(id) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+// Idle bots relax. About a third of them (picked by name, so it's stable)
+// stretch out in a hammock; the rest hang out near their station with a drink.
+export function prefersHammock(bot) {
+  return botHash(bot.id) % 3 === 0;
+}
+
+const onLand = (x, z) => islandE(x, z) < 0.86 || DECKS.some((d) => x >= d.x0 + 0.3 && x <= d.x1 - 0.3 && z >= d.z0 + 0.3 && z <= d.z1 - 0.3);
+
+// Look outward from a station for a clear spot to hang a hammock: on land,
+// off the sand paths, away from other zones, palms, stations and hammocks.
+function findHammockSpot(bx, bz, ox, oz, zoneKey, placed, stations, raised) {
+  const dists = raised ? [1.8, 2.6, 3.4, 4.2] : [1.4, 2.0, 2.6, 3.2, 3.8, 4.6];
+  const turns = [0, 0.3, -0.3, 0.6, -0.6, 0.9, -0.9, 1.25, -1.25, 1.6, -1.6, 2.2, -2.2];
+  let best = null;
+  let bestScore = -Infinity;
+  for (const d of dists) {
+    for (const t of turns) {
+      const c = Math.cos(t);
+      const sn = Math.sin(t);
+      const dx = ox * c - oz * sn;
+      const dz = ox * sn + oz * c;
+      const x = bx + dx * d;
+      const z = bz + dz * d;
+      if (!onLand(x, z) || islandE(x, z) > 0.8) continue;
+      // Clearance, scaled so 1.0 means "comfortably clear" for each rule.
+      let score = Math.min(1, (0.8 - islandE(x, z)) / 0.15);
+      score = Math.min(score, Math.abs(Math.hypot(x, z) - HUB_RADIUS) / 1.0);
+      for (const [k, zz] of Object.entries(ZONES)) {
+        score = Math.min(score, Math.hypot(x - zz.x, z - zz.z) / (k === zoneKey ? 1.2 : 2.6));
+        const h = hubPoint(k);
+        score = Math.min(score, distToSegment(x, z, zz.entry[0], zz.entry[1], h.x, h.z) / 0.9);
+      }
+      for (const h of placed) score = Math.min(score, Math.hypot(x - h.x, z - h.z) / 2.4);
+      for (const st of stations) score = Math.min(score, Math.hypot(x - st.x, z - st.z) / 1.0);
+      for (const p of PALMS) score = Math.min(score, Math.hypot(x - p.x, z - p.z) / 1.25);
+      score = Math.min(1, score) - d * 0.01 - Math.abs(t) * 0.01; // prefer close and straight out
+      if (score > bestScore) {
+        bestScore = score;
+        best = { x, y: groundY(x, z), z, rotY: Math.atan2(dx, dz) };
+      }
+    }
+  }
+  return best || { x: bx, y: groundY(bx, bz), z: bz, rotY: Math.atan2(ox, oz) };
+}
+
+// Returns { [botId]: { id, zone, x, y, z, rotY, raised, lounge, doorstep,
+//   hammock, mode, home } }
+// mode: 'station' (working), 'chill' (idle, standing with a drink),
+//       'hammock' (sleeping, or idle and lying down), 'lounge' (Nasty's chair).
+// home: where the bot should be right now for its status.
 export function layoutBots(bots) {
   const byZone = {};
   for (const b of bots) {
@@ -185,6 +254,7 @@ export function layoutBots(bots) {
     (byZone[key] ||= []).push({ bot: b, extra });
   }
   const out = {};
+  const placedHammocks = [];
   for (const [key, list] of Object.entries(byZone)) {
     const zone = ZONES[key];
     const normal = list.filter((l) => !l.extra);
@@ -195,12 +265,15 @@ export function layoutBots(bots) {
       ...normal.map((l, i) => ({ l, s: slots[i] })),
       ...extras.map((l, i) => ({ l, s: extraSlots[i] })),
     ];
-    all.forEach(({ l, s }, i) => {
-      const y = s.y ?? groundY(s.x, s.z);
+    const spots = [...(HAMMOCK_SPOTS[key] || [])];
+    let hk = 0;
+    const stations = all.map(({ s: st }) => st);
+    all.forEach(({ l, s }) => {
+      const bot = l.bot;
+      const y = s.y ?? groundY(s.x, s.z) + (s.porch ? GUEST_PORCH_H : 0);
       const dx = s.x - zone.x;
       const dz = s.z - zone.z;
       const rotY = s.faceOut ? Math.atan2(dx, dz) : 0;
-      // Hammock spot for sleeping bots at night: a little outward from their slot.
       let ox = dx;
       let oz = dz;
       const ol = Math.hypot(ox, oz);
@@ -211,20 +284,57 @@ export function layoutBots(bots) {
         ox /= ol;
         oz /= ol;
       }
-      const hDist = s.raised ? 2.3 + (i % 2) * 0.4 : 1.15;
-      const hx = s.x + ox * hDist;
-      const hz = s.z + oz * hDist;
-      out[l.bot.id] = {
-        id: l.bot.id,
+
+      const lounge = !!s.lounge;
+      const raised = !!s.raised;
+      const wantsHammock = !lounge && (bot.status === 'sleeping' || (bot.status === 'idle' && !raised && prefersHammock(bot)));
+
+      // Hammock: a hand-placed spot, or a step outward from the station.
+      // Neighbors alternate near/far so two hammocks never overlap.
+      let hammock = null;
+      if (wantsHammock) {
+        const spot = !raised && spots.length ? spots.shift() : null;
+        if (spot) {
+          hammock = { x: spot.x, y: groundY(spot.x, spot.z), z: spot.z, rotY: spot.rotY };
+        } else {
+          const bx = raised ? zone.entry[0] : s.x;
+          const bz = raised ? zone.entry[1] : s.z;
+          hammock = findHammockSpot(bx, bz, ox, oz, key, placedHammocks, stations, raised);
+        }
+        placedHammocks.push(hammock);
+        hk++;
+      }
+
+      // Chill spot: a short step outward from the station, facing out.
+      let chill = { x: s.x, y, z: s.z, rotY: rotY + 0.5 };
+      if (!raised && !lounge && !s.porch) {
+        const cx = s.x + ox * 0.7;
+        const cz = s.z + oz * 0.7;
+        const cy = groundY(cx, cz);
+        if (onLand(cx, cz) && Math.abs(cy - y) < 0.2) chill = { x: cx, y: cy, z: cz, rotY: Math.atan2(ox, oz) + (botHash(bot.id) % 7 - 3) * 0.15 };
+      }
+
+      let mode = 'station';
+      if (lounge) mode = 'lounge';
+      else if (hammock) mode = 'hammock';
+      else if (bot.status === 'idle') mode = 'chill';
+
+      const station = { x: s.x, y, z: s.z, rotY };
+      const home = mode === 'hammock' ? hammock : mode === 'chill' ? chill : station;
+
+      out[bot.id] = {
+        id: bot.id,
         zone: key,
         x: s.x,
         y,
         z: s.z,
         rotY,
-        raised: !!s.raised,
-        lounge: !!s.lounge,
-        doorstep: s.raised ? { x: zone.entry[0], z: zone.entry[1] } : null,
-        hammock: { x: hx, y: groundY(hx, hz), z: hz, rotY: Math.atan2(ox, oz) },
+        raised,
+        lounge,
+        doorstep: raised ? { x: zone.entry[0], z: zone.entry[1] } : null,
+        hammock,
+        mode,
+        home: { ...home, raised: raised && mode !== 'hammock' },
       };
     });
   }
@@ -401,7 +511,7 @@ const AVOID = [
   { k: 'bungalow', r: 2.5 },
   { k: 'lookout', r: 2.3 },
   { k: 'beachchair', r: 2.1 },
-  { k: 'guestdesk', r: 1.8 },
+  { k: 'guestdesk', r: 2.9 },
 ];
 
 function distToSegment(px, pz, ax, az, bx, bz) {
@@ -446,7 +556,7 @@ export const PALMS = (() => {
   // Hand-placed groves: palms around the tiki hut, a screen in front of
   // Flo's private bungalow, and a few near the cabana and lookout.
   const groves = [
-    [-1.7, 5.7], [-1.4, 8.1], [3.3, 8.0], [3.7, 6.5],
+    [-1.4, 8.1], [3.3, 8.0], [3.7, 6.5],
     [-0.4, -5.0], [3.2, -5.2], [4.0, -6.2], [-1.3, -6.3], [0.2, -8.6], [3.4, -8.3],
     [-9.7, -5.6], [-3.4, -6.6],
     [6.9, -4.3], [3.5, -4.4],
