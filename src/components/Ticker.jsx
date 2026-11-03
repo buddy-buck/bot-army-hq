@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { computeMinutesSaved, formatAsOf, formatDay, formatNumber, MAX_EXTRA_HOURS } from '../utils/ticker.js';
 
 // Top banner: "Buddy's minutes saved: 10,459"
-// Grows at perHourRate per hour since asOf (capped at one week), never counts
-// backward, shows a thin bar filling toward the next minute, and pops on each
+// Live data shows the real total as a static number. Demo data grows at
+// perHourRate per hour since asOf (capped at one week), never counts backward, shows a thin bar filling toward the next minute, and pops on each
 // tick. Tap it for a short note on what the number means.
 export default function Ticker({ minutesSaved, version, isExample }) {
   const [now, setNow] = useState(() => Date.now());
@@ -19,7 +19,7 @@ export default function Ticker({ minutesSaved, version, isExample }) {
     return () => clearInterval(id);
   }, []);
 
-  const raw = computeMinutesSaved(minutesSaved, now);
+  const raw = computeMinutesSaved(minutesSaved, now, isExample);
   if (raw > best.current) best.current = raw;
   const value = best.current;
   const whole = Math.floor(value);
@@ -93,7 +93,7 @@ export default function Ticker({ minutesSaved, version, isExample }) {
             pulling market stats, and more.
           </p>
           {since && <p className="ticker-info-small">Based on tracked tasks since {since}.</p>}
-          {rate > 0 && (
+          {isExample && rate > 0 && (
             <p className="ticker-info-small">
               Between data updates it grows at the recent pace of {rate} minutes per hour, and stops growing after {MAX_EXTRA_HOURS / 24} days without new data.
             </p>

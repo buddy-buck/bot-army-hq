@@ -10,7 +10,15 @@
 6. **Find a bot.** A people button opens a panel listing all 29 bots by zone, each with a color dot and status. Tap a name to fly the camera to that bot.
 7. **Claude's VIP guest bungalow.** The small desk became a cozy bungalow with a porch, a lei garland, glowing windows and a "Welcome Claude" sign. Claude wears a lei and holds a mai tai, and Claude's card says "Launch and Chief drop by."
 8. **Buck constellation.** At night, a buck with antlers sits low in the north-west sky, drawn in faint stars and lines. Tilt toward the horizon to find it. Tapping it makes it glow and shows "Buck yeah!", "The Buck stops here." or "Oh deer, you found it."
-9. **Public-safe mode.** Add `?safe=1` to hide client names, family details (Eve, Parker, Penny) and private links (Gmail, Google Docs and Drive, Supabase). Real estate, networking, home and money actions become generic lines like "Drafted a client update". Optional `lastAction.publicText` sets the exact wording.
+9. **Public-safe mode.** Add `?safe=1` to hide client names, family details and private links (Gmail, Google Docs and Drive, Supabase). Real estate, networking, home and money actions become generic lines like "Drafted a client update". Optional `lastAction.publicText` sets the exact wording.
 10. **Minutes-saved note.** Tapping the ticker explains what it counts. It adds "Based on tracked tasks since [date]" when `minutesSaved.trackedSince` is set, says how the count grows between updates, and flags sample numbers in demo mode.
+
+**Data updates from Chief (folded into Round 1):**
+
+- The data URL comes from `VITE_DATA_URL` (set on Vercel for Preview only, a gist that updates every 5 minutes), falling back to `public/data.json` (example data, `_example: true`).
+- The Team activity feed now reads the top-level `feed` array (`bot`, `text`, `url`, `at`, optional `to`), newest first, at most 40. Lines with a `to` read "Caption to Poster: ...". Public-safe mode filters the feed too.
+- Sparse real data looks right: idle bots with no actions relax with drinks, cards say "Nothing logged yet", and nothing is made up when `_example` is false. Empty `handoffs` means nobody walks.
+- Empty URLs: no Open button, just "No link yet" in small gray text.
+- Bots with a missing or unknown zone go to their usual spot by id. The bot id list in `public/data.json` matches the official 29.
 
 **Also fixed:** camera framing. The island is centered and fully visible on load on every screen size, between the top and bottom panels. It stays in frame as the camera turns, and phones start looking along the island's long side. Palms that block a close-up view fold out of the way.

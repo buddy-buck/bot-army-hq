@@ -1,6 +1,7 @@
 // Minutes-saved math for the top banner.
 //
-// displayed = total + perHourRate * hoursSince(asOf)
+// Live data: displayed = total (static).
+// Demo data: displayed = total + perHourRate * hoursSince(asOf)
 // The extra part is capped at one week (perHourRate * 168) and never negative.
 // The Ticker component also makes sure the number never counts backward.
 
@@ -13,9 +14,12 @@ export function hoursSince(iso, now = Date.now()) {
   return (now - t) / 3600000;
 }
 
-export function computeMinutesSaved(minutesSaved, now = Date.now()) {
+export function computeMinutesSaved(minutesSaved, now = Date.now(), isExample = false) {
   if (!minutesSaved) return 0;
   const total = Number(minutesSaved.total) || 0;
+  // Live data: show the real total as-is. No extrapolation, no climbing.
+  if (!isExample) return total;
+  // Demo data only: grow at perHourRate since asOf (capped at one week).
   const rate = Math.max(0, Number(minutesSaved.perHourRate) || 0);
   const hours = Math.max(0, hoursSince(minutesSaved.asOf, now));
   const extra = Math.min(rate * hours, rate * MAX_EXTRA_HOURS);

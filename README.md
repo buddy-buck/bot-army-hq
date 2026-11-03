@@ -25,7 +25,7 @@ Handy test switches (add to the URL):
 | `?hour=21` | Pretend it's 9 PM in Duvall (night sky, hammocks, lanterns). Any value 0 to 24 works. |
 | `?hour=6` / `?hour=18` | Sunrise / golden hour |
 | `?reduced=1` | Force the reduced-motion view (flat top-down, no animation) |
-| `?safe=1` | Public-safe view: hides client names, family details and private links (see below) |
+| `?safe=0` | Turns off public-safe view for testing. Safe view is ON by default (see below) |
 
 Note: if npm prints a warning that esbuild's install script was skipped, the build still works. If `npm run dev` ever fails because esbuild is missing, run `npm rebuild esbuild`.
 
@@ -60,12 +60,12 @@ How it behaves:
 - **Reduced motion**: if the phone or computer has "Reduce Motion" turned on, you get a still top-down view with all the same data, plus a "Recent handoffs" list.
 - **Data refresh**: `data.json` is re-fetched every 5 minutes. The ticker pulses on refresh, and any bot whose last action changed gets a ripple at its feet.
 
-## Public-safe mode (`?safe=1`)
+## Public-safe mode (on by default)
 
-Use this link before sharing screenshots or a screen recording anywhere public (for example on X). In safe mode:
+Safe mode is on for every visit, so screenshots and screen recordings are safe to share anywhere public (for example on X). Add `?safe=0` to turn it off for testing. In safe mode:
 
-- Real estate, networking, home and money bots show a generic line instead of their real action, like "Drafted a client update" instead of "Started the Tuesday update for the Hoover listing". To control the exact wording, add `lastAction.publicText` in `data.json`.
-- Other bots keep their text, with names that look like clients ("the Hoover listing"), street addresses, family names (Eve, Parker, Penny), emails and phone numbers swapped for generic words.
+- Real estate, networking, home and money bots show a generic line instead of their real action, like "Drafted a client update" instead of the real action text. To control the exact wording, add `lastAction.publicText` in `data.json`.
+- Other bots keep their text, with names that look like clients ("the Smith listing"), street addresses, family names, emails and phone numbers swapped for generic words.
 - Links to Gmail, Google Docs/Drive/Sheets/Calendar, Supabase and local addresses are hidden, along with every link from the sensitive teams. The card says "Link hidden in public view".
 - A small "Public view" note shows at the top.
 
@@ -73,7 +73,15 @@ Important: safe mode only changes what the page shows. `data.json` is a public f
 
 ## Swap in real data
 
-Replace `public/data.json` (or have your pipeline overwrite `dist/data.json` after a build, or upload a new one with each deploy). The shape:
+The app reads its data from `VITE_DATA_URL` when that's set (on Vercel it's set for Preview builds only, pointing at a gist JSON that updates every 5 minutes). Without it, it falls back to `public/data.json`, which is example data with `_example: true`.
+
+To try a different data file locally, create `.env.local` (it's git-ignored) with:
+
+```
+VITE_DATA_URL=https://example.com/your-data.json
+```
+
+The shape:
 
 ```json
 {
@@ -96,6 +104,9 @@ Replace `public/data.json` (or have your pipeline overwrite `dist/data.json` aft
   ],
   "handoffs": [
     { "from": "spin", "to": "caption", "at": "2026-11-02T08:10:00-08:00", "what": "Council recap carousel" }
+  ],
+  "feed": [
+    { "bot": "spin", "to": "caption", "text": "Drafted LISN carousel", "url": "https://...", "at": "2026-11-02T08:10:00-08:00" }
   ]
 }
 ```
@@ -110,7 +121,11 @@ Rules:
 - `lastAction.publicText` (optional) is the wording to use in public-safe mode.
 - `note` (optional) is a short italic line on the bot's card. Claude's says "Launch and Chief drop by."
 - `minutesSaved.trackedSince` (optional, like `"2026-09-01"`) adds "Based on tracked tasks since Sep 1, 2026." to the ticker note.
-- `handoffs`: each handoff from the last 24 hours plays once. Handoffs naming a bot that isn't in `bots` are skipped.
+- `handoffs`: each handoff from the last 24 hours plays once. Handoffs naming a bot that isn't in `bots` are skipped. An empty list is fine: nobody walks.
+- `feed`: the Team activity lines, newest first, at most 40. `to` is optional. Entries from the last 24 hours show. Lines with a `url` are clickable; lines without one aren't.
+- Real data can be sparse. A bot with `"lastAction": { "text": "", "url": "", "at": null }` and `"status": "idle"` just relaxes with a drink, and its card says "Nothing logged yet" and "No link yet". The island never makes up activity when `_example` is false.
+- If a bot's `zone` is missing or unknown, the bot goes to its usual spot (by id), so the island still looks right.
+- Bot ids: chief, spin, caption, slide, poster, cue, echo, download, stamp, scout-local, vibe, desk, lead, tour, board, scoop, dottie, tracy, jet, trace, scout, nudge, benji, launch, flo, recon, brobot, nasty, claude. Claude lives in the `guestdesk` zone (the guest bungalow).
 - Timestamps should include a timezone offset (like `-08:00`).
 
 ### Avatars
@@ -118,6 +133,8 @@ Rules:
 Put square images at `public/avatars/<id>.png`, for example `public/avatars/spin.png`. Around 256×256 is plenty. Any bot without an image shows a colored circle with its first initial. To use a different path or host, set `avatarUrl` on that bot in `data.json`.
 
 ## Deploy to Vercel
+
+Every push to `main` deploys to production at bot-army-hq.vercel.app, which is public. Do work on a branch and open a pull request; Vercel builds a Preview for each branch (with the live `VITE_DATA_URL`).
 
 Option A: import the repo
 1. Push this folder to a GitHub repo.

@@ -1,17 +1,45 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { TEAM_ZONE, ZONES } from '../utils/paths.js';
 
 const REFRESH_MS = 5 * 60 * 1000;
-const DATA_URL = `${import.meta.env.BASE_URL}data.json`;
+const DATA_URL = import.meta.env.VITE_DATA_URL || `${import.meta.env.BASE_URL}data.json`;
+
+const MAX_FEED = 40;
+
+// Where each bot lives when the data leaves the zone out (or uses an old name).
+const HOME_ZONE = {
+  chief: 'tower',
+  spin: 'cabana', caption: 'cabana', slide: 'cabana', poster: 'cabana', cue: 'cabana', echo: 'cabana',
+  download: 'cabana', stamp: 'cabana', 'scout-local': 'cabana', vibe: 'cabana', desk: 'cabana',
+  lead: 'lanai', tour: 'lanai', board: 'lanai', scoop: 'lanai', dottie: 'lanai', tracy: 'lanai', jet: 'lanai',
+  trace: 'tikihut', scout: 'tikihut', nudge: 'tikihut',
+  benji: 'moneydesk',
+  launch: 'dock',
+  flo: 'bungalow',
+  recon: 'lookout', brobot: 'lookout',
+  nasty: 'beachchair',
+  claude: 'guestdesk',
+};
+const ZONE_ALIASES = { 'guest-bungalow': 'guestdesk', guestbungalow: 'guestdesk', guest: 'guestdesk', vip: 'guestdesk' };
+const ZONE_TEAM = Object.fromEntries(Object.entries(TEAM_ZONE).map(([team, zone]) => [zone, team]));
+
+function resolveZone(id, zone, team) {
+  const z = String(zone || '').trim().toLowerCase();
+  if (ZONES[z]) return z;
+  if (ZONE_ALIASES[z]) return ZONE_ALIASES[z];
+  return HOME_ZONE[id] || TEAM_ZONE[team] || 'tower';
+}
 
 function normalizeBot(raw) {
   const id = String(raw.id || '').trim();
   const la = raw.lastAction || {};
+  const zone = resolveZone(id, raw.zone, raw.team);
   return {
     id,
-    name: raw.name || id,
+    name: raw.name || id.charAt(0).toUpperCase() + id.slice(1),
     pronoun: raw.pronoun || 'they',
-    team: raw.team || 'guest',
-    zone: raw.zone || 'tower',
+    team: raw.team || ZONE_TEAM[zone] || 'guest',
+    zone,
     color: raw.color || '#8a8f98',
     job: raw.job || '',
     status: ['working', 'idle', 'sleeping'].includes(raw.status) ? raw.status : 'idle',
@@ -34,8 +62,24 @@ export function normalizeData(json) {
         .filter((h) => h && ids.has(h.from) && ids.has(h.to) && h.from !== h.to)
         .map((h) => ({ from: h.from, to: h.to, at: h.at || null, what: h.what || '' }))
     : [];
+  // Activity feed: [{ bot, text, url, at, to? }], newest first, at most 40.
+  const feed = Array.isArray(json?.feed)
+    ? json.feed
+        .filter((f) => f && ids.has(f.bot) && f.text)
+        .map((f) => ({
+          bot: f.bot,
+          text: String(f.text),
+          publicText: f.publicText || '',
+          url: typeof f.url === 'string' ? f.url.trim() : '',
+          at: f.at || null,
+          to: f.to && ids.has(f.to) && f.to !== f.bot ? f.to : null,
+        }))
+        .sort((a, b) => (Date.parse(b.at) || 0) - (Date.parse(a.at) || 0))
+        .slice(0, MAX_FEED)
+    : [];
   return {
     isExample: json?._example === true,
+    feed,
     updatedAt: json?.updatedAt || null,
     minutesSaved: json?.minutesSaved || { total: 0, asOf: new Date().toISOString(), perHourRate: 0 },
     bots,
@@ -57,7 +101,8 @@ export default function useData() {
     if (loading.current) return;
     loading.current = true;
     try {
-      const res = await fetch(`${DATA_URL}?t=${Date.now()}`, { cache: 'no-store' });
+      const sep = DATA_URL.includes('?') ? '&' : '?';
+      const res = await fetch(`${DATA_URL}${sep}t=${Date.now()}`, { cache: 'no-store' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       const data = normalizeData(json);

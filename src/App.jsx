@@ -463,7 +463,7 @@ export default function App() {
 
       <div className="hud-bottom-left" ref={hudBottomRef}>
         {reduced && <RecentHandoffs handoffs={data?.handoffs} bots={bots} />}
-        {data && <Feed bots={bots} walks={walks} />}
+        {data && <Feed feed={data.feed} bots={bots} walks={walks} />}
       </div>
 
       {bots.length > 0 && <Radar bots={bots} onFly={flyTo} animate={!reduced} paused={hidden} />}
