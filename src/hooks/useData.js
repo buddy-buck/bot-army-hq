@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 const REFRESH_MS = 5 * 60 * 1000;
-const DATA_URL = `${import.meta.env.BASE_URL}data.json`;
+const DATA_URL = import.meta.env.VITE_DATA_URL || `${import.meta.env.BASE_URL}data.json`;
 
 function normalizeBot(raw) {
   const id = String(raw.id || '').trim();
