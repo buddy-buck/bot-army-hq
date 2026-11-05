@@ -87,7 +87,7 @@ export const ZONES = {
   lanai: { label: 'Real Estate Lanai', x: 13, z: 1, entry: [9.4, 1.0], labelY: 2.6, bend: -0.6 },
   tikihut: { label: 'Networking Tiki Hut', x: 0.5, z: 6.8, entry: [2.4, 5.5], labelY: 3.3, bend: 0.5 },
   moneydesk: { label: 'Money Desk', x: -9.5, z: 0.5, entry: [-8.3, 1.5], labelY: 2.3, bend: -0.5 },
-  dock: { label: 'Launch Dock', x: -13.4, z: 4.4, entry: [-10.0, 4.4], labelY: 2.2, bend: 0.6 },
+  dock: { label: "Launch's Pier", x: -13.4, z: 4.4, entry: [-10.0, 4.4], labelY: 2.2, bend: 0.6 },
   bungalow: { label: "Flo's Bungalow", x: 1.8, z: -7.3, entry: [1.7, -5.4], labelY: 2.8, bend: -0.4 },
   lookout: { label: 'Research Lookout', x: 5.2, z: -3.0, entry: [5.2, -1.0], labelY: 3.6, bend: 0.5 },
   beachchair: { label: "Nasty's Chair", x: 8.6, z: 6.0, entry: [7.6, 4.9], labelY: 2.0, bend: -0.6 },

@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { couriers, receivedPulses } from './Handoff.jsx';
-import { labelState } from './labels.js';
+import { botFx, fxNow, labelState } from './labels.js';
 import { botHash, groundY } from '../utils/paths.js';
 
 // One bot: a small rounded robot in its team color. Status always comes from
@@ -16,6 +16,9 @@ import { botHash, groundY } from '../utils/paths.js';
 // spot. Nasty always has a coconut. Claude wears a lei and holds a mai tai.
 
 export const BOT_SCALE = 1.35;
+const DRINK_SCALE = 1.6; // big, easy-to-see drinks
+const CLINK_PERIOD = 26; // seconds between cheers for a pair of chillin' bots
+const CLINK_LEN = 2.4;
 const WALK_SPEED = 1.3; // units per second
 
 const GEO = {
@@ -160,6 +163,8 @@ function Lei() {
   );
 }
 
+const easeSpin = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+
 function hashPhase(id) {
   return ((botHash(id) % 1000) / 1000) * Math.PI * 2;
 }
@@ -171,7 +176,7 @@ function lerpAngle(a, b, t) {
   return a + d * t;
 }
 
-function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, animate = true }) {
+function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, animate = true, clink = null }) {
   const outer = useRef();
   const pose = useRef();
   const head = useRef();
@@ -203,8 +208,10 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
   useEffect(() => () => [bodyMat, bulbMat, ringMat, pulseMat].forEach((m) => m.dispose()), [bodyMat, bulbMat, ringMat, pulseMat]);
 
   useEffect(() => {
-    if (pulseKey) pulseStart.current = -1;
-  }, [pulseKey]);
+    if (!pulseKey) return;
+    pulseStart.current = -1;
+    botFx.sipHop.set(bot.id, fxNow()); // finished a task: happy sip-hop
+  }, [pulseKey, bot.id]);
 
   useEffect(() => {
     const id = bot.id;
@@ -237,6 +244,15 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
     }
     const pos = cur.current;
 
+    // Cheers: two chillin' bots standing together clink drinks now and then.
+    // Both bots read the same wall clock, so they raise their glasses together.
+    const fx = fxNow();
+    let clinkK = -1;
+    if (clink && animate && mode === 'chill' && !c) {
+      const k = (fx + clink.seed * CLINK_PERIOD) % CLINK_PERIOD;
+      if (k < CLINK_LEN) clinkK = k / CLINK_LEN;
+    }
+
     // Position: carrying a handoff, walking to a new spot, or settled.
     let walking = false;
     if (c) {
@@ -252,7 +268,8 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
       if (!animate || jump || d < 0.04 || d > 30) {
         pos.set(home.x, home.y, home.z);
         curRaised.current = !!home.raised;
-        g.rotation.y = animate && !jump ? lerpAngle(g.rotation.y, home.rotY, Math.min(1, dt * 4)) : home.rotY;
+        const faceTo = clinkK >= 0 ? Math.atan2(clink.x - pos.x, clink.z - pos.z) : home.rotY;
+        g.rotation.y = animate && !jump ? lerpAngle(g.rotation.y, faceTo, Math.min(1, dt * 4)) : home.rotY;
       } else {
         const step = Math.min(d, WALK_SPEED * dt);
         pos.x += (dx / d) * step;
@@ -307,7 +324,7 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
       h.rotation.x = 0.18 + Math.sin(t * 5) * 0.07;
       h.rotation.y = Math.sin(t * 0.7) * 0.12;
     } else {
-      // chilling: slow sway, a sip every few seconds
+      // chillin': slow sway, a sip every few seconds
       lift = (Math.sin(t * 1.5) + 1) * 0.008;
       p.rotation.z = Math.sin(t * 0.8) * 0.05;
       h.rotation.y = Math.sin(t * 0.45) * 0.5;
@@ -322,13 +339,43 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
       const k = (clock - got) / 0.7;
       if (k >= 0 && k < 1) lift += Math.sin(Math.PI * k) * 0.28;
     }
+    // Happy sip-hop after finishing a task, and a spin-and-hop cheer after
+    // earning minutes. Both are one-shot and come from real data changes.
+    if (animate) {
+      const sh = botFx.sipHop.get(bot.id);
+      if (sh !== undefined) {
+        const k = (fx - sh) / 1.6;
+        if (k >= 0 && k < 1) {
+          lift += Math.abs(Math.sin(k * Math.PI * 2)) * 0.22 * (1 - k * 0.4);
+          sip = Math.max(sip, k > 0.5 ? Math.sin(((k - 0.5) / 0.5) * Math.PI) : 0);
+        } else if (k >= 1) botFx.sipHop.delete(bot.id);
+      }
+      const ch = botFx.cheer.get(bot.id);
+      if (ch !== undefined) {
+        const k = (fx - ch) / 1.3;
+        if (k >= 0 && k < 1) {
+          lift += Math.sin(Math.PI * k) * 0.36;
+          p.rotation.y = easeSpin(k) * Math.PI * 2;
+          h.rotation.x = -0.3 * Math.sin(Math.PI * k);
+        } else if (k >= 1) botFx.cheer.delete(bot.id);
+      }
+    }
     p.position.y += lift;
 
     // Drink: in hand while standing or walking, resting on the bot when lying back.
     if (handDrink.current) {
       handDrink.current.visible = !lying && !lounging;
-      handDrink.current.position.set(0.25 - sip * 0.1, 0.3 + sip * 0.32, 0.1 + sip * 0.1);
-      handDrink.current.rotation.z = sip * 0.5;
+      if (clinkK >= 0) {
+        // raise the glass out front, tap at the middle of the move
+        const up = Math.sin(Math.PI * clinkK);
+        const tap = clinkK > 0.42 && clinkK < 0.58 ? Math.sin(((clinkK - 0.42) / 0.16) * Math.PI) * 0.05 : 0;
+        handDrink.current.position.set(0.18 - up * 0.1, 0.3 + up * 0.32, 0.1 + up * 0.22 + tap);
+        handDrink.current.rotation.z = up * 0.15;
+        h.rotation.x = -up * 0.15;
+      } else {
+        handDrink.current.position.set(0.25 - sip * 0.1, 0.3 + sip * 0.32, 0.1 + sip * 0.1);
+        handDrink.current.rotation.z = sip * 0.5;
+      }
     }
     if (restDrink.current) restDrink.current.visible = lying || lounging;
     if (tabletRef.current) tabletRef.current.visible = working;
@@ -411,13 +458,15 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
           </group>
           {drinkType && (
             <group ref={handDrink} position={[0.25, 0.3, 0.1]}>
-              <Drink type={drinkType} />
+              <group scale={DRINK_SCALE}>
+                <Drink type={drinkType} />
+              </group>
             </group>
           )}
         </group>
 
         {drinkType && (
-          <group ref={restDrink} position={restPos} visible={false}>
+          <group ref={restDrink} position={restPos} visible={false} scale={DRINK_SCALE}>
             <Drink type={drinkType} />
           </group>
         )}

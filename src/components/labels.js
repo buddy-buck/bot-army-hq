@@ -19,7 +19,14 @@ export const labelState = {
   spotlight: null,
   baseDist: 24,
   tier: 'default',
+  towerScreen: null, // { x, y } in CSS pixels: where confetti bursts from
 };
+
+// One-shot bot reactions, keyed by bot id -> performance.now() in seconds.
+//   cheer  : this bot just earned minutes (little spin and hop)
+//   sipHop : this bot just finished a task (happy hop and a sip)
+export const botFx = { cheer: new Map(), sipHop: new Map() };
+export const fxNow = () => performance.now() / 1000;
 
 const v = new THREE.Vector3();
 
@@ -30,6 +37,8 @@ export function LabelDirector({ controls }) {
     const base = labelState.baseDist || 24;
     const tier = camDist < base * 0.62 ? 'close' : camDist > base * 1.12 ? 'far' : 'default';
     labelState.tier = tier;
+    v.set(0, 6.6, 0).project(camera);
+    labelState.towerScreen = v.z <= 1 ? { x: ((v.x + 1) / 2) * size.width, y: ((1 - v.y) / 2) * size.height } : null;
 
     const kept = [];
     const overlaps = (a) => kept.some((k) => Math.abs(k.sx - a.sx) < (k.w + a.w) / 2 + 2 && Math.abs(k.sy - a.sy) < (k.h + a.h) / 2);

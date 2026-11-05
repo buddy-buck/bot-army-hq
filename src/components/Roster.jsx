@@ -4,7 +4,7 @@ import { ZONES } from '../utils/paths.js';
 // "Find a bot" panel: every bot grouped by zone. Tap a name and the camera
 // flies to that bot on the island.
 
-const STATUS_LABEL = { working: 'Working', idle: 'Chilling', sleeping: 'Sleeping' };
+const STATUS_LABEL = { working: 'Working', idle: "Chillin'", sleeping: 'Sleeping' };
 
 export default function Roster({ open, bots, onPick, onClose }) {
   useEffect(() => {

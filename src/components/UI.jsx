@@ -1,21 +1,39 @@
 import { useEffect, useRef, useState } from 'react';
 import { formatAsOf } from '../utils/ticker.js';
+import { formatDayPT, formatTimePT } from '../utils/time.js';
 
 // Small light UI pieces: demo-mode note, Duvall clock, sound toggle,
 // recenter and roster buttons, the reduced-motion handoff list, and toasts.
 
 export function DemoNote() {
   return (
-    <div className="demo-note" role="status">
-      Demo mode: sample data
+    <div className="chip chip-note" role="status">
+      Demo: sample data
     </div>
   );
 }
 
-export function SafeNote() {
+// Safe mode is on: a small lock instead of the old text banner.
+export function LockChip() {
+  const [tip, setTip] = useState(false);
+  useEffect(() => {
+    if (!tip) return undefined;
+    const id = setTimeout(() => setTip(false), 2600);
+    return () => clearTimeout(id);
+  }, [tip]);
   return (
-    <div className="demo-note" role="status">
-      Public view
+    <div className="lock-wrap">
+      <button type="button" className="chip icon-chip" onClick={() => setTip((t) => !t)} aria-label="Names hidden for sharing" title="Names hidden for sharing">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <rect x="5" y="10.5" width="14" height="10" rx="2" fill="#1f2430" />
+          <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" stroke="#1f2430" strokeWidth="2.2" fill="none" />
+        </svg>
+      </button>
+      {tip && (
+        <div className="tip" role="status">
+          Names hidden for sharing
+        </div>
+      )}
     </div>
   );
 }
@@ -23,14 +41,14 @@ export function SafeNote() {
 function SunIcon({ phase }) {
   if (phase === 'night') {
     return (
-      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
         <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="#4b5bb3" />
       </svg>
     );
   }
-  const color = phase === 'day' ? '#f5b301' : '#f08a24';
+  const color = phase === 'day' ? '#e0a100' : '#e07a14';
   return (
-    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+    <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
       <circle cx="12" cy="12" r="5" fill={color} />
       {[0, 45, 90, 135, 180, 225, 270, 315].map((a) => (
         <line key={a} x1="12" y1="2.5" x2="12" y2="5" stroke={color} strokeWidth="2" strokeLinecap="round" transform={`rotate(${a} 12 12)`} />
@@ -39,13 +57,31 @@ function SunIcon({ phase }) {
   );
 }
 
-export function ClockChip({ sky }) {
+// "Tue Nov 3, 1:07 PM PT", ticking on the minute.
+export function ClockChip({ sky, overridden }) {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    let id;
+    const schedule = () => {
+      id = setTimeout(() => {
+        setNow(new Date());
+        schedule();
+      }, 60000 - (Date.now() % 60000) + 50);
+    };
+    schedule();
+    const onVis = () => document.visibilityState === 'visible' && setNow(new Date());
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      clearTimeout(id);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, []);
+  const time = overridden ? sky.clock : formatTimePT(now.getTime());
+  const text = `${formatDayPT(now)}, ${time} PT`;
   return (
-    <div className="chip chip-clock">
+    <div className="chip chip-clock" aria-label={`${text}, ${sky.phaseLabel}`}>
       <SunIcon phase={sky.phase} />
-      <span>
-        Duvall {sky.clock}
-      </span>
+      <span>{text}</span>
     </div>
   );
 }
@@ -55,7 +91,7 @@ export function ClockChip({ sky }) {
 export function ModeToggle({ mode, onMode, fellBack }) {
   return (
     <div className="mode-wrap">
-      <div className="mode-toggle" role="group" aria-label="Data: Live or Demo">
+      <div className="chip mode-toggle" role="group" aria-label="Data: Live or Demo">
         {[
           ['live', 'Live'],
           ['demo', 'Demo'],
@@ -82,12 +118,12 @@ export function ModeToggle({ mode, onMode, fellBack }) {
   );
 }
 
-export function StatusChips({ isExample, safe, sky, error, mode, hasLive, fellBack, onMode }) {
+export function StatusChips({ isExample, safe, sky, overridden, error, mode, hasLive, fellBack, onMode }) {
   return (
     <div className="hud-chips">
       {hasLive ? <ModeToggle mode={mode} onMode={onMode} fellBack={fellBack} /> : isExample && <DemoNote />}
-      {safe && <SafeNote />}
-      <ClockChip sky={sky} />
+      {safe && <LockChip />}
+      <ClockChip sky={sky} overridden={overridden} />
       {error && <div className="chip chip-error">Couldn&rsquo;t refresh data. Retrying.</div>}
     </div>
   );
@@ -203,8 +239,8 @@ export function SoundToggle() {
   };
 
   return (
-    <button type="button" className="square-btn" onClick={toggle} aria-pressed={on} aria-label={on ? 'Turn ocean sound off' : 'Turn ocean sound on'} title={on ? 'Sound on' : 'Sound off'}>
-      <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+    <button type="button" className="chip icon-chip" onClick={toggle} aria-pressed={on} aria-label={on ? 'Turn ocean sound off' : 'Turn ocean sound on'} title={on ? 'Sound on' : 'Sound off'}>
+      <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
         <path d="M4 9h4l5-4v14l-5-4H4z" fill="#1f2430" />
         {on ? (
           <>
@@ -221,8 +257,8 @@ export function SoundToggle() {
 
 export function RecenterButton({ onClick }) {
   return (
-    <button type="button" className="square-btn" onClick={onClick} aria-label="Recenter the island" title="Recenter">
-      <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+    <button type="button" className="chip icon-chip" onClick={onClick} aria-label="Recenter the island" title="Recenter">
+      <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
         <circle cx="12" cy="12" r="7" stroke="#1f2430" strokeWidth="2" fill="none" />
         <circle cx="12" cy="12" r="2.5" fill="#1f2430" />
         <path d="M12 1.5v3.5M12 19v3.5M1.5 12H5M19 12h3.5" stroke="#1f2430" strokeWidth="2" strokeLinecap="round" />
@@ -233,12 +269,24 @@ export function RecenterButton({ onClick }) {
 
 export function RosterButton({ onClick, open }) {
   return (
-    <button type="button" className="square-btn" onClick={onClick} aria-expanded={open} aria-label="Find a bot" title="Find a bot">
-      <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+    <button type="button" className="chip icon-chip" onClick={onClick} aria-expanded={open} aria-label="Find a bot" title="Find a bot">
+      <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
         <circle cx="10" cy="8" r="3.5" stroke="#1f2430" strokeWidth="2" fill="none" />
         <path d="M3.5 19c.8-3.4 3.4-5.2 6.5-5.2s5.7 1.8 6.5 5.2" stroke="#1f2430" strokeWidth="2" fill="none" strokeLinecap="round" />
         <circle cx="18" cy="9" r="2.6" stroke="#1f2430" strokeWidth="1.8" fill="none" />
         <path d="M20.6 14.5l2 2" stroke="#1f2430" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    </button>
+  );
+}
+
+export function KioskButton({ on, onClick }) {
+  return (
+    <button type="button" className="chip icon-chip" onClick={onClick} aria-pressed={on} aria-label={on ? 'Leave kiosk mode' : 'Kiosk mode: keep the screen on'} title={on ? 'Leave kiosk mode' : 'Kiosk mode'}>
+      <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+        <rect x="3" y="4" width="18" height="12" rx="1.5" stroke="#1f2430" strokeWidth="2" fill="none" />
+        <path d="M9 20h6M12 16v4" stroke="#1f2430" strokeWidth="2" strokeLinecap="round" />
+        {on ? <path d="M8.5 10l2.5 2.5 4.5-5" stroke="#1f2430" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" /> : <circle cx="12" cy="10" r="2" fill="#1f2430" />}
       </svg>
     </button>
   );
@@ -290,14 +338,18 @@ export function LoadingNotice({ error }) {
   );
 }
 
-export default function UI({ isExample, safe, sky, error, mode, hasLive, fellBack, onMode, onRecenter, onRoster, rosterOpen }) {
+export default function UI({ isExample, safe, sky, overridden, error, mode, hasLive, fellBack, onMode, onRecenter, onRoster, rosterOpen, kiosk, onKiosk, children }) {
   return (
-    <div className="hud-row">
-      <StatusChips isExample={isExample} safe={safe} sky={sky} error={error} mode={mode} hasLive={hasLive} fellBack={fellBack} onMode={onMode} />
+    <div className={`hud-row${kiosk ? ' is-kiosk' : ''}`}>
+      <div className="hud-left">
+        <StatusChips isExample={isExample} safe={safe} sky={sky} overridden={overridden} error={error} mode={mode} hasLive={hasLive} fellBack={fellBack} onMode={onMode} />
+      </div>
+      <div className="hud-center">{children}</div>
       <div className="hud-buttons">
-        <RosterButton onClick={onRoster} open={rosterOpen} />
-        <SoundToggle />
-        <RecenterButton onClick={onRecenter} />
+        {!kiosk && <RosterButton onClick={onRoster} open={rosterOpen} />}
+        {!kiosk && <SoundToggle />}
+        {!kiosk && <RecenterButton onClick={onRecenter} />}
+        <KioskButton on={kiosk} onClick={onKiosk} />
       </div>
     </div>
   );

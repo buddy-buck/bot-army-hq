@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { teamLabel } from '../utils/paths.js';
-import { timeAgo } from '../utils/ticker.js';
+import { formatNumber, timeAgo } from '../utils/ticker.js';
+import { countdown, dayKeyPT, formatTimePT } from '../utils/time.js';
+import { pronounLabel } from '../hooks/useData.js';
 
 // Tap-a-bot card. Always light (cream background, dark text), day or night.
 
-const STATUS_LABEL = { working: 'Working', idle: 'Chilling', sleeping: 'Sleeping' };
+const STATUS_LABEL = { working: 'Working', idle: "Chillin'", sleeping: 'Sleeping' };
 
 export function Avatar({ bot, size = 72 }) {
   const [failed, setFailed] = useState(false);
@@ -24,7 +26,7 @@ export function Avatar({ bot, size = 72 }) {
   );
 }
 
-export default function BotCard({ bot, onClose }) {
+export default function BotCard({ bot, onClose, nextUp, minutesSaved }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 30000);
@@ -40,6 +42,12 @@ export default function BotCard({ bot, onClose }) {
   if (!bot) return null;
   const { lastAction } = bot;
   const ago = lastAction.at ? timeAgo(lastAction.at, now) : '';
+  const nextRun = (nextUp || []).find((n) => n.bot === bot.id && Date.parse(n.at) > now - 2 * 60 * 1000);
+  // Today's minutes: the bot's own field if the feed sends one, else the sum
+  // of today's ledger entries for this bot. Hidden when there's nothing.
+  const todayKey = dayKeyPT(now);
+  const fromLedger = (minutesSaved?.recent || []).filter((r) => r.bot === bot.id && dayKeyPT(r.at) === todayKey).reduce((s, r) => s + r.minutes, 0);
+  const minutesToday = bot.minutesToday ?? (fromLedger > 0 ? fromLedger : null);
 
   return (
     <div className="card-backdrop" onClick={onClose} onPointerDown={(e) => e.stopPropagation()}>
@@ -51,7 +59,7 @@ export default function BotCard({ bot, onClose }) {
           <Avatar bot={bot} key={bot.id} />
           <div className="card-titles">
             <div className="card-name">
-              {bot.name} <span className="card-pronoun">({bot.pronoun})</span>
+              {bot.name} <span className="card-pronoun">{pronounLabel(bot.pronoun)}</span>
             </div>
             <div className="card-team">
               <span className="team-dot" style={{ background: bot.color }} />
@@ -67,12 +75,31 @@ export default function BotCard({ bot, onClose }) {
           <div className="card-action">{lastAction.text || 'Nothing logged yet'}</div>
           {ago && <div className="card-time">{ago}</div>}
         </div>
+        {(nextRun || minutesToday != null) && (
+          <div className="card-row">
+            {nextRun && (
+              <div className="card-section card-mini">
+                <div className="card-label">Next run</div>
+                <div className="card-action">{nextRun.job || 'Scheduled'}</div>
+                <div className="card-time">
+                  {formatTimePT(nextRun.at)} PT &middot; {countdown(nextRun.at, now)}
+                </div>
+              </div>
+            )}
+            {minutesToday != null && (
+              <div className="card-section card-mini">
+                <div className="card-label">Saved today</div>
+                <div className="card-big">{formatNumber(minutesToday)} min</div>
+              </div>
+            )}
+          </div>
+        )}
         {lastAction.url ? (
           <a className="card-open" href={lastAction.url} target="_blank" rel="noopener noreferrer">
             Open
           </a>
         ) : (
-          <div className="card-nolink">{lastAction.linkHidden ? 'Link hidden in public view' : 'No link yet'}</div>
+          <div className="card-nolink">{lastAction.linkHidden ? 'Link hidden' : 'No link yet'}</div>
         )}
       </div>
     </div>
