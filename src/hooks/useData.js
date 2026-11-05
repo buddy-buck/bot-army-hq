@@ -76,6 +76,7 @@ function resolveZone(id, zone, team) {
 
 // Pronouns come from the data ("he", "she", "he/him", ...). Anything else
 // falls back to the house list: these bots are he/him, everyone else she/her.
+// Kept for natural copy only; pronouns are never shown as labels on screen.
 const HE_BOTS = new Set(['chief', 'brobot', 'board', 'recon', 'nasty', 'benji', 'jet']);
 export function normalizePronoun(id, value) {
   const v = String(value || '').trim().toLowerCase();
@@ -83,7 +84,6 @@ export function normalizePronoun(id, value) {
   if (v === 'she' || v.startsWith('she/')) return 'she';
   return HE_BOTS.has(id) ? 'he' : 'she';
 }
-export const pronounLabel = (p) => (p === 'he' ? 'he/him' : 'she/her');
 
 const num = (v) => (v === null || v === undefined || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));
 

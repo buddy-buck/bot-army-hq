@@ -1277,13 +1277,6 @@ button.chip:focus-visible,
   line-height: 1.1;
 }
 
-.card-pronoun {
-  margin-left: 4px;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--ink-muted);
-}
-
 .card-team {
   display: flex;
   align-items: center;

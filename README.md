@@ -149,7 +149,7 @@ Rules:
   - `minutesSaved.daily`: `[{ date: "YYYY-MM-DD", minutes }]` for the 7-day sparkline.
   - `nextUp`: `[{ bot, job, at }]` for the Next tab, countdowns, T-0 spotlights and "Next run" on the bot card.
   - `bots[].minutesToday`: overrides the card's "Saved today".
-- `pronoun`: `he` or `she` (or `he/him`, `she/her`). Cards show "he/him" or "she/her". If it's missing, Chief, Brobot, Board, Recon, Nasty, Benji and Jet are he/him and everyone else is she/her.
+- `pronoun`: `he` or `she` (or `he/him`, `she/her`). Used for natural wording only; pronouns are never displayed on screen. If it's missing, Chief, Brobot, Board, Recon, Nasty, Benji and Jet are he/him and everyone else is she/her.
 - `handoffs`: each handoff from the last 24 hours plays once. Handoffs naming a bot that isn't in `bots` are skipped. An empty list is fine: nobody walks.
 - `feed`: the Team activity lines, newest first, at most 40. `to` is optional. Entries from the last 24 hours show. Lines with a `url` are clickable; lines without one aren't.
 - Real data can be sparse. A bot with `"lastAction": { "text": "", "url": "", "at": null }` and `"status": "idle"` just relaxes with a drink, and its card says "Nothing logged yet" and "No link yet". The island never makes up activity when `_example` is false.
