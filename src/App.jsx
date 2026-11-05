@@ -571,7 +571,16 @@ export default function App() {
   const insets = useHudInsets(hudTopRef, hudBottomRef);
 
   const bots = data?.bots ?? [];
-  const layout = useMemo(() => layoutBots(bots), [bots]);
+  // The island follows the clock. After 10 PM (until 6 AM) Duvall time,
+  // every bot that isn't working sleeps in a hammock with ZZZs; during the
+  // day they're chillin'. Working bots always work. This only changes the 3D
+  // scene; the scoreboard, feed and bot cards keep the real status.
+  const bedtime = sky.hour >= 22 || sky.hour < 6;
+  const sceneBots = useMemo(() => {
+    const restStatus = bedtime ? 'sleeping' : 'idle';
+    return bots.map((b) => (b.status === 'working' || b.status === restStatus ? b : { ...b, status: restStatus }));
+  }, [bots, bedtime]);
+  const layout = useMemo(() => layoutBots(sceneBots), [sceneBots]);
   const clinks = useMemo(() => clinkPairs(layout), [layout]);
   const selected = bots.find((b) => b.id === selectedId) || null;
   const isExample = !!data?.isExample;
@@ -742,7 +751,7 @@ export default function App() {
                 <SeaLife sky={sky} lowPower={LOW_POWER} />
               </Suspense>
             )}
-            {bots.map((b) =>
+            {sceneBots.map((b) =>
               layout[b.id] ? (
                 <Bot
                   key={b.id}
@@ -758,7 +767,7 @@ export default function App() {
                 />
               ) : null
             )}
-            {!reduced && data && <Handoffs bots={bots} handoffs={data.handoffs} layout={layout} onActiveChange={setWalks} />}
+            {!reduced && data && <Handoffs bots={sceneBots} handoffs={data.handoffs} layout={layout} onActiveChange={setWalks} />}
             <MinuteFloats floats={floats} />
             <CameraRig fly={fly} reduced={reduced} holdRotate={!!selected || rosterOpen} insets={insets} controlsRef={controlsRef} layout={layout} kiosk={kiosk} />
             <LabelDirector controls={controlsRef} />

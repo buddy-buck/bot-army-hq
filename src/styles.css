@@ -1000,32 +1000,41 @@ button.chip:focus-visible,
 
 .zzz {
   display: flex;
-  gap: 1px;
+  align-items: flex-end;
+  gap: 2px;
+  font-family: 'Arial Rounded MT Bold', 'Trebuchet MS', system-ui, sans-serif;
   font-weight: 900;
   color: #ffffff;
-  text-shadow: 0 1px 4px rgba(10, 20, 50, 0.7);
+  -webkit-text-stroke: 1.5px #24306b;
+  text-shadow: 0 0 10px rgba(140, 180, 255, 0.85), 0 2px 6px rgba(10, 20, 50, 0.8);
   pointer-events: none;
+  transform: translate(10px, -14px);
 }
 
 .zzz span {
   display: inline-block;
-  font-size: 16px;
-  animation: zzz 2.6s ease-in-out infinite;
+  font-size: 24px;
+  line-height: 1;
+  animation: zzz 2.4s ease-in-out infinite;
 }
 
 .zzz span:nth-child(2) {
-  font-size: 18px;
+  font-size: 32px;
   animation-delay: 0.4s;
 }
 
 .zzz span:nth-child(3) {
-  font-size: 21px;
+  font-size: 42px;
   animation-delay: 0.8s;
 }
 
 @keyframes zzz {
-  0%, 100% { transform: translateY(0); opacity: 0.35; }
-  50% { transform: translateY(-6px); opacity: 1; }
+  0%, 100% { transform: translateY(0) rotate(-8deg); opacity: 0.55; }
+  50% { transform: translateY(-10px) rotate(6deg); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zzz span { animation: none; opacity: 1; }
 }
 
 /* ---------- Welcome sign at the guest bungalow ---------- */

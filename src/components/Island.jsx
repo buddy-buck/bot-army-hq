@@ -31,10 +31,18 @@ const M = {
   wood: std('#a8774a'),
   darkWood: std('#7a5232'),
   plank: std('#c08a57'),
-  thatch: std('#d9b26a'),
-  thatchDark: std('#c2954c'),
+  thatch: std('#dcb468'),
+  thatchDark: std('#b98a45'),
+  // See-through thatch for the open-air cabana, so the bots inside show.
+  thatchSee: std('#e2bd72', { transparent: true, opacity: 0.4, depthWrite: false, side: THREE.DoubleSide }),
+  fringe: std('#c99a52', { side: THREE.DoubleSide }),
   white: std('#fdf8ee'),
-  bamboo: std('#cdae6e'),
+  bamboo: std('#d4b872'),
+  bambooNode: std('#9c8240'),
+  bambooGreen: std('#b9b465'),
+  wire: std('#2e2a26'),
+  mat: std('#e8d39c'),
+  matStripe: std('#c79a5a'),
   stone: std('#9aa3a8'),
   dark: std('#3b3430'),
   lisnGreen: std('#2E5248'),
@@ -94,6 +102,202 @@ function useGlowMaterial(color, night, base = 0.1, boost = 1.3) {
     mat.emissiveIntensity = base + night * boost;
   }, [mat, night, base, boost]);
   return mat;
+}
+
+
+// A beam between two points (rafters, bamboo braces).
+const UP = new THREE.Vector3(0, 1, 0);
+function Beam({ a, b, r = 0.04, m, seg = 5 }) {
+  const { pos, quat, len } = useMemo(() => {
+    const va = new THREE.Vector3(...a);
+    const vb = new THREE.Vector3(...b);
+    const dir = vb.clone().sub(va);
+    return {
+      pos: va.clone().add(vb).multiplyScalar(0.5).toArray(),
+      quat: new THREE.Quaternion().setFromUnitVectors(UP, dir.clone().normalize()),
+      len: dir.length(),
+    };
+  }, [a, b]);
+  return (
+    <mesh position={pos} quaternion={quat} material={m}>
+      <cylinderGeometry args={[r, r, len, seg]} />
+    </mesh>
+  );
+}
+
+// Bamboo pole: light cane with darker node rings.
+function BambooPost({ p, h, r = 0.08, m = M.bamboo }) {
+  const nodes = Math.max(2, Math.round(h / 0.55));
+  return (
+    <group position={p}>
+      <Cyl p={[0, h / 2, 0]} rt={r * 0.92} rb={r} h={h} m={m} seg={7} />
+      {Array.from({ length: nodes }, (_, i) => (
+        <Cyl key={i} p={[0, ((i + 0.6) / (nodes + 0.2)) * h, 0]} rt={r * 1.12} h={0.04} m={M.bambooNode} seg={7} />
+      ))}
+    </group>
+  );
+}
+
+// Ragged thatch skirt hanging under a rectangular (or round) eave.
+function makeFringe(halfX, halfZ, drop, round = false) {
+  const pos = [];
+  const pts = [];
+  if (round) {
+    const n = 40;
+    for (let i = 0; i <= n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      pts.push([Math.cos(a) * halfX, Math.sin(a) * halfZ]);
+    }
+  } else {
+    const c = [[-halfX, -halfZ], [halfX, -halfZ], [halfX, halfZ], [-halfX, halfZ], [-halfX, -halfZ]];
+    for (let k = 0; k < 4; k++) {
+      const [x0, z0] = c[k];
+      const [x1, z1] = c[k + 1];
+      const n = Math.max(4, Math.round(Math.hypot(x1 - x0, z1 - z0) / 0.16));
+      for (let i = 0; i < n; i++) pts.push([x0 + ((x1 - x0) * i) / n, z0 + ((z1 - z0) * i) / n]);
+    }
+    pts.push(c[4]);
+  }
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [ax, az] = pts[i];
+    const [bx, bz] = pts[i + 1];
+    const mx = (ax + bx) / 2;
+    const mz = (az + bz) / 2;
+    const d = drop * (0.7 + 0.6 * hash2(mx * 3.1, mz * 2.7));
+    pos.push(ax, 0, az, bx, 0, bz, mx, -d, mz);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.computeVertexNormals();
+  return g;
+}
+
+function Fringe({ p, halfX, halfZ, drop = 0.28, round = false, m = M.fringe }) {
+  const geo = useMemo(() => makeFringe(halfX, halfZ, drop, round), [halfX, halfZ, drop, round]);
+  useEffect(() => () => geo.dispose(), [geo]);
+  return <mesh position={p} geometry={geo} material={m} />;
+}
+
+// Festoon string lights: bulbs hung along a sagging wire. They glow warmly
+// at night and are just colored glass beads by day.
+const BULB_COLORS = ['#ffd27a', '#ff8fb8', '#7fe3d8', '#ffb35c'];
+const BULB_GEO = new THREE.IcosahedronGeometry(0.055, 0);
+function StringLights({ points, sag = 0.3, per = 7, night }) {
+  const mats = [
+    useGlowMaterial(BULB_COLORS[0], night, 0.25, 1.8),
+    useGlowMaterial(BULB_COLORS[1], night, 0.25, 1.8),
+    useGlowMaterial(BULB_COLORS[2], night, 0.25, 1.8),
+    useGlowMaterial(BULB_COLORS[3], night, 0.25, 1.8),
+  ];
+  const { bulbs, wire } = useMemo(() => {
+    const bulbs = [];
+    const wirePts = [];
+    for (let s = 0; s < points.length - 1; s++) {
+      const a = new THREE.Vector3(...points[s]);
+      const b = new THREE.Vector3(...points[s + 1]);
+      const at = (t) => a.clone().lerp(b, t).add(new THREE.Vector3(0, -sag * 4 * t * (1 - t), 0));
+      for (let i = 0; i <= 12; i++) if (s === 0 || i > 0) wirePts.push(at(i / 12));
+      for (let i = 1; i <= per; i++) bulbs.push(at(i / (per + 1)).add(new THREE.Vector3(0, -0.05, 0)).toArray());
+    }
+    const curve = new THREE.CatmullRomCurve3(wirePts);
+    return { bulbs, wire: new THREE.TubeGeometry(curve, wirePts.length * 2, 0.012, 3, false) };
+  }, [points, sag, per]);
+  useEffect(() => () => wire.dispose(), [wire]);
+  return (
+    <group>
+      <mesh geometry={wire} material={M.wire} />
+      {bulbs.map((b, i) => (
+        <mesh key={i} position={b} geometry={BULB_GEO} material={mats[i % mats.length]} />
+      ))}
+    </group>
+  );
+}
+
+// Brand screens for the lanai laptops: Buddy Buck RE, Duvall TV, and
+// Living In SnoValley. Drawn once to small canvases.
+function brandTexture(kind) {
+  const c = document.createElement('canvas');
+  c.width = 128;
+  c.height = 84;
+  const x = c.getContext('2d');
+  let text = 'BB';
+  let fg = '#FFDE69';
+  if (kind === 'bb') {
+    x.fillStyle = '#19469D';
+    x.fillRect(0, 0, 128, 84);
+    x.fillStyle = '#FFDE69';
+    x.fillRect(0, 70, 128, 6);
+  } else if (kind === 'dtv') {
+    x.fillStyle = '#FF04A0';
+    x.fillRect(0, 0, 128, 84);
+    text = 'DTV';
+    fg = '#ffffff';
+  } else {
+    const gr = x.createLinearGradient(0, 0, 0, 84);
+    gr.addColorStop(0, '#f3b624');
+    gr.addColorStop(0.5, '#f09024');
+    gr.addColorStop(1, '#d74525');
+    x.fillStyle = gr;
+    x.fillRect(0, 0, 128, 84);
+    // a little setting sun
+    x.fillStyle = 'rgba(255,255,255,0.35)';
+    x.beginPath();
+    x.arc(64, 84, 30, Math.PI, 0);
+    x.fill();
+    text = 'LIS';
+    fg = '#ffffff';
+  }
+  x.fillStyle = fg;
+  x.font = `900 ${text.length > 2 ? 40 : 50}px "Arial Black", Arial, sans-serif`;
+  x.textAlign = 'center';
+  x.textBaseline = 'middle';
+  x.shadowColor = 'rgba(0,0,0,0.3)';
+  x.shadowBlur = 4;
+  x.fillText(text, 64, 40);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}
+
+const BRANDS = ['bb', 'dtv', 'lis'];
+const SCREEN_GEO = new THREE.PlaneGeometry(0.38, 0.25);
+
+function useBrandMaterials(night) {
+  const mats = useMemo(
+    () =>
+      BRANDS.map((k) => {
+        const map = brandTexture(k);
+        return new THREE.MeshStandardMaterial({ map, emissiveMap: map, emissive: '#ffffff', emissiveIntensity: 0.55, roughness: 0.6 });
+      }),
+    []
+  );
+  useEffect(() => {
+    mats.forEach((m) => (m.emissiveIntensity = 0.55 + night * 0.5));
+  }, [mats, night]);
+  useEffect(() => () => mats.forEach((m) => (m.map.dispose(), m.dispose())), [mats]);
+  return mats;
+}
+
+// A laptop whose screen shows a brand logo. The logos rotate between the
+// laptops every few seconds so all three brands get screen time.
+function BrandLaptop({ p, index, mats, animate }) {
+  const screen = useRef();
+  useFrame((state) => {
+    if (!screen.current) return;
+    const step = animate ? Math.floor(state.clock.elapsedTime / 8) : 0;
+    const m = mats[(index + step) % mats.length];
+    if (screen.current.material !== m) screen.current.material = m;
+  });
+  return (
+    <group position={p}>
+      <Box p={[0, 0, 0.05]} s={[0.42, 0.03, 0.28]} m={M.dark} />
+      <group position={[0, 0.14, -0.1]} rotation={[-0.25, 0, 0]}>
+        <Box p={[0, 0, 0]} s={[0.42, 0.28, 0.02]} m={M.dark} />
+        <mesh ref={screen} position={[0, 0, 0.0115]} geometry={SCREEN_GEO} material={mats[index % mats.length]} />
+      </group>
+    </group>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -586,6 +790,7 @@ function Tower({ night, animate }) {
       ))}
       <Roof p={[0, top + 1.36 + 0.55, 0]} halfX={1.35} halfZ={1.35} h={1.1} m={M.thatch} />
       <Roof p={[0, top + 1.36 + 0.2, 0]} halfX={1.5} halfZ={1.5} h={0.45} m={M.thatchDark} />
+      <Fringe p={[0, top + 1.36 - 0.02, 0]} halfX={1.5} halfZ={1.5} drop={0.26} />
       <Flag p={[0, top + 1.36 + 1.05, 0]} color="#D63AF9" animate={animate} />
       {/* ladder on the south side */}
       <group position={[0, (top + ladderBottom) / 2, 1.35]} rotation={[-ladderTilt, 0, 0]}>
@@ -605,21 +810,50 @@ function Cabana({ night }) {
   const cx = -6.5;
   const cz = -4.5;
   const g = groundY(cx, cz);
+  // Open-air roof: bamboo rafters under see-through thatch, so the bots at
+  // the work table stay visible from the usual camera angles.
+  const eaveY = 2.12;
+  const apexY = 3.5;
+  const hx = 2.7;
+  const hz = 2.1;
+  const corners = [[-hx, -hz], [hx, -hz], [hx, hz], [-hx, hz]];
+  const ridgeX = 0.9;
   return (
     <group position={[cx, g, cz]}>
+      {/* deck with a woven mat */}
       <Box p={[0, 0.08, 0]} s={[4.4, 0.22, 3.2]} m={M.plank} />
-      {[[-2, -1.4], [2, -1.4], [-2, 1.4], [2, 1.4]].map(([x, z], i) => (
-        <Cyl key={i} p={[x, 1.1, z]} rt={0.08} h={2.1} m={M.wood} />
+      <Box p={[0, 0.195, 0.15]} s={[3.6, 0.02, 2.4]} m={M.mat} />
+      {[-1.2, -0.4, 0.4, 1.2].map((x, i) => (
+        <Box key={`ms${i}`} p={[x, 0.2, 0.15]} s={[0.12, 0.02, 2.4]} m={M.matStripe} />
       ))}
-      <Roof p={[0, 2.15 + 0.62, 0]} halfX={2.55} halfZ={1.95} h={1.3} m={M.thatch} />
-      <Roof p={[0, 2.12 + 0.18, 0]} halfX={2.8} halfZ={2.15} h={0.42} m={M.thatchDark} />
+      {/* bamboo posts */}
+      {[[-2, -1.4], [2, -1.4], [-2, 1.4], [2, 1.4]].map(([x, z], i) => (
+        <BambooPost key={i} p={[x, 0.15, z]} h={2.05} r={0.09} />
+      ))}
+      {/* top plates tying the posts together */}
+      <Beam a={[-2.1, 2.12, -1.4]} b={[2.1, 2.12, -1.4]} r={0.05} m={M.bamboo} />
+      <Beam a={[-2.1, 2.12, 1.4]} b={[2.1, 2.12, 1.4]} r={0.05} m={M.bamboo} />
+      <Beam a={[-2, 2.12, -1.5]} b={[-2, 2.12, 1.5]} r={0.05} m={M.bamboo} />
+      <Beam a={[2, 2.12, -1.5]} b={[2, 2.12, 1.5]} r={0.05} m={M.bamboo} />
+      {/* hip rafters + ridge */}
+      {corners.map(([x, z], i) => (
+        <Beam key={`hr${i}`} a={[x, eaveY, z]} b={[Math.sign(x) * ridgeX, apexY, 0]} r={0.045} m={M.bambooNode} />
+      ))}
+      <Beam a={[-ridgeX - 0.1, apexY, 0]} b={[ridgeX + 0.1, apexY, 0]} r={0.06} m={M.bambooNode} />
+      {[-1.6, -0.8, 0, 0.8, 1.6].flatMap((x) =>
+        [-1, 1].map((sz) => (
+          <Beam key={`cr${x}${sz}`} a={[x, eaveY, sz * hz]} b={[Math.max(-ridgeX, Math.min(ridgeX, x)), apexY, 0]} r={0.025} m={M.bamboo} />
+        ))
+      )}
+      <CabanaThatch eaveY={eaveY} apexY={apexY} hx={hx} hz={hz} ridgeX={ridgeX} />
+      <Fringe p={[0, eaveY, 0]} halfX={hx} halfZ={hz} drop={0.32} m={M.thatchSee} />
       {/* LISN banner under the front of the roof */}
       <Box p={[0, 1.88, 1.46]} s={[1.9, 0.36, 0.05]} m={M.lisnGreen} />
       <Box p={[0, 1.76, 1.49]} s={[1.9, 0.07, 0.03]} m={M.lisnOrange} />
       {/* work table + laptops */}
       <Box p={[0, 0.75, -0.4]} s={[2.8, 0.08, 0.75]} m={M.wood} />
       {[[-1.3, -0.7], [1.3, -0.7], [-1.3, -0.1], [1.3, -0.1]].map(([x, z], i) => (
-        <Box key={`l${i}`} p={[x, 0.45, z]} s={[0.07, 0.6, 0.07]} m={M.darkWood} />
+        <Box key={`l${i}`} p={[x, 0.45, z]} s={[0.07, 0.6, 0.07]} m={M.bamboo} />
       ))}
       {[-0.9, 0, 0.9].map((x, i) => (
         <group key={`lap${i}`} position={[x, 0.8, -0.4]}>
@@ -637,13 +871,45 @@ function Cabana({ night }) {
       <mesh position={[2.45, 0.85, 0.6]} rotation={[0, 0.3, 0.22]} scale={[0.22, 0.95, 0.05]} material={M.lisnOrange}>
         <sphereGeometry args={[1, 10, 8]} />
       </mesh>
+      {/* string lights draped around the eave */}
+      <StringLights
+        points={[[-2, 2.0, 1.45], [2, 2.0, 1.45], [2, 2.0, -1.45], [-2, 2.0, -1.45], [-2, 2.0, 1.45]]}
+        sag={0.22}
+        per={6}
+        night={night}
+      />
       <Lantern p={[-2, 1.75, 1.4]} night={night} />
       <Lantern p={[2, 1.75, 1.4]} night={night} />
     </group>
   );
 }
 
+// Hip roof (ridge along x) as four see-through thatch panels.
+function CabanaThatch({ eaveY, apexY, hx, hz, ridgeX }) {
+  const geo = useMemo(() => {
+    const A = [-hx, eaveY, -hz];
+    const B = [hx, eaveY, -hz];
+    const C = [hx, eaveY, hz];
+    const D = [-hx, eaveY, hz];
+    const R0 = [-ridgeX, apexY, 0];
+    const R1 = [ridgeX, apexY, 0];
+    const tris = [
+      A, R0, B, B, R0, R1, // back
+      D, C, R0, C, R1, R0, // front
+      A, D, R0, // left hip
+      B, R1, C, // right hip
+    ];
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(tris.flat(), 3));
+    g.computeVertexNormals();
+    return g;
+  }, [eaveY, apexY, hx, hz, ridgeX]);
+  useEffect(() => () => geo.dispose(), [geo]);
+  return <mesh geometry={geo} material={M.thatchSee} renderOrder={3} />;
+}
+
 function Lanai({ night, animate }) {
+  const brandMats = useBrandMaterials(night);
   const deck = DECKS.find((d) => d.id === 'lanai');
   const cx = (deck.x0 + deck.x1) / 2;
   const cz = (deck.z0 + deck.z1) / 2;
@@ -667,11 +933,26 @@ function Lanai({ night, animate }) {
         <Cyl key={i} p={[x, y - 0.75, z]} rt={0.09} h={1.4} m={M.darkWood} />
       ))}
       {railPosts.map(([x, z], i) => (
-        <Box key={`r${i}`} p={[x, y + 0.25, z]} s={[0.07, 0.5, 0.07]} m={M.wood} />
+        <Cyl key={`r${i}`} p={[x, y + 0.25, z]} rt={0.04} h={0.5} m={M.bamboo} />
       ))}
-      <Box p={[deck.x1 - 0.08, y + 0.5, cz]} s={[0.06, 0.06, d]} m={M.wood} />
-      <Box p={[cx + 0.6, y + 0.5, deck.z0 + 0.08]} s={[w - 1.2, 0.06, 0.06]} m={M.wood} />
-      <Box p={[cx + 0.6, y + 0.5, deck.z1 - 0.08]} s={[w - 1.2, 0.06, 0.06]} m={M.wood} />
+      <Beam a={[deck.x1 - 0.08, y + 0.5, deck.z0]} b={[deck.x1 - 0.08, y + 0.5, deck.z1]} r={0.035} m={M.bamboo} />
+      <Beam a={[deck.x0 + 1.2, y + 0.5, deck.z0 + 0.08]} b={[deck.x1, y + 0.5, deck.z0 + 0.08]} r={0.035} m={M.bamboo} />
+      <Beam a={[deck.x0 + 1.2, y + 0.5, deck.z1 - 0.08]} b={[deck.x1, y + 0.5, deck.z1 - 0.08]} r={0.035} m={M.bamboo} />
+      {/* tall bamboo poles at the deck corners carry the string lights */}
+      {[[deck.x0 + 0.15, deck.z0 + 0.15], [deck.x1 - 0.15, deck.z0 + 0.15], [deck.x1 - 0.15, deck.z1 - 0.15], [deck.x0 + 0.15, deck.z1 - 0.15]].map(([x, z], i) => (
+        <BambooPost key={`lp${i}`} p={[x, y, z]} h={2.0} r={0.06} />
+      ))}
+      <StringLights
+        points={[[deck.x0 + 0.15, y + 1.95, deck.z1 - 0.15], [deck.x0 + 0.15, y + 1.95, deck.z0 + 0.15], [deck.x1 - 0.15, y + 1.95, deck.z0 + 0.15], [deck.x1 - 0.15, y + 1.95, deck.z1 - 0.15]]}
+        sag={0.3}
+        per={8}
+        night={night}
+      />
+      {/* woven rug under the desk */}
+      <Box p={[cx, y + 0.01, cz + 0.1]} s={[4.4, 0.02, 2.4]} m={M.mat} />
+      {[-1.6, -0.5, 0.5, 1.6].map((x, i) => (
+        <Box key={`rs${i}`} p={[cx + x, y + 0.022, cz + 0.1]} s={[0.14, 0.02, 2.4]} m={M.matStripe} />
+      ))}
       {/* steps up from the sand */}
       <Box p={[deck.x0 - 0.45, (y + rampBottom) / 2, 1.0]} s={[Math.hypot(0.9, y - rampBottom), 0.08, 1.2]} r={[0, 0, rampAngle]} m={M.plank} />
       {/* desk */}
@@ -680,15 +961,13 @@ function Lanai({ night, animate }) {
         <Box key={`dl${i}`} p={[cx + x, y + 0.31, -0.5]} s={[0.07, 0.6, 0.5]} m={M.darkWood} />
       ))}
       {[-1.2, 0, 1.2].map((x, i) => (
-        <group key={`lap${i}`} position={[cx + x, y + 0.67, -0.5]}>
-          <Box p={[0, 0, 0.05]} s={[0.42, 0.03, 0.28]} m={M.dark} />
-          <Box p={[0, 0.14, -0.1]} s={[0.42, 0.28, 0.02]} r={[-0.25, 0, 0]} m={M.screen} />
-        </group>
+        <BrandLaptop key={`lap${i}`} p={[cx + x, y + 0.67, -0.5]} index={i} mats={brandMats} animate={animate} />
       ))}
       {/* Buddy Buck Show umbrella */}
       <group position={[deck.x1 - 0.9, y, deck.z1 - 0.8]}>
         <Cyl p={[0, 1.0, 0]} rt={0.035} h={2.0} m={M.white} />
         <Cone p={[0, 2.05, 0]} rad={1.15} h={0.45} m={M.bbBlue} />
+        <Fringe p={[0, 1.83, 0]} halfX={1.15} halfZ={1.15} drop={0.14} round m={M.bbYellow} />
         <Cone p={[0, 2.3, 0]} rad={0.3} h={0.18} m={M.bbYellow} />
       </group>
       <Flag p={[deck.x1 - 0.1, y, deck.z0 + 0.1]} color="#FFDE69" animate={animate} />
@@ -734,7 +1013,18 @@ function TikiHut({ night, animate }) {
         <Box p={[0, 0.42, 1.03]} s={[0.5, 0.8, 0.06]} m={M.darkWood} />
         <Cone p={[0, 1.1 + 0.72, 0]} rad={1.55} h={1.45} seg={10} m={M.thatch} />
         <Cone p={[0, 1.1 + 0.25, 0]} rad={1.72} h={0.5} seg={10} m={M.thatchDark} />
+        <Fringe p={[0, 1.1, 0]} halfX={1.7} halfZ={1.7} drop={0.3} round />
+        {Array.from({ length: 10 }, (_, i) => {
+          const a = (i / 10) * Math.PI * 2;
+          return <Cyl key={i} p={[Math.cos(a) * 1.09, 0.55, Math.sin(a) * 1.09]} rt={0.045} h={1.1} m={i % 2 ? M.bambooNode : M.bambooGreen} />;
+        })}
       </group>
+      <StringLights
+        points={[[-1.6, groundY(-1.6, 7.2) + 1.3, 7.2], [cx, g + 1.15, cz + 1.75], [2.7, groundY(2.7, 6.6) + 1.3, 6.6]]}
+        sag={0.25}
+        per={5}
+        night={night}
+      />
       <Torch p={[-1.6, groundY(-1.6, 7.2), 7.2]} night={night} animate={animate} />
       <Torch p={[2.7, groundY(2.7, 6.6), 6.6]} night={night} animate={animate} />
     </group>
@@ -823,6 +1113,7 @@ function Bungalow({ night }) {
       <Box p={[0, 0.3, 0.15]} s={[2.0, 0.1, 1.8]} m={M.plank} />
       <Box p={[0, 0.9, 0]} s={[1.7, 1.1, 1.3]} m={M.white} />
       <Roof p={[0, 1.45 + 0.42, 0]} halfX={1.15} halfZ={0.95} h={0.85} m={M.thatch} />
+      <Fringe p={[0, 1.46, 0]} halfX={1.15} halfZ={0.95} drop={0.2} />
       <Box p={[0, 0.75, 0.66]} s={[0.42, 0.8, 0.04]} m={M.darkWood} />
       <Box p={[-0.55, 1.0, 0.66]} s={[0.36, 0.3, 0.04]} m={windowMat} />
       <Box p={[0.55, 1.0, 0.66]} s={[0.36, 0.3, 0.04]} m={windowMat} />
@@ -960,6 +1251,7 @@ function GuestBungalow({ night, onTap, showSign }) {
       {/* thatch roof with a little overhang over the porch */}
       <Roof p={[0, 1.18 + 0.4, -0.05]} halfX={1.1} halfZ={0.9} h={0.8} m={M.thatch} />
       <Roof p={[0, 1.18 + 0.1, -0.05]} halfX={1.22} halfZ={1.02} h={0.3} m={M.thatchDark} />
+      <Fringe p={[0, 1.14, -0.05]} halfX={1.22} halfZ={1.02} drop={0.16} />
       {/* porch posts and a lantern */}
       <Cyl p={[-0.85, 0.62, 0.95]} rt={0.04} h={1.0} m={M.wood} />
       <Cyl p={[0.85, 0.62, 0.95]} rt={0.04} h={1.0} m={M.wood} />

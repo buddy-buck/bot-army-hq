@@ -502,11 +502,11 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
           </div>
         </Html>
         {sleeping && mode === 'hammock' && (
-          <Html position={[-0.2, 1.15, 0]} center zIndexRange={[9, 0]} pointerEvents="none">
+          <Html position={[-0.2, 1.25, 0]} center zIndexRange={[9, 0]} pointerEvents="none">
             <div ref={zzzRef} className="zzz" aria-hidden="true" style={{ display: 'none' }}>
-              <span>z</span>
-              <span>z</span>
-              <span>z</span>
+              <span>Z</span>
+              <span>Z</span>
+              <span>Z</span>
             </div>
           </Html>
         )}
