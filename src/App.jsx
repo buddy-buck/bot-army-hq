@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import Island from './components/Island.jsx';
 import Bot from './components/Bot.jsx';
 import Handoffs from './components/Handoff.jsx';
+import SkyClock from './components/SkyClock.jsx';
 import Sky from './components/Sky.jsx';
 import Scoreboard from './components/Scoreboard.jsx';
 import Radar from './components/Radar.jsx';
@@ -745,6 +746,7 @@ export default function App() {
           <Suspense fallback={null}>
             <FrameThrottle fps={throttled ? 30 : 0} />
             <Sky sky={sky} animate={!reduced} useFog={!reduced} onBuck={onBuck} />
+            <SkyClock sky={sky} animate={!reduced} timeOverride={hourOverride} />
             <Island sky={sky} animate={!reduced} onGroundTap={onGroundTap} onZoneTap={flyTo} showLabels lowPower={LOW_POWER} />
             {!reduced && (
               <Suspense fallback={null}>
@@ -778,25 +780,21 @@ export default function App() {
       <div className="hud-top" ref={hudTopRef}>
         <UI
           isExample={isExample}
-          safe={safe}
           mode={mode}
           hasLive={HAS_LIVE}
           fellBack={!!fellBack}
           onMode={setMode}
-          sky={sky}
-          overridden={hourOverride}
           error={data ? error : null}
           onRecenter={recenter}
           onRoster={() => setRosterOpen((o) => !o)}
           rosterOpen={rosterOpen}
           kiosk={kiosk}
           onKiosk={toggleKiosk}
-        >
-          {data && <Scoreboard value={displayTotal} minutesSaved={data.minutesSaved} isExample={isExample} version={version} bots={bots} reduced={reduced} />}
-        </UI>
+        />
       </div>
 
       <div className="hud-bottom-left" ref={hudBottomRef}>
+        {data && <Scoreboard value={displayTotal} minutesSaved={data.minutesSaved} isExample={isExample} version={version} bots={bots} reduced={reduced} />}
         {reduced && <RecentHandoffs handoffs={data?.handoffs} bots={bots} />}
         {data && <Feed feed={data.feed} bots={bots} walks={walks} nextUp={data.nextUp} minutesSaved={data.minutesSaved} onFlyBot={pickBot} forceClosed={kiosk} />}
       </div>

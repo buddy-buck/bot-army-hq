@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 
-// Dynamic sky: gradient dome, sun or moon, stars at night, drifting
-// low-poly clouds, and the scene's lights and fog, all from Duvall time.
+// Dynamic sky: gradient dome, stars at night, drifting low-poly clouds, and
+// the scene's lights and fog, all from Duvall time. The sun and moon live in
+// SkyClock.jsx, where they double as the clock.
 // At night a buck constellation hides low in the northern sky.
 
 const DOME_RADIUS = 170;
@@ -191,39 +192,6 @@ function BuckConstellation({ visible, animate, onTap }) {
   );
 }
 
-function SunMoon({ sky }) {
-  const sunPos = useMemo(() => new THREE.Vector3(...sky.sunDir).multiplyScalar(DOME_RADIUS * 0.8), [sky.sunDir]);
-  const moonPos = useMemo(() => new THREE.Vector3(...sky.moonDir).multiplyScalar(DOME_RADIUS * 0.8), [sky.moonDir]);
-  return (
-    <group>
-      {sky.sunUp && (
-        <group position={sunPos}>
-          <mesh>
-            <sphereGeometry args={[6, 16, 12]} />
-            <meshBasicMaterial color={sky.phase === 'day' ? '#fff8dc' : '#ffd08a'} fog={false} />
-          </mesh>
-          <mesh>
-            <sphereGeometry args={[11, 16, 12]} />
-            <meshBasicMaterial color="#fff1c4" transparent opacity={0.25} depthWrite={false} fog={false} />
-          </mesh>
-        </group>
-      )}
-      {sky.moonUp && sky.isNight && (
-        <group position={moonPos}>
-          <mesh>
-            <sphereGeometry args={[4, 16, 12]} />
-            <meshBasicMaterial color="#f4f1ff" fog={false} />
-          </mesh>
-          <mesh>
-            <sphereGeometry args={[8, 16, 12]} />
-            <meshBasicMaterial color="#b9c6ff" transparent opacity={0.15} depthWrite={false} fog={false} />
-          </mesh>
-        </group>
-      )}
-    </group>
-  );
-}
-
 const CLOUD_DEFS = [
   { a: 0.3, r: 88, y: 30, s: 2.6 },
   { a: 1.4, r: 100, y: 36, s: 3.2 },
@@ -282,7 +250,6 @@ export default function Sky({ sky, animate = true, useFog = true, onBuck }) {
       <SkyDome top={sky.top} horizon={sky.horizon} />
       <Stars opacity={sky.stars} animate={animate} />
       <BuckConstellation visible={sky.isNight && sky.stars > 0.5} animate={animate} onTap={onBuck} />
-      <SunMoon sky={sky} />
       <Clouds color={sky.cloud} animate={animate} />
       <Lights sky={sky} />
     </>
