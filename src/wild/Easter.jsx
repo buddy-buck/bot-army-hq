@@ -35,14 +35,14 @@ const tap = (fn) => (e) => {
 
 export const BOTTLE_FLAG = 'bah-bottle-seen';
 
-// Chief's welcome. PLACEHOLDER: swap in the final wording.
+// Chief's welcome.
 export const CHIEF_WELCOME = {
   title: 'A message in a bottle',
   from: 'Chief',
   body: [
-    "Welcome to Buck's Island!",
-    'This is where Buddy’s bot team works, naps and sips mai tais. Tap anyone to see what they’re up to, and keep an eye out for a few surprises.',
-    'Glad you washed up here.',
+    "Welcome to Buck's Island.",
+    "You've found home base for Buddy Buck's bot team. We work, we nap, and we sip mai tais. Tap anyone to see what they're up to.",
+    'A few surprises wash ashore if you hang around. Glad you washed up here.',
   ],
 };
 
