@@ -7,7 +7,9 @@ import { formatAsOf } from '../utils/ticker.js';
 export function DemoNote() {
   return (
     <div className="chip chip-note" role="status" aria-label="Demo: sample data">
-      Demo<span className="demo-extra">: sample data</span>
+      <span>
+        Demo<span className="demo-extra">: sample data</span>
+      </span>
     </div>
   );
 }
