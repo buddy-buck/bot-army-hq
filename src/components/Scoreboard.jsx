@@ -3,8 +3,9 @@ import { formatAsOf, formatDay, formatNumber } from '../utils/ticker.js';
 import { dayKeyPT, formatTimePT } from '../utils/time.js';
 import { headlineMinutes } from '../hooks/useData.js';
 
-// Compact "Buddy's minutes saved" chip at the top. The number rolls up like
-// an odometer when it grows. Tap it for the drawer: today, this week, all
+// Buddy's minutes saved, as a small glowing game-style score in the
+// bottom-left corner: just the number, no label. It rolls up like an
+// odometer and pulses when it grows. Tap it for the drawer: today, this week, all
 // time, top bot this week, a 7-day sparkline and the latest gains. Every
 // figure comes straight from data.json; a figure the data doesn't have is
 // simply left out (nothing is estimated in Live mode).
@@ -79,12 +80,23 @@ export default function Scoreboard({ value, minutesSaved, isExample, version, bo
   const wrap = useRef();
   const byId = useMemo(() => Object.fromEntries((bots || []).map((b) => [b.id, b])), [bots]);
 
+  // Pulse on every data refresh and whenever the number ticks up.
+  const lastValue = useRef(value);
+  const [bump, setBump] = useState(0);
   useEffect(() => {
-    if (!version) return undefined;
-    setPulse(true);
+    if (value > lastValue.current) setBump((b) => b + 1);
+    lastValue.current = value;
+  }, [value]);
+  useEffect(() => {
+    if (!version && !bump) return undefined;
+    setPulse(false);
+    const raf = requestAnimationFrame(() => setPulse(true));
     const id = setTimeout(() => setPulse(false), 1400);
-    return () => clearTimeout(id);
-  }, [version]);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(id);
+    };
+  }, [version, bump]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -108,17 +120,14 @@ export default function Scoreboard({ value, minutesSaved, isExample, version, bo
     <div className="score-wrap" ref={wrap}>
       <button
         type="button"
-        className={`chip score-chip${pulse ? ' is-pulsing' : ''}`}
+        className={`score-chip${pulse && !reduced ? ' is-pulsing' : ''}${open ? ' is-open' : ''}`}
         aria-expanded={open}
         aria-label={`Buddy's minutes saved: ${formatNumber(value)}. Tap for details.`}
+        title="Buddy's minutes saved"
         onClick={() => setOpen((o) => !o)}
       >
-        <span className="score-label">Buddy&rsquo;s minutes saved</span>
         <span className="score-value">
           <Odometer value={value} reduced={reduced} />
-        </span>
-        <span className="score-caret" aria-hidden="true">
-          {open ? '▴' : '▾'}
         </span>
       </button>
       <div className="sr-only" aria-live="polite">
@@ -126,6 +135,7 @@ export default function Scoreboard({ value, minutesSaved, isExample, version, bo
       </div>
       {open && (
         <div className="score-drawer panel" role="dialog" aria-label="Minutes saved details">
+          <div className="score-title">Buddy&rsquo;s minutes saved</div>
           <div className="score-grid">
             <div className="stat">
               <span className="stat-label">Today</span>

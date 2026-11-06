@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import Island from './components/Island.jsx';
 import Bot from './components/Bot.jsx';
 import Handoffs from './components/Handoff.jsx';
+import SkyClock from './components/SkyClock.jsx';
 import Sky from './components/Sky.jsx';
 import Scoreboard from './components/Scoreboard.jsx';
 import Radar from './components/Radar.jsx';
@@ -571,7 +572,16 @@ export default function App() {
   const insets = useHudInsets(hudTopRef, hudBottomRef);
 
   const bots = data?.bots ?? [];
-  const layout = useMemo(() => layoutBots(bots), [bots]);
+  // The island follows the clock. After 10 PM (until 6 AM) Duvall time,
+  // every bot that isn't working sleeps in a hammock with ZZZs; during the
+  // day they're chillin'. Working bots always work. This only changes the 3D
+  // scene; the scoreboard, feed and bot cards keep the real status.
+  const bedtime = sky.hour >= 22 || sky.hour < 6;
+  const sceneBots = useMemo(() => {
+    const restStatus = bedtime ? 'sleeping' : 'idle';
+    return bots.map((b) => (b.status === 'working' || b.status === restStatus ? b : { ...b, status: restStatus }));
+  }, [bots, bedtime]);
+  const layout = useMemo(() => layoutBots(sceneBots), [sceneBots]);
   const clinks = useMemo(() => clinkPairs(layout), [layout]);
   const selected = bots.find((b) => b.id === selectedId) || null;
   const isExample = !!data?.isExample;
@@ -736,13 +746,14 @@ export default function App() {
           <Suspense fallback={null}>
             <FrameThrottle fps={throttled ? 30 : 0} />
             <Sky sky={sky} animate={!reduced} useFog={!reduced} onBuck={onBuck} />
+            <SkyClock sky={sky} animate={!reduced} timeOverride={hourOverride} />
             <Island sky={sky} animate={!reduced} onGroundTap={onGroundTap} onZoneTap={flyTo} showLabels lowPower={LOW_POWER} />
             {!reduced && (
               <Suspense fallback={null}>
                 <SeaLife sky={sky} lowPower={LOW_POWER} />
               </Suspense>
             )}
-            {bots.map((b) =>
+            {sceneBots.map((b) =>
               layout[b.id] ? (
                 <Bot
                   key={b.id}
@@ -758,7 +769,7 @@ export default function App() {
                 />
               ) : null
             )}
-            {!reduced && data && <Handoffs bots={bots} handoffs={data.handoffs} layout={layout} onActiveChange={setWalks} />}
+            {!reduced && data && <Handoffs bots={sceneBots} handoffs={data.handoffs} layout={layout} onActiveChange={setWalks} />}
             <MinuteFloats floats={floats} />
             <CameraRig fly={fly} reduced={reduced} holdRotate={!!selected || rosterOpen} insets={insets} controlsRef={controlsRef} layout={layout} kiosk={kiosk} />
             <LabelDirector controls={controlsRef} />
@@ -769,25 +780,21 @@ export default function App() {
       <div className="hud-top" ref={hudTopRef}>
         <UI
           isExample={isExample}
-          safe={safe}
           mode={mode}
           hasLive={HAS_LIVE}
           fellBack={!!fellBack}
           onMode={setMode}
-          sky={sky}
-          overridden={hourOverride}
           error={data ? error : null}
           onRecenter={recenter}
           onRoster={() => setRosterOpen((o) => !o)}
           rosterOpen={rosterOpen}
           kiosk={kiosk}
           onKiosk={toggleKiosk}
-        >
-          {data && <Scoreboard value={displayTotal} minutesSaved={data.minutesSaved} isExample={isExample} version={version} bots={bots} reduced={reduced} />}
-        </UI>
+        />
       </div>
 
       <div className="hud-bottom-left" ref={hudBottomRef}>
+        {data && <Scoreboard value={displayTotal} minutesSaved={data.minutesSaved} isExample={isExample} version={version} bots={bots} reduced={reduced} />}
         {reduced && <RecentHandoffs handoffs={data?.handoffs} bots={bots} />}
         {data && <Feed feed={data.feed} bots={bots} walks={walks} nextUp={data.nextUp} minutesSaved={data.minutesSaved} onFlyBot={pickBot} forceClosed={kiosk} />}
       </div>

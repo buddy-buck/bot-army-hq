@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { teamLabel } from '../utils/paths.js';
 import { formatNumber, timeAgo } from '../utils/ticker.js';
 import { countdown, dayKeyPT, formatTimePT } from '../utils/time.js';
-import { pronounLabel } from '../hooks/useData.js';
 
 // Tap-a-bot card. Always light (cream background, dark text), day or night.
 
@@ -58,9 +57,7 @@ export default function BotCard({ bot, onClose, nextUp, minutesSaved }) {
         <div className="card-head">
           <Avatar bot={bot} key={bot.id} />
           <div className="card-titles">
-            <div className="card-name">
-              {bot.name} <span className="card-pronoun">{pronounLabel(bot.pronoun)}</span>
-            </div>
+            <div className="card-name">{bot.name}</div>
             <div className="card-team">
               <span className="team-dot" style={{ background: bot.color }} />
               {teamLabel(bot.team)}
