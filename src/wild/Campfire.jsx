@@ -7,7 +7,7 @@ import { labelState } from '../components/labels.js';
 import { CAMPFIRE, campfireSpots, groundY } from '../utils/paths.js';
 
 // Campfire mode (9 PM to 6 AM Duvall time): working bots gather around a
-// campfire south-west of the guest bungalow, with little thought bubbles
+// campfire on the south-west side of the island, with little thought bubbles
 // showing what they're working on (lastAction.text, already made public-safe).
 // Bots that aren't working are asleep in their hammocks.
 // The fire is a few flickering low-poly flames, a glow and a handful of

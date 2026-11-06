@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { brandTexture } from '../components/Island.jsx';
-import { CHEST_SPOTS, groundY, terrainY } from '../utils/paths.js';
+import { CHEST_SPOTS, DOCK, groundY, terrainY } from '../utils/paths.js';
 import { dayKeyPT } from '../utils/time.js';
 import { readStore, writeStore } from './director.js';
 
@@ -51,7 +51,7 @@ export function shouldShowBottle() {
   return readStore('localStorage', BOTTLE_FLAG) === null;
 }
 
-const BOTTLE_AT = { x: -5.4, z: 8.95 };
+const BOTTLE_AT = { x: -6.5, z: 10.7 };
 
 export function Bottle({ onOpen, animate = true }) {
   const [here, setHere] = useState(shouldShowBottle);
@@ -190,7 +190,8 @@ export function TreasureChest({ onOpen, animate = true }) {
 
 // --- Buddy's dock office ----------------------------------------------------------
 
-export const OFFICE_AT = { x: -12.4, z: 7.0 };
+// South side of Launch's Pier, out near the end (Buddy's cruiser is on the north side).
+export const OFFICE_AT = { x: DOCK.x0 + 4.2, z: DOCK.z1 + 1.3 };
 
 export function DockOffice({ onOpen, night = 0, animate = true }) {
   const ref = useRef();
@@ -288,7 +289,7 @@ export function DockOffice({ onOpen, night = 0, animate = true }) {
 
 // --- Photo booth ------------------------------------------------------------------
 
-export const BOOTH_AT = { x: 4.6, z: 8.3 };
+export const BOOTH_AT = { x: 5.5, z: 10.0 };
 
 export function PhotoBooth({ onShoot }) {
   const mats = useMemo(() => ({ leg: std('#3b3430'), body: std('#2b2a33'), lens: std('#5aa9e6', { roughness: 0.2 }), flash: std('#fdf8ee', { emissive: '#fff4c4', emissiveIntensity: 0.4 }), sign: std('#FFDE69') }), []);

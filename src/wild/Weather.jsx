@@ -192,7 +192,7 @@ function Rainbow({ double }) {
   const placement = useMemo(() => {
     const dir = new THREE.Vector3(camera.position.x, 0, camera.position.z).normalize();
     const yaw = Math.atan2(dir.x, dir.z);
-    return { position: dir.clone().multiplyScalar(-7).toArray(), yaw };
+    return { position: dir.clone().multiplyScalar(-8.5).toArray(), yaw };
   }, [camera]);
 
   useFrame((state) => {
@@ -205,7 +205,7 @@ function Rainbow({ double }) {
     outerMats.forEach((m) => (m.opacity = 0.32 * envelope(t - 0.5)));
   });
 
-  const R = 15;
+  const R = 18;
   const W = 0.42;
   return (
     <group position={placement.position} rotation={[0, placement.yaw, 0]}>

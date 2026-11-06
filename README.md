@@ -31,7 +31,7 @@ Handy test switches (add to the URL):
 | `?lite=1` | Low-power look: fewer fish and fireflies, no night shimmer on the water |
 | `?refresh=20` | Local dev only: refresh data every 20 seconds instead of 5 minutes |
 | `?weather=test` | Cycle the weather effects: storm over the pier, rainbow, double rainbow. Off by default |
-| `?boat=test` | Claude comes and goes by speedboat every 50 seconds (pier, cabana, lanai) |
+| `?claude=test` | Claude walks down from the tower to the cabana, lanai or pier and back, every 40 seconds |
 | `?plane=test` | Buddy's seaplane flies over right away, every visit |
 | `?surf=test` | Echo goes surfing every 30 seconds or so instead of every 3 to 5 minutes |
 
@@ -139,11 +139,12 @@ Rules:
 
 - `_example: true` shows a small "Demo mode: sample data" note. Set it to `false` (or remove it) for real data, and the note goes away.
 - `status` must be `working`, `idle`, or `sleeping`. The island never guesses. Anything else shows as idle.
-- `zone` must be one of: `tower`, `cabana`, `lanai`, `tikihut`, `moneydesk`, `dock`, `bungalow`, `lookout`, `beachchair`, `guestdesk`. Unknown zones get a spot near the tower.
+- `zone` must be one of: `tower`, `cabana`, `lanai`, `tikihut`, `moneydesk`, `dock`, `bungalow`, `lookout`, `beachchair`. Unknown zones get a spot near the tower. `guestdesk` (Claude's old bungalow) still works and means `tower`.
+- The Content Cabana is split by bot id: Spin, Caption, Poster, Cue, Download and Desk work at the six stations inside; Echo, Slide, Stamp, Scout-Local and Vibe work from loungers on the beach patio next door. Their `zone` stays `cabana`.
 - `team` values used by the labels and radar: `leadership`, `content`, `realestate`, `networking`, `money`, `product`, `home`, `research`, `fun`, `guest`.
 - `lastAction.url` can be an empty string. The card then shows "No link yet" and the feed line isn't clickable.
 - `lastAction.publicText` (optional) is the wording to use in public-safe mode.
-- `note` (optional) is a short italic line on the bot's card. Claude's says "Launch and Chief drop by."
+- `note` (optional) is a short italic line on the bot's card. Claude's says "Up in Chief's Tower with a mai tai."
 - `minutesSaved.trackedSince` (optional, like `"2026-09-01"`) adds "Tracked since Sep 1, 2026." to the scoreboard drawer.
 - Every field below is optional. Today's data works without any of them.
   - `minutesSaved.total` is the headline and "All time" number. It already includes live minutes (`total = ledgerTotal + live`).
@@ -159,25 +160,26 @@ Rules:
 - `feed`: the Team activity lines, newest first, at most 40. `to` is optional. Entries from the last 24 hours show. Lines with a `url` are clickable; lines without one aren't.
 - Real data can be sparse. A bot with `"lastAction": { "text": "", "url": "", "at": null }` and `"status": "idle"` just relaxes with a drink, and its card says "Nothing logged yet" and "No link yet". The island never makes up activity when `_example` is false.
 - If a bot's `zone` is missing or unknown, the bot goes to its usual spot (by id), so the island still looks right.
-- Bot ids: chief, spin, caption, slide, poster, cue, echo, download, stamp, scout-local, vibe, desk, lead, tour, board, scoop, dottie, tracy, jet, trace, scout, nudge, benji, launch, flo, recon, brobot, nasty, claude. Claude lives in the `guestdesk` zone (the guest bungalow).
+- Bot ids: chief, spin, caption, slide, poster, cue, echo, download, stamp, scout-local, vibe, desk, lead, tour, board, scoop, dottie, tracy, jet, trace, scout, nudge, benji, launch, flo, recon, brobot, nasty, claude. Claude lives in the `tower` zone, up top with Chief (`guestdesk` still works and means the tower).
 - Timestamps should include a timezone offset (like `-08:00`).
 
 ### Island extras
 
-Easter eggs, not clutter. Only one travel animation (boat, drone, seaplane, surfer) and one weather effect play at a time.
+Easter eggs, not clutter. Only one travel animation (drone, seaplane, surfer) and one weather effect play at a time.
 
-- **Claude's speedboat.** When Claude's status turns `working`, a speedboat pulls up to Launch's Pier and Claude walks to the zone the work is about, read from `lastAction.text`: real estate words go to the Real Estate Lanai, content words go to the Content Cabana, and builds or anything else stay on the pier. When the status turns idle, Claude walks back, the boat drops him at the beach below the guest bungalow, and he strolls home to his mai tai.
+- **Chief's Tower.** Open air: bamboo legs, a wide deck, a low rail and a see-through thatched canopy. Chief and Claude sit up top in two chairs with mai tais, a little table between them and a brass telescope aimed out to sea.
+- **Claude's commute.** When Claude's status turns `working`, Claude climbs down and walks to the zone the work is about, read from `lastAction.text`: real estate words go to the Real Estate Lanai, content words go to the Content Cabana, and builds or anything else go to Launch's Pier. When the status turns idle, Claude walks back up to the chair next to Chief.
 - **Weather.** See `feed[].type` above.
 - **Buddy's seaplane.** Once per browser session (`sessionStorage` key `bah-flyover-seen`), a seaplane with the BB logo on its tail crosses the sky trailing a "Buck's Island" banner.
-- **Campfire mode.** From 9 PM to 6 AM Duvall time, working bots gather around a campfire south-west of the guest bungalow, with a thought bubble showing what one of them is working on (a few at once when zoomed in). Everyone else sleeps in a hammock with ZZZs.
+- **Campfire mode.** From 9 PM to 6 AM Duvall time, working bots gather around a campfire on the south-west side of the island, with a thought bubble showing what one of them is working on (a few at once when zoomed in). Everyone else sleeps in a hammock with ZZZs.
 - **Message in a bottle.** On a first visit a bottle washes up on the south beach. Tap it for a note from Chief. Tapping sets `localStorage` key `bah-bottle-seen`, so it never comes back.
 - **Treasure chest.** It moves to a new spot every day. Tap it for a line from Nasty.
 - **Echo surfing.** Every 3 to 5 minutes, Echo rides a wave past the far side of the island.
 - **Delivery drones.** Handoffs between far-apart zones (like the Research Lookout to the Content Cabana) fly by drone, one drone at a time. Nearby handoffs still walk.
-- **Buddy's dock office.** A floating BB houseboat at Launch's Pier. Tap it for the minutes-saved drawer.
+- **Launch's Pier.** Long and wide, with Buddy's cabin cruiser (blue hull, gold trim) moored on one side and Buddy's dock office, a floating BB houseboat, on the other. Tap the houseboat for the minutes-saved drawer.
 - **Photo booth.** A camera on a tripod on the south beach. Tap it: the camera glides to a clean angle, the buttons and labels hide, everyone waves for a couple of seconds (screenshot time), then a soft flash and the UI comes back.
 
-Reduced motion skips the boat, drone, seaplane, surfer and weather; Claude simply appears where the status says.
+Reduced motion skips the drone, seaplane, surfer and weather; Claude simply appears where the status says.
 
 ### Avatars
 
@@ -215,7 +217,7 @@ outputs/                   screenshots
 public/avatars/            drop <id>.png files here
 src/main.jsx               React entry
 src/App.jsx                scene, camera rig, HUD layout
-src/components/Island.jsx  terrain, water, foam, sand paths, palms, all buildings, guest bungalow, zone tags
+src/components/Island.jsx  terrain, water, foam, sand paths, palms, all buildings, zone tags
 src/components/Bot.jsx     bot mesh, poses, drinks, lei, hammock, lantern, name tag
 src/components/labels.js   which name tags show (zoom, hover, no overlaps)
 src/components/Feed.jsx    activity drawer: Past / Now / Next

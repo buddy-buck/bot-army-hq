@@ -71,7 +71,7 @@ export default function Surfer({ color = '#2E86DE' }) {
     }
     g.visible = true;
     // Behind the island (from where the camera is), clear of the shore.
-    const p = r.fwd.clone().multiplyScalar(17).add(r.right.clone().multiplyScalar(THREE.MathUtils.lerp(-26, 26, u)));
+    const p = r.fwd.clone().multiplyScalar(20.5).add(r.right.clone().multiplyScalar(THREE.MathUtils.lerp(-30, 30, u)));
     const fade = Math.min(1, u / 0.08, (1 - u) / 0.08);
     g.position.set(p.x, -0.3 + fade * 0.3, p.z);
     g.rotation.y = r.yaw - Math.PI / 2;

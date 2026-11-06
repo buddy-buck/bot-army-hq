@@ -27,7 +27,7 @@ const MAX_LEG_SECONDS = 13;
 const PAUSE = 1.8; // handoff moment at the receiver
 const MIN_GAP = 5; // seconds between walk starts
 const RECENT_MS = 24 * 3600 * 1000;
-const DRONE_DIST = 11; // zone-to-zone distance that calls for a drone
+const DRONE_DIST = 13; // zone-to-zone distance that calls for a drone
 const DRONE_SPEED = 5;
 const DRONE_Y = 6.2;
 

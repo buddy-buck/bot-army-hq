@@ -1,7 +1,7 @@
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { islandE } from '../utils/paths.js';
+import { DOCK, SPREAD, islandE } from '../utils/paths.js';
 
 // Sea life and the living world around the island. All low-poly, a handful
 // of meshes each, and a single cheap useFrame per creature.
@@ -158,7 +158,7 @@ function Marlin() {
     const s = st.current;
     if (!s.jump && t >= s.next) {
       const a = rnd(0, Math.PI * 2);
-      const r = rnd(22, 30);
+      const r = rnd(22, 30) * SPREAD;
       const heading = a + Math.PI / 2 + rnd(-0.4, 0.4);
       s.jump = { t0: t, x: Math.cos(a) * r, z: Math.sin(a) * r, h: heading };
       Object.assign(s1, { t0: t, x: s.jump.x, z: s.jump.z });
@@ -204,7 +204,7 @@ function Salmon() {
     if (!s.hop && t >= s.next) {
       const a = rnd(Math.PI * 0.5, Math.PI * 1.5);
       const r = rnd(1.4, 3.2);
-      s.hop = { t0: t, x: -16.8 + Math.cos(a) * r, z: 4.4 + Math.sin(a) * r, h: rnd(0, Math.PI * 2) };
+      s.hop = { t0: t, x: DOCK.x0 - 0.3 + Math.cos(a) * r, z: (DOCK.z0 + DOCK.z1) / 2 + Math.sin(a) * r, h: rnd(0, Math.PI * 2) };
       Object.assign(sp, { t0: t + 0.62, x: s.hop.x + Math.cos(s.hop.h) * 1.1, z: s.hop.z - Math.sin(s.hop.h) * 1.1 });
     }
     const hop = s.hop;
@@ -317,9 +317,9 @@ function Gull({ r, y, speed, offset }) {
 function Seagulls() {
   return (
     <>
-      <Gull r={14} y={9} speed={0.12} offset={0} />
-      <Gull r={17} y={10.5} speed={0.1} offset={2.1} />
-      <Gull r={11} y={8} speed={-0.14} offset={4.2} />
+      <Gull r={14 * SPREAD} y={9} speed={0.12} offset={0} />
+      <Gull r={17 * SPREAD} y={10.5} speed={0.1} offset={2.1} />
+      <Gull r={11 * SPREAD} y={8} speed={-0.14} offset={4.2} />
     </>
   );
 }
@@ -358,7 +358,7 @@ function Turtle() {
     const s = st.current;
     if (!s.up && t >= s.next) {
       const a = rnd(0, Math.PI * 2);
-      const r = rnd(16, 21);
+      const r = rnd(16, 21) * SPREAD;
       s.up = { t0: t, x: Math.cos(a) * r, z: Math.sin(a) * r, h: a + Math.PI / 2 };
       Object.assign(ripple, { t0: t + 1.2, x: s.up.x, z: s.up.z });
     }
@@ -407,7 +407,7 @@ function Dolphin({ delay }) {
     const base = 0.4 + lap * 0.5; // each lap starts a bit further around
     const k = cyc / 1.3; // each leap is 1.3s, then underwater
     const a = base + (cyc / PERIOD) * 0.55;
-    const r = 24 + Math.sin(lap) * 2;
+    const r = (24 + Math.sin(lap) * 2) * SPREAD;
     if (k > 1) {
       ref.current.visible = false;
       return;
@@ -488,8 +488,8 @@ export default function SeaLife({ sky, lowPower = false }) {
   const night = sky.stars > 0.5;
   return (
     <group>
-      <SharkFin rx={21} rz={17} speed={0.05} offset={0.8} dir={1} />
-      <SharkFin rx={27} rz={22} speed={0.038} offset={3.6} dir={-1} />
+      <SharkFin rx={21 * SPREAD} rz={17 * SPREAD} speed={0.05} offset={0.8} dir={1} />
+      <SharkFin rx={27 * SPREAD} rz={22 * SPREAD} speed={0.038} offset={3.6} dir={-1} />
       <Marlin />
       <Salmon />
       <FishSchools count={lowPower ? 2 : 4} />

@@ -125,7 +125,7 @@ export default function Flyover() {
       return;
     }
     g.visible = true;
-    const p = r.fwd.clone().multiplyScalar(4).add(r.right.clone().multiplyScalar(THREE.MathUtils.lerp(-46, 46, u)));
+    const p = r.fwd.clone().multiplyScalar(4).add(r.right.clone().multiplyScalar(THREE.MathUtils.lerp(-52, 52, u)));
     g.position.set(p.x, 6.2 + Math.sin(Math.PI * u) * 1.2, p.z);
     g.quaternion.setFromRotationMatrix(r.basis);
     if (plane.current) plane.current.rotation.x = Math.sin(now * 1.4) * 0.06;

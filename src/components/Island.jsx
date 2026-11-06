@@ -3,7 +3,13 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import {
+  BUNGALOW_ROT,
+  CABANA_DESK_Z,
+  CABANA_STATIONS,
   DECKS,
+  DOCK,
+  PATIO_LOUNGERS,
+  TOWER_SEATS,
   FLOWERS,
   HUB_RADIUS,
   ISLAND,
@@ -36,6 +42,7 @@ const M = {
   // See-through thatch for the open-air cabana, so the bots inside show.
   thatchSee: std('#e2bd72', { transparent: true, opacity: 0.4, depthWrite: false, side: THREE.DoubleSide }),
   fringe: std('#c99a52', { side: THREE.DoubleSide }),
+  thatchSeeTower: std('#dcb468', { transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide }),
   white: std('#fdf8ee'),
   bamboo: std('#d4b872'),
   bambooNode: std('#9c8240'),
@@ -60,6 +67,11 @@ const M = {
   shell: std('#ffd6e4'),
   football: std('#8a4b26'),
   coconut: std('#6b4a2a'),
+  brass: std('#c9a24a', { roughness: 0.35, metalness: 0.5 }),
+  porthole: std('#2c4a6e', { roughness: 0.3 }),
+  glass: std('#bfe8ff', { transparent: true, opacity: 0.55, roughness: 0.2 }),
+  rope: std('#d9c79a'),
+  floCushion: std('#8fd3c1'),
   screenDTV: new THREE.MeshStandardMaterial({ color: '#FF04A0', emissive: '#FF04A0', emissiveIntensity: 0.7, flatShading: true }),
   screen: new THREE.MeshStandardMaterial({ color: '#bfe8ff', emissive: '#7cc8ff', emissiveIntensity: 0.5, flatShading: true }),
 };
@@ -311,7 +323,7 @@ function hash2(x, z) {
 
 function Terrain({ onTap }) {
   const geometry = useMemo(() => {
-    const g = new THREE.PlaneGeometry(40, 30, 80, 60);
+    const g = new THREE.PlaneGeometry(48, 36, 96, 72);
     g.rotateX(-Math.PI / 2);
     const pos = g.attributes.position;
     for (let i = 0; i < pos.count; i++) pos.setY(i, terrainY(pos.getX(i), pos.getZ(i)));
@@ -402,7 +414,7 @@ function Water({ tint, animate, onTap, glow = 0 }) {
           '#include <emissivemap_fragment>',
           `#include <emissivemap_fragment>
   if (uGlow > 0.0) {
-    float d = length(vXZ / vec2(13.0, 9.5));
+    float d = length(vXZ / vec2(${ISLAND.rx.toFixed(1)}, ${ISLAND.rz.toFixed(1)}));
     float band = smoothstep(0.95, 1.08, d) * (1.0 - smoothstep(1.2, 1.55, d));
     float s = sin(vXZ.x * 4.1 + uTime * 0.9) * sin(vXZ.y * 3.7 - uTime * 0.7) * sin((vXZ.x - vXZ.y) * 2.3 + uTime * 0.5);
     totalEmissiveRadiance += vec3(0.2, 0.85, 1.0) * pow(max(s, 0.0), 12.0) * band * uGlow * 0.9;
@@ -516,6 +528,7 @@ function SandPaths() {
   const geometry = useMemo(() => {
     const out = { pos: [], idx: [] };
     for (const key of Object.keys(ZONES)) {
+      if (key === 'patio') continue; // shares the cabana's path
       const c = zonePathCurve(key);
       if (c) ribbon(c.getSpacedPoints(28), 0.75, out);
     }
@@ -764,83 +777,168 @@ function Lantern({ p, night, color = '#ffcf6b' }) {
   );
 }
 
+// Chief's Tower: the command center at the island's highest point. Open
+// air on every side: bamboo legs, a wide deck, a low rail, and a thatched
+// canopy up on tall posts. Two chairs (Chief and Claude), a little table
+// with snacks, and a brass telescope pointed out to sea.
+function TowerChair({ seat, top, cushion }) {
+  return (
+    <group position={[seat.x, top, seat.z]} rotation={[0, seat.rotY, 0]}>
+      {[[-0.24, -0.2], [0.24, -0.2], [-0.24, 0.2], [0.24, 0.2]].map(([x, z], i) => (
+        <Cyl key={i} p={[x, 0.15, z]} rt={0.03} h={0.3} m={M.bamboo} />
+      ))}
+      <Box p={[0, 0.32, 0]} s={[0.58, 0.06, 0.5]} m={M.bamboo} />
+      <Box p={[0, 0.37, 0.02]} s={[0.5, 0.05, 0.42]} m={cushion} />
+      <group position={[0, 0.34, -0.24]} rotation={[-0.32, 0, 0]}>
+        <Box p={[0, 0.3, 0]} s={[0.58, 0.6, 0.05]} m={M.bamboo} />
+        <Box p={[0, 0.3, 0.035]} s={[0.48, 0.5, 0.03]} m={cushion} />
+      </group>
+      {[-0.3, 0.3].map((x) => (
+        <Box key={x} p={[x, 0.5, 0]} s={[0.06, 0.05, 0.46]} m={M.darkWood} />
+      ))}
+    </group>
+  );
+}
+
+const TOWER_HALF = 1.55;
+
 function Tower({ night, animate }) {
   const g = terrainY(0, 0);
   const top = g + TOWER_LEG_H;
-  const legs = [[-0.85, -0.85], [0.85, -0.85], [-0.85, 0.85], [0.85, 0.85]];
-  const ladderBottom = terrainY(0, 1.6);
+  const deckTop = top + 0.08;
+  const L = TOWER_HALF - 0.15;
+  const legs = [[-L, -L], [L, -L], [-L, L], [L, L]];
+  const ladderX = 1.0;
+  const ladderBottom = terrainY(ladderX, TOWER_HALF + 0.6);
   const ladderLen = Math.hypot(top - ladderBottom, 0.5);
   const ladderTilt = Math.atan2(0.5, top - ladderBottom);
   const rungs = Math.floor(ladderLen / 0.35);
+  const postH = 2.05;
+  const canopyY = deckTop + postH;
+  const braceY0 = g + 0.4;
+  const braceY1 = top - 0.25;
   return (
     <group>
+      {/* bamboo legs with cross braces */}
       {legs.map(([x, z], i) => (
-        <Cyl key={i} p={[x, g + TOWER_LEG_H / 2 - 0.2, z]} rt={0.08} rb={0.11} h={TOWER_LEG_H + 0.4} m={M.wood} />
+        <BambooPost key={i} p={[x, g - 0.2, z]} h={TOWER_LEG_H + 0.2} r={0.11} />
       ))}
-      <Box p={[0, g + 1.1, -0.85]} s={[1.7, 0.07, 0.07]} m={M.darkWood} />
-      <Box p={[0, g + 1.1, 0.85]} s={[1.7, 0.07, 0.07]} m={M.darkWood} />
-      <Box p={[-0.85, g + 1.1, 0]} s={[0.07, 0.07, 1.7]} m={M.darkWood} />
-      <Box p={[0.85, g + 1.1, 0]} s={[0.07, 0.07, 1.7]} m={M.darkWood} />
-      <Box p={[0, top, 0]} s={[2.2, 0.16, 2.2]} m={M.plank} />
-      <Box p={[0, top + 0.34, -1.05]} s={[2.2, 0.06, 0.06]} m={M.wood} />
-      <Box p={[-1.05, top + 0.34, 0]} s={[0.06, 0.06, 2.2]} m={M.wood} />
-      <Box p={[1.05, top + 0.34, 0]} s={[0.06, 0.06, 2.2]} m={M.wood} />
-      {[[-0.95, -0.95], [0.95, -0.95], [-0.95, 0.95], [0.95, 0.95]].map(([x, z], i) => (
-        <Cyl key={`p${i}`} p={[x, top + 0.68, z]} rt={0.05} h={1.36} m={M.wood} />
+      {[
+        [[-L, braceY0, -L], [L, braceY1, -L]], [[L, braceY0, -L], [-L, braceY1, -L]],
+        [[-L, braceY0, L], [L, braceY1, L]], [[L, braceY0, L], [-L, braceY1, L]],
+        [[-L, braceY0, -L], [-L, braceY1, L]], [[-L, braceY0, L], [-L, braceY1, -L]],
+        [[L, braceY0, -L], [L, braceY1, L]], [[L, braceY0, L], [L, braceY1, -L]],
+      ].map(([a, b], i) => (
+        <Beam key={`b${i}`} a={a} b={b} r={0.035} m={M.bambooNode} />
       ))}
-      <Roof p={[0, top + 1.36 + 0.55, 0]} halfX={1.35} halfZ={1.35} h={1.1} m={M.thatch} />
-      <Roof p={[0, top + 1.36 + 0.2, 0]} halfX={1.5} halfZ={1.5} h={0.45} m={M.thatchDark} />
-      <Fringe p={[0, top + 1.36 - 0.02, 0]} halfX={1.5} halfZ={1.5} drop={0.26} />
-      <Flag p={[0, top + 1.36 + 1.05, 0]} color="#D63AF9" animate={animate} />
+      {/* deck with plank lines */}
+      <Box p={[0, top, 0]} s={[TOWER_HALF * 2, 0.16, TOWER_HALF * 2]} m={M.plank} />
+      {[-1.0, -0.33, 0.33, 1.0].map((x) => (
+        <Box key={`pl${x}`} p={[x, top + 0.081, 0]} s={[0.03, 0.005, TOWER_HALF * 2 - 0.05]} m={M.darkWood} />
+      ))}
+      {/* low bamboo rail: open on every side so the chairs show */}
+      {[
+        [[-TOWER_HALF, deckTop + 0.45, -TOWER_HALF], [TOWER_HALF, deckTop + 0.45, -TOWER_HALF]],
+        [[-TOWER_HALF, deckTop + 0.45, -TOWER_HALF], [-TOWER_HALF, deckTop + 0.45, TOWER_HALF]],
+        [[TOWER_HALF, deckTop + 0.45, -TOWER_HALF], [TOWER_HALF, deckTop + 0.45, TOWER_HALF]],
+        [[-TOWER_HALF, deckTop + 0.45, TOWER_HALF], [ladderX - 0.4, deckTop + 0.45, TOWER_HALF]],
+      ].map(([a, b], i) => (
+        <Beam key={`r${i}`} a={a} b={b} r={0.03} m={M.bamboo} />
+      ))}
+      {/* tall corner posts holding the canopy up high */}
+      {legs.map(([x, z], i) => (
+        <BambooPost key={`cp${i}`} p={[x * 1.07, deckTop, z * 1.07]} h={postH} r={0.07} />
+      ))}
+      {/* see-through thatch on bamboo rafters, so the chairs show from above too */}
+      {[[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([x, z], i) => (
+        <Beam key={`raf${i}`} a={[x * 2.15, canopyY + 0.02, z * 2.15]} b={[0, canopyY + 1.3, 0]} r={0.04} m={M.bambooNode} />
+      ))}
+      <Roof p={[0, canopyY + 0.65, 0]} halfX={2.2} halfZ={2.2} h={1.3} m={M.thatchSeeTower} />
+      <Fringe p={[0, canopyY, 0]} halfX={2.2} halfZ={2.2} drop={0.3} m={M.thatchSeeTower} />
+      <Flag p={[0, canopyY + 1.2, 0]} color="#D63AF9" animate={animate} />
+      <StringLights
+        points={[[-L * 1.07, canopyY - 0.12, L * 1.07], [L * 1.07, canopyY - 0.12, L * 1.07], [L * 1.07, canopyY - 0.12, -L * 1.07], [-L * 1.07, canopyY - 0.12, -L * 1.07], [-L * 1.07, canopyY - 0.12, L * 1.07]]}
+        sag={0.2}
+        per={5}
+        night={night}
+      />
+      {/* two chairs, a little table between them */}
+      <TowerChair seat={TOWER_SEATS[0]} top={deckTop} cushion={M.chief} />
+      <TowerChair seat={TOWER_SEATS[1]} top={deckTop} cushion={M.claude} />
+      <group position={[0, deckTop, 0.42]}>
+        <Cyl p={[0, 0.2, 0]} rt={0.04} h={0.4} m={M.darkWood} />
+        <Cyl p={[0, 0.42, 0]} rt={0.26} h={0.05} seg={10} m={M.bamboo} />
+        <mesh position={[-0.08, 0.5, 0.02]} material={M.coconut}>
+          <icosahedronGeometry args={[0.08, 0]} />
+        </mesh>
+        <mesh position={[0.09, 0.52, -0.04]} material={M.lisnOrange}>
+          <icosahedronGeometry args={[0.07, 0]} />
+        </mesh>
+      </group>
+      {/* brass telescope on a tripod, aimed out to sea */}
+      <group position={[1.05, deckTop, -1.0]} rotation={[0, 2.4, 0]}>
+        {[0, 2.1, 4.2].map((a, i) => (
+          <Cyl key={i} p={[Math.sin(a) * 0.12, 0.3, Math.cos(a) * 0.12]} rt={0.015} h={0.62} m={M.darkWood} r={[Math.cos(a) * 0.2, 0, -Math.sin(a) * 0.2]} />
+        ))}
+        <Cyl p={[0, 0.72, 0.1]} rt={0.045} rb={0.065} h={0.7} m={M.brass} r={[1.25, 0, 0]} />
+      </group>
       {/* ladder on the south side */}
-      <group position={[0, (top + ladderBottom) / 2, 1.35]} rotation={[-ladderTilt, 0, 0]}>
+      <group position={[ladderX, (top + ladderBottom) / 2, TOWER_HALF + 0.15]} rotation={[-ladderTilt, 0, 0]}>
         <Box p={[-0.24, 0, 0]} s={[0.06, ladderLen, 0.06]} m={M.darkWood} />
         <Box p={[0.24, 0, 0]} s={[0.06, ladderLen, 0.06]} m={M.darkWood} />
         {Array.from({ length: rungs }, (_, i) => (
           <Box key={i} p={[0, -ladderLen / 2 + 0.25 + i * 0.35, 0]} s={[0.48, 0.04, 0.05]} m={M.wood} />
         ))}
       </group>
-      <Lantern p={[1.0, top + 1.2, 1.0]} night={night} />
-      <Lantern p={[-1.0, top + 1.2, 1.0]} night={night} />
+      <Lantern p={[L, canopyY - 0.35, L]} night={night} />
+      <Lantern p={[-L, canopyY - 0.35, L]} night={night} />
+      <Lantern p={[L, canopyY - 0.35, -L]} night={night} />
+      <Lantern p={[-L, canopyY - 0.35, -L]} night={night} />
     </group>
   );
 }
 
+// Content Cabana: wider now, with a double-sided work table inside (three
+// workstations a side). The rest of the content crew works the beach patio
+// next door.
+const CAB_HX = 2.8;
+const CAB_HZ = 1.9;
+
 function Cabana({ night }) {
-  const cx = -6.5;
-  const cz = -4.5;
+  const zone = ZONES.cabana;
+  const cx = zone.x;
+  const cz = zone.z;
   const g = groundY(cx, cz);
-  // Open-air roof: bamboo rafters under see-through thatch, so the bots at
-  // the work table stay visible from the usual camera angles.
-  const eaveY = 2.12;
-  const apexY = 3.5;
-  const hx = 2.7;
-  const hz = 2.1;
+  const eaveY = 2.15;
+  const apexY = 3.6;
+  const hx = CAB_HX + 0.35;
+  const hz = CAB_HZ + 0.4;
   const corners = [[-hx, -hz], [hx, -hz], [hx, hz], [-hx, hz]];
-  const ridgeX = 0.9;
+  const ridgeX = 1.2;
+  const px = CAB_HX - 0.15;
+  const pz = CAB_HZ - 0.15;
   return (
     <group position={[cx, g, cz]}>
       {/* deck with a woven mat */}
-      <Box p={[0, 0.08, 0]} s={[4.4, 0.22, 3.2]} m={M.plank} />
-      <Box p={[0, 0.195, 0.15]} s={[3.6, 0.02, 2.4]} m={M.mat} />
-      {[-1.2, -0.4, 0.4, 1.2].map((x, i) => (
-        <Box key={`ms${i}`} p={[x, 0.2, 0.15]} s={[0.12, 0.02, 2.4]} m={M.matStripe} />
+      <Box p={[0, 0.08, 0]} s={[CAB_HX * 2, 0.22, CAB_HZ * 2]} m={M.plank} />
+      <Box p={[0, 0.195, 0]} s={[CAB_HX * 2 - 0.6, 0.02, CAB_HZ * 2 - 0.6]} m={M.mat} />
+      {[-1.8, -0.6, 0.6, 1.8].map((x, i) => (
+        <Box key={`ms${i}`} p={[x, 0.2, 0]} s={[0.12, 0.02, CAB_HZ * 2 - 0.6]} m={M.matStripe} />
       ))}
-      {/* bamboo posts */}
-      {[[-2, -1.4], [2, -1.4], [-2, 1.4], [2, 1.4]].map(([x, z], i) => (
+      {/* bamboo posts: corners plus one mid-span each long side */}
+      {[[-px, -pz], [px, -pz], [-px, pz], [px, pz], [0, -pz], [0, pz]].map(([x, z], i) => (
         <BambooPost key={i} p={[x, 0.15, z]} h={2.05} r={0.09} />
       ))}
-      {/* top plates tying the posts together */}
-      <Beam a={[-2.1, 2.12, -1.4]} b={[2.1, 2.12, -1.4]} r={0.05} m={M.bamboo} />
-      <Beam a={[-2.1, 2.12, 1.4]} b={[2.1, 2.12, 1.4]} r={0.05} m={M.bamboo} />
-      <Beam a={[-2, 2.12, -1.5]} b={[-2, 2.12, 1.5]} r={0.05} m={M.bamboo} />
-      <Beam a={[2, 2.12, -1.5]} b={[2, 2.12, 1.5]} r={0.05} m={M.bamboo} />
-      {/* hip rafters + ridge */}
+      <Beam a={[-px - 0.1, 2.12, -pz]} b={[px + 0.1, 2.12, -pz]} r={0.05} m={M.bamboo} />
+      <Beam a={[-px - 0.1, 2.12, pz]} b={[px + 0.1, 2.12, pz]} r={0.05} m={M.bamboo} />
+      <Beam a={[-px, 2.12, -pz - 0.1]} b={[-px, 2.12, pz + 0.1]} r={0.05} m={M.bamboo} />
+      <Beam a={[px, 2.12, -pz - 0.1]} b={[px, 2.12, pz + 0.1]} r={0.05} m={M.bamboo} />
+      {/* hip rafters + ridge under see-through thatch */}
       {corners.map(([x, z], i) => (
         <Beam key={`hr${i}`} a={[x, eaveY, z]} b={[Math.sign(x) * ridgeX, apexY, 0]} r={0.045} m={M.bambooNode} />
       ))}
       <Beam a={[-ridgeX - 0.1, apexY, 0]} b={[ridgeX + 0.1, apexY, 0]} r={0.06} m={M.bambooNode} />
-      {[-1.6, -0.8, 0, 0.8, 1.6].flatMap((x) =>
+      {[-2.0, -1.0, 0, 1.0, 2.0].flatMap((x) =>
         [-1, 1].map((sz) => (
           <Beam key={`cr${x}${sz}`} a={[x, eaveY, sz * hz]} b={[Math.max(-ridgeX, Math.min(ridgeX, x)), apexY, 0]} r={0.025} m={M.bamboo} />
         ))
@@ -848,38 +946,32 @@ function Cabana({ night }) {
       <CabanaThatch eaveY={eaveY} apexY={apexY} hx={hx} hz={hz} ridgeX={ridgeX} />
       <Fringe p={[0, eaveY, 0]} halfX={hx} halfZ={hz} drop={0.32} m={M.thatchSee} />
       {/* LISN banner under the front of the roof */}
-      <Box p={[0, 1.88, 1.46]} s={[1.9, 0.36, 0.05]} m={M.lisnGreen} />
-      <Box p={[0, 1.76, 1.49]} s={[1.9, 0.07, 0.03]} m={M.lisnOrange} />
-      {/* work table + laptops */}
-      <Box p={[0, 0.75, -0.4]} s={[2.8, 0.08, 0.75]} m={M.wood} />
-      {[[-1.3, -0.7], [1.3, -0.7], [-1.3, -0.1], [1.3, -0.1]].map(([x, z], i) => (
-        <Box key={`l${i}`} p={[x, 0.45, z]} s={[0.07, 0.6, 0.07]} m={M.bamboo} />
+      <Box p={[0, 1.9, pz + 0.06]} s={[1.9, 0.36, 0.05]} m={M.lisnGreen} />
+      <Box p={[0, 1.78, pz + 0.09]} s={[1.9, 0.07, 0.03]} m={M.lisnOrange} />
+      {/* double-sided work table with six laptops */}
+      <Box p={[0, 0.75, CABANA_DESK_Z]} s={[4.3, 0.08, 0.95]} m={M.wood} />
+      {[[-2.0, -0.35], [2.0, -0.35], [-2.0, 0.35], [2.0, 0.35]].map(([x, z], i) => (
+        <Box key={`l${i}`} p={[x, 0.45, CABANA_DESK_Z + z]} s={[0.07, 0.6, 0.07]} m={M.bamboo} />
       ))}
-      {[-0.9, 0, 0.9].map((x, i) => (
-        <group key={`lap${i}`} position={[x, 0.8, -0.4]}>
+      {CABANA_STATIONS.map((s, i) => (
+        <group key={`lap${i}`} position={[s.x, 0.8, CABANA_DESK_Z + Math.sign(s.z) * 0.24]} rotation={[0, s.z < 0 ? Math.PI : 0, 0]}>
           <Box p={[0, 0, 0.05]} s={[0.42, 0.03, 0.28]} m={M.dark} />
           <Box p={[0, 0.14, -0.1]} s={[0.42, 0.28, 0.02]} r={[-0.25, 0, 0]} m={M.screen} />
         </group>
       ))}
-      {/* Duvall TV monitor */}
-      <group position={[-1.55, 0, -1.2]}>
+      {/* Duvall TV monitor on the west end */}
+      <group position={[-px + 0.25, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
         <Box p={[0, 0.65, 0]} s={[0.07, 1.1, 0.07]} m={M.dark} />
         <Box p={[0, 1.3, 0]} s={[1.0, 0.64, 0.07]} m={M.dark} />
         <Box p={[0, 1.3, 0.04]} s={[0.9, 0.54, 0.02]} m={M.screenDTV} />
       </group>
-      {/* surfboard */}
-      <mesh position={[2.45, 0.85, 0.6]} rotation={[0, 0.3, 0.22]} scale={[0.22, 0.95, 0.05]} material={M.lisnOrange}>
+      {/* surfboard leaning on the east end */}
+      <mesh position={[px + 0.35, 0.85, 0.9]} rotation={[0, 0.3, 0.22]} scale={[0.22, 0.95, 0.05]} material={M.lisnOrange}>
         <sphereGeometry args={[1, 10, 8]} />
       </mesh>
-      {/* string lights draped around the eave */}
-      <StringLights
-        points={[[-2, 2.0, 1.45], [2, 2.0, 1.45], [2, 2.0, -1.45], [-2, 2.0, -1.45], [-2, 2.0, 1.45]]}
-        sag={0.22}
-        per={6}
-        night={night}
-      />
-      <Lantern p={[-2, 1.75, 1.4]} night={night} />
-      <Lantern p={[2, 1.75, 1.4]} night={night} />
+      <StringLights points={[[-px, 2.0, pz], [px, 2.0, pz], [px, 2.0, -pz], [-px, 2.0, -pz], [-px, 2.0, pz]]} sag={0.22} per={7} night={night} />
+      <Lantern p={[-px, 1.75, pz]} night={night} />
+      <Lantern p={[px, 1.75, pz]} night={night} />
     </group>
   );
 }
@@ -908,6 +1000,62 @@ function CabanaThatch({ eaveY, apexY, hx, hz, ridgeX }) {
   return <mesh geometry={geo} material={M.thatchSee} renderOrder={3} />;
 }
 
+// Beach patio next to the cabana: five loungers facing the water, with
+// LISN-striped umbrellas and a little side table.
+function Lounger({ s, color }) {
+  return (
+    <group position={[s.x, 0, s.z]} rotation={[0, s.rotY, 0]}>
+      <Box p={[0, 0.26, 0.12]} s={[0.62, 0.07, 1.0]} m={color} />
+      <Box p={[0, 0.28, 0.12]} s={[0.18, 0.072, 1.01]} m={M.white} />
+      <group position={[0, 0.28, -0.38]} rotation={[1.0, 0, 0]}>
+        <Box p={[0, 0, -0.34]} s={[0.62, 0.07, 0.68]} m={color} />
+        <Box p={[0, 0.002, -0.34]} s={[0.18, 0.072, 0.69]} m={M.white} />
+      </group>
+      {[[-0.28, 0.52], [0.28, 0.52], [-0.28, -0.32], [0.28, -0.32]].map(([x, z], i) => (
+        <Box key={i} p={[x, 0.12, z]} s={[0.05, 0.24, 0.05]} m={M.bamboo} />
+      ))}
+    </group>
+  );
+}
+
+function PatioUmbrella({ x, z, color }) {
+  return (
+    <group position={[x, groundY(x, z), z]}>
+      <Cyl p={[0, 1.0, 0]} rt={0.03} h={2.0} m={M.white} />
+      <Cone p={[0, 2.05, 0]} rad={0.95} h={0.4} seg={8} m={color} />
+      <Cone p={[0, 2.28, 0]} rad={0.18} h={0.14} seg={8} m={M.white} />
+    </group>
+  );
+}
+
+function Patio() {
+  const zone = ZONES.patio;
+  const colors = [M.lisnOrange, M.lisnGreen, M.lisnOrange, M.lisnGreen, M.lisnOrange];
+  return (
+    <group>
+      {PATIO_LOUNGERS.map((s) => {
+        const x = zone.x + s.x;
+        const z = zone.z + s.z;
+        return (
+          <group key={s.i} position={[0, groundY(x, z), 0]}>
+            <Lounger s={{ ...s, x, z }} color={colors[s.i]} />
+          </group>
+        );
+      })}
+      {[-1.95, 0.65].map((dx, i) => (
+        <PatioUmbrella key={i} x={zone.x + dx} z={zone.z + 0.75} color={i ? M.lisnGreen : M.lisnOrange} />
+      ))}
+      <group position={[zone.x + 1.95, groundY(zone.x + 1.95, zone.z + 0.9), zone.z + 0.9]}>
+        <Cyl p={[0, 0.2, 0]} rt={0.03} h={0.4} m={M.bamboo} />
+        <Cyl p={[0, 0.42, 0]} rt={0.2} h={0.04} seg={8} m={M.bamboo} />
+        <mesh position={[0, 0.5, 0]} material={M.coconut}>
+          <icosahedronGeometry args={[0.07, 0]} />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
 function Lanai({ night, animate }) {
   const brandMats = useBrandMaterials(night);
   const deck = DECKS.find((d) => d.id === 'lanai');
@@ -924,7 +1072,8 @@ function Lanai({ night, animate }) {
     railPosts.push([x, deck.z0 + 0.08]);
     railPosts.push([x, deck.z1 - 0.08]);
   }
-  const rampBottom = Math.max(terrainY(deck.x0 - 0.9, 1.0), 0);
+  const rampZ = (deck.ramp.z0 + deck.ramp.z1) / 2;
+  const rampBottom = Math.max(terrainY(deck.x0 - 0.9, rampZ), 0);
   const rampAngle = Math.atan2(y - rampBottom, 0.9);
   return (
     <group>
@@ -954,7 +1103,7 @@ function Lanai({ night, animate }) {
         <Box key={`rs${i}`} p={[cx + x, y + 0.022, cz + 0.1]} s={[0.14, 0.02, 2.4]} m={M.matStripe} />
       ))}
       {/* steps up from the sand */}
-      <Box p={[deck.x0 - 0.45, (y + rampBottom) / 2, 1.0]} s={[Math.hypot(0.9, y - rampBottom), 0.08, 1.2]} r={[0, 0, rampAngle]} m={M.plank} />
+      <Box p={[deck.x0 - 0.45, (y + rampBottom) / 2, rampZ]} s={[Math.hypot(0.9, y - rampBottom), 0.08, 1.2]} r={[0, 0, rampAngle]} m={M.plank} />
       {/* desk */}
       <Box p={[cx, y + 0.62, -0.5]} s={[4.0, 0.07, 0.6]} m={M.wood} />
       {[-1.9, 1.9].map((x, i) => (
@@ -1003,8 +1152,10 @@ function Torch({ p, night, animate }) {
 }
 
 function TikiHut({ night, animate }) {
-  const cx = 0.5;
-  const cz = 6.8;
+  const cx = ZONES.tikihut.x;
+  const cz = ZONES.tikihut.z;
+  const t1 = [cx - 2.1, cz + 0.4];
+  const t2 = [cx + 2.2, cz - 0.2];
   const g = groundY(cx, cz);
   return (
     <group>
@@ -1020,20 +1171,20 @@ function TikiHut({ night, animate }) {
         })}
       </group>
       <StringLights
-        points={[[-1.6, groundY(-1.6, 7.2) + 1.3, 7.2], [cx, g + 1.15, cz + 1.75], [2.7, groundY(2.7, 6.6) + 1.3, 6.6]]}
+        points={[[t1[0], groundY(...t1) + 1.3, t1[1]], [cx, g + 1.15, cz + 1.75], [t2[0], groundY(...t2) + 1.3, t2[1]]]}
         sag={0.25}
         per={5}
         night={night}
       />
-      <Torch p={[-1.6, groundY(-1.6, 7.2), 7.2]} night={night} animate={animate} />
-      <Torch p={[2.7, groundY(2.7, 6.6), 6.6]} night={night} animate={animate} />
+      <Torch p={[t1[0], groundY(...t1), t1[1]]} night={night} animate={animate} />
+      <Torch p={[t2[0], groundY(...t2), t2[1]]} night={night} animate={animate} />
     </group>
   );
 }
 
 function MoneyDesk({ night }) {
-  const cx = -9.5;
-  const cz = 0.5;
+  const cx = ZONES.moneydesk.x;
+  const cz = ZONES.moneydesk.z;
   const g = groundY(cx, cz);
   return (
     <group position={[cx, g, cz]}>
@@ -1054,79 +1205,155 @@ function MoneyDesk({ night }) {
   );
 }
 
-function Boat({ animate }) {
+// Buddy's cabin cruiser, moored on the north side of Launch's Pier: a blue
+// hull with gold trim, a white cabin and a flybridge. Bobs and rocks gently.
+const CRUISER_AT = { x: DOCK.x0 + 3.4, z: DOCK.z0 - 1.25 };
+
+function Cruiser({ animate }) {
   const ref = useRef();
+  const sign = useMemo(() => new THREE.MeshStandardMaterial({ map: brandTexture('bb'), roughness: 0.6 }), []);
+  useEffect(() => () => (sign.map.dispose(), sign.dispose()), [sign]);
   useFrame((state) => {
-    if (!animate || !ref.current) return;
-    const t = state.clock.elapsedTime;
-    ref.current.position.y = 0.12 + Math.sin(t * 1.1) * 0.05;
-    ref.current.rotation.z = Math.sin(t * 0.9) * 0.035;
-    ref.current.rotation.x = Math.sin(t * 0.7 + 1) * 0.025;
+    if (!ref.current) return;
+    const t = animate ? state.clock.elapsedTime : 0;
+    ref.current.position.y = 0.1 + Math.sin(t * 0.9) * 0.06;
+    ref.current.rotation.z = Math.sin(t * 0.75) * 0.04;
+    ref.current.rotation.x = Math.sin(t * 0.6 + 1) * 0.02;
   });
+  // Built pointing along -x (bow out to sea, west).
   return (
-    <group ref={ref} position={[-15.4, 0.12, 5.95]}>
-      <Box p={[0, 0, 0]} s={[1.8, 0.34, 0.8]} m={M.white} />
-      <Box p={[0, 0.05, 0]} s={[1.82, 0.08, 0.82]} m={M.launch} />
-      <mesh position={[1.15, 0, 0]} rotation={[0, 0, -Math.PI / 2]} material={M.white} scale={[0.57, 1, 0.57]}>
-        <coneGeometry args={[0.7, 0.5, 4]} />
-      </mesh>
-      <Box p={[-0.3, 0.2, 0]} s={[0.7, 0.06, 0.6]} m={M.plank} />
-      <Cyl p={[0.2, 0.75, 0]} rt={0.025} h={1.2} m={M.darkWood} />
-      <mesh position={[0.45, 1.05, 0]} material={M.launch}>
-        <boxGeometry args={[0.45, 0.28, 0.02]} />
-      </mesh>
+    <group position={[CRUISER_AT.x, 0, CRUISER_AT.z]}>
+      <group ref={ref}>
+        {/* hull */}
+        <Box p={[0, 0.05, 0]} s={[3.2, 0.5, 1.25]} m={M.bbBlue} />
+        <mesh position={[-2.0, 0.05, 0]} rotation={[0, 0, Math.PI / 2]} scale={[0.36, 1, 0.9]} material={M.bbBlue}>
+          <coneGeometry args={[0.7, 0.8, 4, 1]} />
+        </mesh>
+        <Box p={[0, 0.27, 0]} s={[3.24, 0.07, 1.29]} m={M.bbYellow} />
+        <mesh position={[-2.0, 0.27, 0]} rotation={[0, 0, Math.PI / 2]} scale={[0.1, 1, 0.92]} material={M.bbYellow}>
+          <coneGeometry args={[0.7, 0.82, 4, 1]} />
+        </mesh>
+        <Box p={[0.1, 0.31, 0]} s={[3.1, 0.04, 1.15]} m={M.plank} />
+        {/* cabin */}
+        <Box p={[-0.2, 0.62, 0]} s={[1.5, 0.58, 1.0]} m={M.white} />
+        <Box p={[-0.2, 0.93, 0]} s={[1.62, 0.06, 1.1]} m={M.bbYellow} />
+        {[-0.65, -0.2, 0.25].map((x) => (
+          <Box key={x} p={[x, 0.68, 0.505]} s={[0.3, 0.2, 0.02]} m={M.porthole} />
+        ))}
+        {[-0.65, -0.2, 0.25].map((x) => (
+          <Box key={`b${x}`} p={[x, 0.68, -0.505]} s={[0.3, 0.2, 0.02]} m={M.porthole} />
+        ))}
+        <Box p={[-1.0, 0.75, 0]} s={[0.06, 0.32, 0.9]} r={[0, 0, 0.5]} m={M.glass} />
+        {/* flybridge with a little wheel */}
+        <Box p={[0.15, 1.05, 0]} s={[0.8, 0.16, 0.9]} m={M.white} />
+        <Cyl p={[-0.05, 1.22, 0]} rt={0.12} h={0.03} seg={8} m={M.darkWood} r={[0, 0, Math.PI / 2]} />
+        <Beam a={[0.55, 1.1, -0.42]} b={[0.55, 1.45, -0.42]} r={0.02} m={M.white} />
+        <Beam a={[0.55, 1.1, 0.42]} b={[0.55, 1.45, 0.42]} r={0.02} m={M.white} />
+        <Box p={[0.55, 1.47, 0]} s={[0.5, 0.04, 0.95]} m={M.bbBlue} />
+        {/* stern rail, antenna and gold pennant */}
+        <Beam a={[1.55, 0.36, -0.55]} b={[1.55, 0.36, 0.55]} r={0.02} m={M.bbYellow} />
+        <Cyl p={[0.55, 1.8, 0.3]} rt={0.012} h={0.7} m={M.white} />
+        <Box p={[0.68, 2.05, 0.3]} s={[0.24, 0.13, 0.01]} m={M.bbYellow} />
+        {/* BB on the transom */}
+        <mesh position={[1.61, 0.08, 0]} rotation={[0, Math.PI / 2, 0]} material={sign}>
+          <planeGeometry args={[0.6, 0.34]} />
+        </mesh>
+      </group>
+      {/* mooring lines to the pier */}
+      <Beam a={[-1.1, 0.35, 0.6]} b={[-1.1, DOCK.y + 0.25, DOCK.z0 - CRUISER_AT.z + 0.1]} r={0.012} m={M.rope} />
+      <Beam a={[1.2, 0.35, 0.6]} b={[1.2, DOCK.y + 0.25, DOCK.z0 - CRUISER_AT.z + 0.1]} r={0.012} m={M.rope} />
     </group>
   );
 }
 
 function Dock({ night, animate }) {
-  const deck = DECKS.find((d) => d.id === 'dock');
+  const deck = DOCK;
   const cx = (deck.x0 + deck.x1) / 2;
   const cz = (deck.z0 + deck.z1) / 2;
   const y = deck.y;
   const rampBottom = Math.max(terrainY(deck.x1 + 0.8, cz), 0);
   const rampAngle = Math.atan2(y - rampBottom, 0.8);
+  const stiltXs = [];
+  for (let x = deck.x0 + 0.15; x < deck.x1; x += 1.6) stiltXs.push(x);
   return (
     <group>
       <Box p={[cx, y - 0.05, cz]} s={[deck.x1 - deck.x0, 0.1, deck.z1 - deck.z0]} m={M.plank} />
-      {[-16.3, -14.7, -13.1, -11.5].flatMap((x) =>
-        [deck.z0 + 0.05, deck.z1 - 0.05].map((z) => <Cyl key={`${x}${z}`} p={[x, y - 0.55, z]} rt={0.08} h={1.3} m={M.darkWood} />)
+      {stiltXs.map((x) => (
+        <Box key={`pl${x}`} p={[x + 0.8, y + 0.001, cz]} s={[0.03, 0.005, deck.z1 - deck.z0 - 0.04]} m={M.darkWood} />
+      ))}
+      {stiltXs.flatMap((x) =>
+        [deck.z0 + 0.05, deck.z1 - 0.05].map((z) => <Cyl key={`${x}${z}`} p={[x, y - 0.55, z]} rt={0.09} h={1.3} m={M.darkWood} />)
       )}
-      <Box p={[deck.x1 + 0.4, (y + rampBottom) / 2, cz]} s={[Math.hypot(0.8, y - rampBottom), 0.08, 1.2]} r={[0, 0, -rampAngle]} m={M.plank} />
-      <Boat animate={animate} />
-      <Cyl p={[-16.3, y + 0.25, deck.z1 - 0.05]} rt={0.09} h={0.5} m={M.darkWood} />
-      <Lantern p={[-16.3, y + 0.6, deck.z1 - 0.05]} night={night} />
+      <Box p={[deck.x1 + 0.4, (y + rampBottom) / 2, cz]} s={[Math.hypot(0.8, y - rampBottom), 0.08, deck.z1 - deck.z0]} r={[0, 0, -rampAngle]} m={M.plank} />
+      {/* bollards and lanterns along the edge */}
+      {[deck.x0 + 1.0, deck.x0 + 5.0].map((x) => (
+        <Cyl key={`bo${x}`} p={[x, y + 0.15, deck.z0 + 0.12]} rt={0.09} h={0.3} m={M.darkWood} />
+      ))}
+      <Cyl p={[deck.x0 + 0.15, y + 0.3, deck.z1 - 0.1]} rt={0.06} h={0.6} m={M.darkWood} />
+      <Lantern p={[deck.x0 + 0.15, y + 0.7, deck.z1 - 0.1]} night={night} />
+      <Cyl p={[deck.x0 + 0.15, y + 0.3, deck.z0 + 0.1]} rt={0.06} h={0.6} m={M.darkWood} />
+      <Lantern p={[deck.x0 + 0.15, y + 0.7, deck.z0 + 0.1]} night={night} />
+      <Flag p={[deck.x0 + 0.5, y, cz]} color="#2BA84A" animate={animate} />
+      <Cruiser animate={animate} />
     </group>
   );
 }
 
+// Flo's bungalow: home base for the home and family bot. It faces the water
+// and the sunset, with a porch, a chair for Flo, planters and flowers.
 function Bungalow({ night }) {
-  const cx = 1.8;
-  const cz = -7.3;
-  const g = groundY(cx, cz);
+  const zone = ZONES.bungalow;
+  const g = groundY(zone.x, zone.z);
   const windowMat = useGlowMaterial('#ffd27a', night, 0.05, 1.5);
   return (
-    <group position={[cx, g, cz]}>
-      {[[-0.8, -0.6], [0.8, -0.6], [-0.8, 0.6], [0.8, 0.6]].map(([x, z], i) => (
+    <group position={[zone.x, g, zone.z]} rotation={[0, BUNGALOW_ROT, 0]}>
+      {[[-0.9, -0.6], [0.9, -0.6], [-0.9, 2.05], [0.9, 2.05], [0, 2.05]].map(([x, z], i) => (
         <Cyl key={i} p={[x, 0.14, z]} rt={0.07} h={0.4} m={M.darkWood} />
       ))}
-      <Box p={[0, 0.3, 0.15]} s={[2.0, 0.1, 1.8]} m={M.plank} />
-      <Box p={[0, 0.9, 0]} s={[1.7, 1.1, 1.3]} m={M.white} />
-      <Roof p={[0, 1.45 + 0.42, 0]} halfX={1.15} halfZ={0.95} h={0.85} m={M.thatch} />
-      <Fringe p={[0, 1.46, 0]} halfX={1.15} halfZ={0.95} drop={0.2} />
-      <Box p={[0, 0.75, 0.66]} s={[0.42, 0.8, 0.04]} m={M.darkWood} />
-      <Box p={[-0.55, 1.0, 0.66]} s={[0.36, 0.3, 0.04]} m={windowMat} />
-      <Box p={[0.55, 1.0, 0.66]} s={[0.36, 0.3, 0.04]} m={windowMat} />
+      <Box p={[0, 0.3, 0.75]} s={[2.1, 0.1, 2.9]} m={M.plank} />
+      <Box p={[0, 0.9, -0.15]} s={[1.7, 1.1, 1.2]} m={M.white} />
+      <Roof p={[0, 1.45 + 0.42, -0.15]} halfX={1.15} halfZ={0.9} h={0.85} m={M.thatch} />
+      <Fringe p={[0, 1.46, -0.15]} halfX={1.15} halfZ={0.9} drop={0.2} />
+      <Box p={[0, 0.75, 0.46]} s={[0.42, 0.8, 0.04]} m={M.darkWood} />
+      <Box p={[-0.55, 1.0, 0.46]} s={[0.36, 0.3, 0.04]} m={windowMat} />
+      <Box p={[0.55, 1.0, 0.46]} s={[0.36, 0.3, 0.04]} m={windowMat} />
+      {/* short awning by the door; Flo's chair sits out in the open with the view */}
+      <Cyl p={[-0.95, 0.85, 1.05]} rt={0.045} h={1.1} m={M.wood} />
+      <Cyl p={[0.95, 0.85, 1.05]} rt={0.045} h={1.1} m={M.wood} />
+      <Box p={[0, 1.42, 0.78]} s={[2.15, 0.06, 0.7]} r={[0.15, 0, 0]} m={M.thatchDark} />
+      <Fringe p={[0, 1.36, 1.12]} halfX={1.07} halfZ={0.02} drop={0.14} />
+      {/* porch rail, open in the middle so the view stays clear */}
+      <Beam a={[-1.0, 0.68, 0.5]} b={[-1.0, 0.68, 2.15]} r={0.03} m={M.bamboo} />
+      <Beam a={[1.0, 0.68, 0.5]} b={[1.0, 0.68, 2.15]} r={0.03} m={M.bamboo} />
+      {/* Flo's chair on the porch (her seat slot sits right on it) */}
+      <TowerChair seat={{ x: 0, z: 1.55, rotY: 0 }} top={0.35} cushion={M.floCushion} />
+      {/* planters with flowers at the porch corners, and a pot by the door */}
+      {[-0.78, 0.78].map((x) => (
+        <group key={x} position={[x, 0.35, 2.0]}>
+          <Box p={[0, 0.1, 0]} s={[0.36, 0.2, 0.24]} m={M.darkWood} />
+          {[[-0.1, '#ff5d8f'], [0, '#ffd23f'], [0.1, '#f25cff']].map(([dx, c]) => (
+            <mesh key={dx} position={[dx, 0.26, 0]}>
+              <icosahedronGeometry args={[0.07, 0]} />
+              <meshStandardMaterial color={c} flatShading />
+            </mesh>
+          ))}
+        </group>
+      ))}
+      <group position={[0.42, 0.35, 0.65]}>
+        <Cyl p={[0, 0.09, 0]} rt={0.1} rb={0.08} h={0.18} seg={8} m={M.claude} />
+        <Cone p={[0, 0.32, 0]} rad={0.14} h={0.32} seg={6} m={M.launch} />
+      </group>
+      <Lantern p={[0.95, 1.2, 1.05]} night={night} />
     </group>
   );
 }
 
 function Lookout({ night, animate }) {
-  const cx = 5.2;
-  const cz = -3.0;
+  const cx = ZONES.lookout.x;
+  const cz = ZONES.lookout.z;
   const g = terrainY(cx, cz);
   const top = g + LOOKOUT_H;
-  const rampFoot = groundY(cx, -1.0);
+  const rampFoot = groundY(cx, cz + 2.0);
   const rampLen = Math.hypot(1.25, top - rampFoot);
   const rampAngle = Math.atan2(top - rampFoot, 1.25);
   return (
@@ -1192,8 +1419,8 @@ function StarsAndStripesCanopy() {
 }
 
 function BeachChair() {
-  const cx = 8.6;
-  const cz = 6.0;
+  const cx = ZONES.beachchair.x;
+  const cz = ZONES.beachchair.z;
   const g = groundY(cx, cz);
   const backAngle = 1.0;
   return (
@@ -1224,78 +1451,6 @@ function BeachChair() {
   );
 }
 
-// Claude's VIP guest bungalow: a cozy little hut with a porch, a lei-pink
-// door, glowing windows at night, potted plants and a "Welcome Claude" sign.
-function GuestBungalow({ night, onTap, showSign }) {
-  const zone = ZONES.guestdesk;
-  const cx = zone.x;
-  const cz = zone.z;
-  const g = groundY(cx, cz);
-  const windowMat = useGlowMaterial('#ffe1b8', night, 0.08, 1.5);
-  const signX = -1.55;
-  const signZ = 0.95;
-  const signTagPos = [signX, 1.3, signZ];
-  return (
-    <group position={[cx, g, cz]}>
-      {/* stilts and porch deck */}
-      {[[-0.85, -0.55], [0.85, -0.55], [-0.85, 0.95], [0.85, 0.95]].map(([x, z], i) => (
-        <Cyl key={i} p={[x, 0.02, z]} rt={0.06} h={0.3} m={M.darkWood} />
-      ))}
-      <Box p={[0, 0.1, 0.2]} s={[1.95, 0.08, 1.75]} m={M.plank} />
-      {/* walls, door and windows */}
-      <Box p={[0, 0.66, -0.15]} s={[1.6, 1.05, 1.0]} m={M.white} />
-      <Box p={[0.15, 0.55, 0.36]} s={[0.4, 0.78, 0.04]} m={M.claude} />
-      <Box p={[-0.48, 0.78, 0.36]} s={[0.36, 0.3, 0.04]} m={windowMat} />
-      <Box p={[0.65, 0.78, 0.36]} s={[0.22, 0.3, 0.04]} m={windowMat} />
-      <Box p={[-0.81, 0.78, -0.15]} s={[0.04, 0.3, 0.4]} m={windowMat} />
-      {/* thatch roof with a little overhang over the porch */}
-      <Roof p={[0, 1.18 + 0.4, -0.05]} halfX={1.1} halfZ={0.9} h={0.8} m={M.thatch} />
-      <Roof p={[0, 1.18 + 0.1, -0.05]} halfX={1.22} halfZ={1.02} h={0.3} m={M.thatchDark} />
-      <Fringe p={[0, 1.14, -0.05]} halfX={1.22} halfZ={1.02} drop={0.16} />
-      {/* porch posts and a lantern */}
-      <Cyl p={[-0.85, 0.62, 0.95]} rt={0.04} h={1.0} m={M.wood} />
-      <Cyl p={[0.85, 0.62, 0.95]} rt={0.04} h={1.0} m={M.wood} />
-      <Box p={[0, 1.1, 0.95]} s={[1.8, 0.06, 0.06]} m={M.wood} />
-      <Lantern p={[0.85, 1.25, 0.95]} night={night} />
-      {/* a hanging lei garland over the door */}
-      {Array.from({ length: 7 }, (_, i) => {
-        const x = -0.3 + i * 0.1 + 0.15;
-        const y = 1.02 - Math.sin((i / 6) * Math.PI) * 0.1;
-        return (
-          <mesh key={i} position={[x, y, 0.39]} material={i % 2 ? M.shell : M.claudeSoft}>
-            <icosahedronGeometry args={[0.04, 0]} />
-          </mesh>
-        );
-      })}
-      {/* potted plants by the steps */}
-      {[-0.65, 0.95].map((x, i) => (
-        <group key={i} position={[x, 0.14, 1.0]}>
-          <Cyl p={[0, 0.08, 0]} rt={0.09} rb={0.07} h={0.16} seg={8} m={M.claude} />
-          <Cone p={[0, 0.28, 0]} rad={0.13} h={0.3} seg={6} m={M.launch} />
-        </group>
-      ))}
-      {/* welcome sign on a post */}
-      <group position={[signX, 0, signZ]} rotation={[0, 0.35, 0]}>
-        <Cyl p={[0, 0.45, 0]} rt={0.035} h={0.9} m={M.darkWood} />
-        <Box p={[0, 0.88, 0.02]} s={[0.78, 0.32, 0.05]} m={M.plank} />
-        <Box p={[0, 0.88, 0.05]} s={[0.66, 0.22, 0.01]} m={M.white} />
-      </group>
-      {showSign && <WelcomeSign onTap={onTap} position={signTagPos} />}
-    </group>
-  );
-}
-
-function WelcomeSign({ onTap, position }) {
-  const zone = ZONES.guestdesk;
-  const g = groundY(zone.x, zone.z);
-  const world = useMemo(() => [zone.x + position[0], g + position[1], zone.z + position[2]], [zone, g, position]);
-  // Rendered in island space so the tag lines up with the label director.
-  return (
-    <group position={[-zone.x, -g, -zone.z]}>
-      <ZoneTag zoneKey="guestdesk" tagKey="welcome" zone={zone} label="Welcome Claude" className="welcome-sign" position={world} onZoneTap={onTap} />
-    </group>
-  );
-}
 
 // A clickable tag floating over a zone. tagKey is its slot in the label
 // director (so tags never overlap); zoneKey is where tapping flies to.
@@ -1357,6 +1512,7 @@ export default function Island({ sky, animate = true, onGroundTap, onZoneTap, sh
       <Rocks />
       <Tower night={night} animate={animate} />
       <Cabana night={night} />
+      <Patio />
       <Lanai night={night} animate={animate} />
       <TikiHut night={night} animate={animate} />
       <MoneyDesk night={night} />
@@ -1364,7 +1520,6 @@ export default function Island({ sky, animate = true, onGroundTap, onZoneTap, sh
       <Bungalow night={night} />
       <Lookout night={night} animate={animate} />
       <BeachChair />
-      <GuestBungalow night={night} onTap={onZoneTap} showSign={showLabels} />
       {showLabels && <ZoneLabels onZoneTap={onZoneTap} />}
     </group>
   );

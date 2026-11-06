@@ -14,7 +14,7 @@
         "at": "2026-11-02T15:55:00-08:00",
         "bot": "claude",
         "minutes": 25,
-        "what": "Built the island guest bungalow"
+        "what": "Rebuilt Chief's Tower as an open-air lookout"
       },
       {
         "at": "2026-11-02T15:40:00-08:00",
@@ -564,17 +564,17 @@
       "name": "Claude",
       "pronoun": "she",
       "team": "guest",
-      "zone": "guestdesk",
+      "zone": "tower",
       "color": "#D97757",
       "job": "Visiting consultant",
       "status": "working",
       "lastAction": {
-        "text": "Built the Bot Army HQ island and moved into the guest bungalow",
+        "text": "Built the Bot Army HQ island and moved up to Chief's Tower",
         "url": "",
         "at": "2026-11-02T15:55:00-08:00"
       },
       "avatarUrl": "/avatars/claude.png",
-      "note": "Launch and Chief drop by."
+      "note": "Up in Chief's Tower with a mai tai."
     }
   ],
   "handoffs": [
@@ -648,7 +648,7 @@
   "feed": [
     {
       "bot": "claude",
-      "text": "Built the Bot Army HQ island and moved into the guest bungalow",
+      "text": "Built the Bot Army HQ island and moved up to Chief's Tower",
       "url": "",
       "at": "2026-11-02T15:55:00-08:00"
     },

@@ -17,10 +17,10 @@ import UI, { IslandNote, LoadingNotice, RecentHandoffs, Toast } from './componen
 import { botFx, fxNow, LabelDirector, labelState } from './components/labels.js';
 import useData, { HAS_LIVE, headlineMinutes, initialMode, saveMode } from './hooks/useData.js';
 import useSunPosition from './hooks/useSunPosition.js';
-import { DECKS, ISLAND, ZONES, botHash, groundY, islandWobble, layoutBots, nearestZone } from './utils/paths.js';
+import { DECKS, DOCK, ISLAND, LANAI, ZONES, botHash, groundY, islandWobble, layoutBots, nearestZone } from './utils/paths.js';
 import { formatNumber } from './utils/ticker.js';
 import { applySafeMode, isSafeMode } from './utils/safe.js';
-import ClaudeShuttle, { claudeZoneFor, visitSlot } from './wild/ClaudeShuttle.jsx';
+import ClaudeCommute, { claudeZoneFor, visitSlot } from './wild/ClaudeCommute.jsx';
 import Weather, { useWeather } from './wild/Weather.jsx';
 import Flyover from './wild/Flyover.jsx';
 import Surfer from './wild/Surfer.jsx';
@@ -257,9 +257,9 @@ const FIT_POINTS = (() => {
   for (const d of DECKS) {
     pts.push(new THREE.Vector3(d.x0, d.y + 0.6, d.z0), new THREE.Vector3(d.x1, d.y + 0.6, d.z0), new THREE.Vector3(d.x0, d.y + 0.6, d.z1), new THREE.Vector3(d.x1, d.y + 0.6, d.z1));
   }
-  pts.push(new THREE.Vector3(15.6, 3.0, 2.4)); // lanai umbrella
-  pts.push(new THREE.Vector3(-16.5, 1.4, 6.4)); // boat
-  pts.push(new THREE.Vector3(0, 7.5, 0)); // tower flag
+  pts.push(new THREE.Vector3(LANAI.x1, 3.0, LANAI.z1 - 0.8)); // lanai umbrella
+  pts.push(new THREE.Vector3(DOCK.x0, 1.4, DOCK.z1)); // end of the pier
+  pts.push(new THREE.Vector3(0, 8.6, 0)); // tower flag
   return pts;
 })();
 
@@ -431,7 +431,10 @@ function CameraRig({ fly, reduced, holdRotate, insets, controlsRef, layout, kios
       s.autoFit = false;
       s.offsetTarget = (table.want * size.height) / 2;
     }
-    const endPos = target.clone().add(new THREE.Vector3().setFromSphericalCoords(dist, pol, reduced ? theta0 : current.theta));
+    // Zones: look in from the seaward side, so the tower never blocks the view.
+    const zone = !fly.bot && ZONES[fly.zone];
+    const outward = zone && Math.hypot(zone.x, zone.z) > 3 ? Math.atan2(zone.x, zone.z) : current.theta;
+    const endPos = target.clone().add(new THREE.Vector3().setFromSphericalCoords(dist, pol, reduced ? theta0 : outward));
     s.anim = { start: performance.now(), fromPos: camera.position.clone(), fromTarget: c.target.clone(), toPos: endPos, toTarget: target, fromOffset: s.offsetY };
     s.resumeAt = performance.now() + (fly.zone === '__home' ? 1500 : IDLE_RESUME_MS);
     invalidate();
@@ -605,7 +608,7 @@ export default function App() {
     return bots.map((b) => (b.status === 'working' || b.status === restStatus ? b : { ...b, status: restStatus }));
   }, [bots, bedtime]);
   const baseLayout = useMemo(() => layoutBots(sceneBots), [sceneBots]);
-  // Claude commutes by boat: while working, Claude stands at the zone the work is about.
+  // Claude lives in the tower with Chief; while working, Claude walks down to the zone the work is about.
   const claudeBot = bots.find((b) => b.id === 'claude');
   const claudeWants = claudeBot?.status === 'working' ? claudeZoneFor(claudeBot.lastAction?.text) : null;
   // undefined until the shuttle takes over: start Claude wherever the status says, no boat.
@@ -616,7 +619,7 @@ export default function App() {
     if (claudeVisit && out.claude) out = { ...out, claude: visitSlot(out.claude, claudeVisit) };
     return out;
   }, [baseLayout, sceneBots, bedtime, claudeVisit]);
-  const claudeHome = baseLayout.claude?.home || null;
+  const claudeHome = baseLayout.claude || null;
   const clinks = useMemo(() => clinkPairs(layout), [layout]);
   const selected = bots.find((b) => b.id === selectedId) || null;
   const isExample = !!data?.isExample;
@@ -858,7 +861,7 @@ export default function App() {
               ) : null
             )}
             {!reduced && data && <Handoffs bots={sceneBots} handoffs={data.handoffs} layout={layout} onActiveChange={setWalks} />}
-            {claudeBot && <ClaudeShuttle desired={claudeWants} visit={claudeVisit} homeSpot={claudeHome} onVisit={setClaudeVisit} animate={!reduced} />}
+            {claudeBot && <ClaudeCommute desired={claudeWants} visit={claudeVisit} homeSlot={claudeHome} onVisit={setClaudeVisit} animate={!reduced} />}
             {bedtime && <Campfire layout={layout} bots={sceneBots} animate={!reduced} />}
             <Weather weather={weather} />
             {!reduced && <Flyover />}

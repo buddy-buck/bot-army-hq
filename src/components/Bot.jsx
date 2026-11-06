@@ -115,7 +115,8 @@ const MAT = {
 
 const DRINK_TYPES = ['maitai', 'margarita', 'coconut'];
 // Drinks these two never put down.
-const ALWAYS_DRINK = { nasty: 'coconut', claude: 'maitai' };
+// Chief and Claude always have a mai tai up in the tower chairs.
+const ALWAYS_DRINK = { nasty: 'coconut', claude: 'maitai', chief: 'maitai' };
 
 function Drink({ type }) {
   if (type === 'margarita') {
@@ -288,7 +289,8 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
 
     const lying = !walking && mode === 'hammock';
     const lounging = !walking && mode === 'lounge';
-    labelState.positions.set(bot.id, { x: pos.x, y: pos.y, z: pos.z, labelY: (lying ? 0.95 : lounging ? 1.15 : 1.42) * BOT_SCALE, name: bot.name });
+    const seated = !walking && mode === 'seat';
+    labelState.positions.set(bot.id, { x: pos.x, y: pos.y, z: pos.z, labelY: (lying ? 0.95 : lounging ? 1.15 : seated ? 1.55 : 1.42) * BOT_SCALE, name: bot.name });
 
     // Pose
     let lift = 0;
@@ -298,7 +300,7 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
     h.rotation.set(0, 0, 0);
     feet[0].current.position.z = 0;
     feet[1].current.position.z = 0;
-    const eyeScale = lying && sleeping ? 0.18 : 1;
+    const eyeScale = (lying || seated) && sleeping ? 0.18 : 1;
     eyes[0].current.scale.y = eyeScale;
     eyes[1].current.scale.y = eyeScale;
 
@@ -314,6 +316,21 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
       p.position.set(0, 0.34, 0.35);
       h.rotation.y = Math.sin(t * 0.3) * 0.35;
       h.rotation.x = 0.35;
+    } else if (seated) {
+      // sitting back in a chair, feet forward, mai tai in hand
+      p.rotation.x = -0.18;
+      p.position.set(0, 0.2, 0.04);
+      feet[0].current.position.z = 0.12;
+      feet[1].current.position.z = 0.12;
+      if (sleeping) {
+        h.rotation.x = 0.35;
+        h.rotation.z = 0.15;
+      } else {
+        h.rotation.y = Math.sin(t * 0.35) * 0.4; // taking in the view
+        const cyc = (t * 0.14) % 1;
+        sip = cyc > 0.82 ? Math.sin(((cyc - 0.82) / 0.18) * Math.PI) : 0;
+        h.rotation.x = -sip * 0.3;
+      }
     } else if (lying) {
       p.rotation.z = Math.PI / 2;
       p.position.set(0.48, 0.42, 0);
@@ -406,7 +423,7 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
       if (animate) lanternRef.current.scale.setScalar(1 + Math.sin(clock * 7 + phase) * 0.06 + Math.sin(clock * 11.3) * 0.04);
     }
     if (zzzRef.current) {
-      const show = lying && sleeping ? '' : 'none';
+      const show = (lying || seated) && sleeping ? '' : 'none';
       if (zzzRef.current.style.display !== show) zzzRef.current.style.display = show;
     }
 
@@ -523,12 +540,12 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
           }}
         />
 
-        <Html position={[0, mode === 'hammock' ? 0.95 : mode === 'lounge' ? 1.15 : 1.42, 0]} center zIndexRange={[10, 0]} pointerEvents="none">
+        <Html position={[0, mode === 'hammock' ? 0.95 : mode === 'lounge' ? 1.15 : mode === 'seat' ? 1.55 : 1.42, 0]} center zIndexRange={[10, 0]} pointerEvents="none">
           <div ref={labelRef} className={`bot-tag${selected ? ' is-selected' : ''}`} style={{ opacity: 0, borderColor: bot.color }}>
             {bot.name}
           </div>
         </Html>
-        {sleeping && mode === 'hammock' && (
+        {sleeping && (mode === 'hammock' || mode === 'seat') && (
           <Html position={[-0.2, 1.25, 0]} center zIndexRange={[9, 0]} pointerEvents="none">
             <div ref={zzzRef} className="zzz" aria-hidden="true" style={{ display: 'none' }}>
               <span>Z</span>

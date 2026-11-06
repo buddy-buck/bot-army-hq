@@ -62,15 +62,16 @@ const HOME_ZONE = {
   flo: 'bungalow',
   recon: 'lookout', brobot: 'lookout',
   nasty: 'beachchair',
-  claude: 'guestdesk',
+  claude: 'tower',
 };
-const ZONE_ALIASES = { 'guest-bungalow': 'guestdesk', guestbungalow: 'guestdesk', guest: 'guestdesk', vip: 'guestdesk' };
+// Claude used to live in a guest bungalow; every old name for it now means the tower.
+const ZONE_ALIASES = { guestdesk: 'tower', 'guest-bungalow': 'tower', guestbungalow: 'tower', guest: 'tower', vip: 'tower', patio: 'cabana' };
 const ZONE_TEAM = Object.fromEntries(Object.entries(TEAM_ZONE).map(([team, zone]) => [zone, team]));
 
 function resolveZone(id, zone, team) {
   const z = String(zone || '').trim().toLowerCase();
-  if (ZONES[z]) return z;
   if (ZONE_ALIASES[z]) return ZONE_ALIASES[z];
+  if (ZONES[z]) return z;
   return HOME_ZONE[id] || TEAM_ZONE[team] || 'tower';
 }
 
@@ -180,7 +181,7 @@ function normalizeBot(raw) {
       url: typeof la.url === 'string' ? la.url.trim() : '',
       at: la.at || null,
     },
-    note: raw.note || (id === 'claude' ? 'Launch and Chief drop by.' : ''),
+    note: raw.note || (id === 'claude' ? "Up in Chief's Tower with a mai tai." : ''),
     minutesToday: num(raw.minutesToday),
     avatarUrl: raw.avatarUrl || `${import.meta.env.BASE_URL}avatars/${id}.png`,
   };

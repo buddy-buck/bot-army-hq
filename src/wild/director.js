@@ -1,7 +1,7 @@
 // Shared rules for the "wild" extras.
 //
-// Travel: only one travel animation plays at a time (Claude's speedboat,
-// a delivery drone, Buddy's seaplane, Echo surfing). Each one asks for the
+// Travel: only one travel animation plays at a time (a delivery drone,
+// Buddy's seaplane, Echo surfing). Each one asks for the
 // slot before it starts and gives it back when it's done; if the slot is
 // taken it simply waits and asks again.
 
@@ -25,7 +25,7 @@ export function releaseTravel(owner) {
   }
 }
 
-// True while Claude's speedboat trip is moving Claude around.
+// True while Claude is walking between the tower and a work zone.
 export const claudeTrip = { active: false };
 
 export const travelBusy = () => !!travel.owner && now() < travel.until;
@@ -40,7 +40,7 @@ export const isIslandNight = (hour) => hour >= NIGHT_START || hour < NIGHT_END;
 const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
 export const TEST = {
   weather: params.get('weather') === 'test',
-  boat: params.get('boat') === 'test',
+  claude: params.get('claude') === 'test',
   plane: params.get('plane') === 'test',
   surf: params.get('surf') === 'test',
 };
