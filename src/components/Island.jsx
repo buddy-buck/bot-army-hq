@@ -215,7 +215,7 @@ function StringLights({ points, sag = 0.3, per = 7, night }) {
 
 // Brand screens for the lanai laptops: Buddy Buck RE, Duvall TV, and
 // Living In SnoValley. Drawn once to small canvases.
-function brandTexture(kind) {
+export function brandTexture(kind) {
   const c = document.createElement('canvas');
   c.width = 128;
   c.height = 84;

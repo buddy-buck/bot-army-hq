@@ -22,7 +22,7 @@ Handy test switches (add to the URL):
 
 | URL | What it does |
 |---|---|
-| `?hour=21` | Pretend it's 9 PM in Duvall (night sky, hammocks, lanterns). Any value 0 to 24 works. |
+| `?hour=21` | Pretend it's 9 PM in Duvall (night sky, hammocks, campfire). Any value 0 to 24 works. |
 | `?hour=6` / `?hour=18` | Sunrise / golden hour |
 | `?reduced=1` | Force the reduced-motion view (flat top-down, no animation) |
 | `?safe=0` | Turns off public-safe view for testing. Safe view is ON by default (see below) |
@@ -30,6 +30,10 @@ Handy test switches (add to the URL):
 | `?kiosk=1` / `?kiosk=0` | Turn kiosk mode on / off (remembered as `bah-kiosk`) |
 | `?lite=1` | Low-power look: fewer fish and fireflies, no night shimmer on the water |
 | `?refresh=20` | Local dev only: refresh data every 20 seconds instead of 5 minutes |
+| `?weather=test` | Cycle the weather effects: storm over the pier, rainbow, double rainbow. Off by default |
+| `?boat=test` | Claude comes and goes by speedboat every 50 seconds (pier, cabana, lanai) |
+| `?plane=test` | Buddy's seaplane flies over right away, every visit |
+| `?surf=test` | Echo goes surfing every 30 seconds or so instead of every 3 to 5 minutes |
 
 Note: if npm prints a warning that esbuild's install script was skipped, the build still works. If `npm run dev` ever fails because esbuild is missing, run `npm rebuild esbuild`.
 
@@ -151,11 +155,29 @@ Rules:
   - `bots[].minutesToday`: overrides the card's "Saved today".
 - `pronoun`: `he` or `she` (or `he/him`, `she/her`). Used for natural wording only; pronouns are never displayed on screen. If it's missing, Chief, Brobot, Board, Recon, Nasty, Benji and Jet are he/him and everyone else is she/her.
 - `handoffs`: each handoff from the last 24 hours plays once. Handoffs naming a bot that isn't in `bots` are skipped. An empty list is fine: nobody walks.
+- `feed[].type` (optional) triggers a 5-second weather effect when a new entry arrives after the page has loaded: `"shipped"` brings a thunderstorm over Launch's Pier, `"fantasy_win"` brings a rainbow. Crossing a round thousand minutes saved brings a double rainbow. Only one effect plays at a time.
 - `feed`: the Team activity lines, newest first, at most 40. `to` is optional. Entries from the last 24 hours show. Lines with a `url` are clickable; lines without one aren't.
 - Real data can be sparse. A bot with `"lastAction": { "text": "", "url": "", "at": null }` and `"status": "idle"` just relaxes with a drink, and its card says "Nothing logged yet" and "No link yet". The island never makes up activity when `_example` is false.
 - If a bot's `zone` is missing or unknown, the bot goes to its usual spot (by id), so the island still looks right.
 - Bot ids: chief, spin, caption, slide, poster, cue, echo, download, stamp, scout-local, vibe, desk, lead, tour, board, scoop, dottie, tracy, jet, trace, scout, nudge, benji, launch, flo, recon, brobot, nasty, claude. Claude lives in the `guestdesk` zone (the guest bungalow).
 - Timestamps should include a timezone offset (like `-08:00`).
+
+### Island extras
+
+Easter eggs, not clutter. Only one travel animation (boat, drone, seaplane, surfer) and one weather effect play at a time.
+
+- **Claude's speedboat.** When Claude's status turns `working`, a speedboat pulls up to Launch's Pier and Claude walks to the zone the work is about, read from `lastAction.text`: real estate words go to the Real Estate Lanai, content words go to the Content Cabana, and builds or anything else stay on the pier. When the status turns idle, Claude walks back, the boat drops him at the beach below the guest bungalow, and he strolls home to his mai tai.
+- **Weather.** See `feed[].type` above.
+- **Buddy's seaplane.** Once per browser session (`sessionStorage` key `bah-flyover-seen`), a seaplane with the BB logo on its tail crosses the sky trailing a "Buck's Island" banner.
+- **Campfire mode.** From 9 PM to 6 AM Duvall time, working bots gather around a campfire south-west of the guest bungalow, with a thought bubble showing what one of them is working on (a few at once when zoomed in). Everyone else sleeps in a hammock with ZZZs.
+- **Message in a bottle.** On a first visit a bottle washes up on the south beach. Tap it for a note from Chief. Tapping sets `localStorage` key `bah-bottle-seen`, so it never comes back.
+- **Treasure chest.** It moves to a new spot every day. Tap it for a line from Nasty.
+- **Echo surfing.** Every 3 to 5 minutes, Echo rides a wave past the far side of the island.
+- **Delivery drones.** Handoffs between far-apart zones (like the Research Lookout to the Content Cabana) fly by drone, one drone at a time. Nearby handoffs still walk.
+- **Buddy's dock office.** A floating BB houseboat at Launch's Pier. Tap it for the minutes-saved drawer.
+- **Photo booth.** A camera on a tripod on the south beach. Tap it: the camera glides to a clean angle, the buttons and labels hide, everyone waves for a couple of seconds (screenshot time), then a soft flash and the UI comes back.
+
+Reduced motion skips the boat, drone, seaplane, surfer and weather; Claude simply appears where the status says.
 
 ### Avatars
 

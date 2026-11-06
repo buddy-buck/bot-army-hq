@@ -194,7 +194,7 @@ export function normalizeData(json) {
         .filter((h) => h && ids.has(h.from) && ids.has(h.to) && h.from !== h.to)
         .map((h) => ({ from: h.from, to: h.to, at: h.at || null, what: h.what || '' }))
     : [];
-  // Activity feed: [{ bot, text, url, at, to? }], newest first, at most 40.
+  // Activity feed: [{ bot, text, url, at, to?, type? }], newest first, at most 40.
   const feed = Array.isArray(json?.feed)
     ? json.feed
         .filter((f) => f && ids.has(f.bot) && f.text)
@@ -205,6 +205,8 @@ export function normalizeData(json) {
           url: typeof f.url === 'string' ? f.url.trim() : '',
           at: f.at || null,
           to: f.to && ids.has(f.to) && f.to !== f.bot ? f.to : null,
+          // optional event type for island effects, e.g. "shipped", "fantasy_win"
+          type: typeof f.type === 'string' ? f.type.trim().toLowerCase() : '',
         }))
         .sort((a, b) => (Date.parse(b.at) || 0) - (Date.parse(a.at) || 0))
         .slice(0, MAX_FEED)

@@ -25,7 +25,8 @@ export const labelState = {
 // One-shot bot reactions, keyed by bot id -> performance.now() in seconds.
 //   cheer  : this bot just earned minutes (little spin and hop)
 //   sipHop : this bot just finished a task (happy hop and a sip)
-export const botFx = { cheer: new Map(), sipHop: new Map() };
+//   wave   : photo booth: wave at the camera
+export const botFx = { cheer: new Map(), sipHop: new Map(), wave: new Map() };
 export const fxNow = () => performance.now() / 1000;
 
 const v = new THREE.Vector3();

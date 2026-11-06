@@ -74,8 +74,11 @@ export function minuteStats(ms, now = Date.now()) {
   return { today, week, allTime: headlineMinutes(ms), daily, topBot: top ? { id: top[0], minutes: top[1] } : null };
 }
 
-export default function Scoreboard({ value, minutesSaved, isExample, version, bots, reduced }) {
-  const [open, setOpen] = useState(false);
+export default function Scoreboard({ value, minutesSaved, isExample, version, bots, reduced, open: openProp, onOpenChange }) {
+  // Open state can be owned by the parent (so Buddy's dock office can open it).
+  const [openLocal, setOpenLocal] = useState(false);
+  const open = openProp ?? openLocal;
+  const setOpen = onOpenChange ?? setOpenLocal;
   const [pulse, setPulse] = useState(false);
   const wrap = useRef();
   const byId = useMemo(() => Object.fromEntries((bots || []).map((b) => [b.id, b])), [bots]);

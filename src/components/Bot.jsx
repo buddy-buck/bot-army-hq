@@ -20,6 +20,7 @@ const DRINK_SCALE = 1.6; // big, easy-to-see drinks
 const CLINK_PERIOD = 26; // seconds between cheers for a pair of chillin' bots
 const CLINK_LEN = 2.4;
 const WALK_SPEED = 1.3; // units per second
+export const WAVE_SECONDS = 2.4;
 
 const GEO = {
   body: new THREE.CapsuleGeometry(0.17, 0.2, 3, 8),
@@ -28,6 +29,8 @@ const GEO = {
   antenna: new THREE.CylinderGeometry(0.012, 0.012, 0.16, 4),
   bulb: new THREE.IcosahedronGeometry(0.048, 0),
   foot: new THREE.SphereGeometry(0.065, 6, 5),
+  arm: new THREE.CapsuleGeometry(0.035, 0.24, 2, 6),
+  hand: new THREE.SphereGeometry(0.055, 6, 5),
   shadow: new THREE.CircleGeometry(0.32, 16).rotateX(-Math.PI / 2),
   ring: new THREE.RingGeometry(0.36, 0.46, 32).rotateX(-Math.PI / 2),
   hit: new THREE.CylinderGeometry(0.42, 0.42, 1.2, 8),
@@ -189,6 +192,7 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
   const handDrink = useRef();
   const restDrink = useRef();
   const tabletRef = useRef();
+  const handRef = useRef();
   const zzzRef = useRef();
   const pulseStart = useRef(null);
   const cur = useRef(null);
@@ -259,7 +263,7 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
       pos.set(c.x, c.y, c.z);
       curRaised.current = false;
       g.rotation.y = lerpAngle(g.rotation.y, c.heading, Math.min(1, dt * 8));
-      walking = true;
+      walking = !c.ride; // riding in a boat: sit still
     } else {
       const dx = home.x - pos.x;
       const dz = home.z - pos.z;
@@ -360,6 +364,24 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
         } else if (k >= 1) botFx.cheer.delete(bot.id);
       }
     }
+    // Photo booth: wave at the camera with a little bounce.
+    let waveK = -1;
+    const wv = botFx.wave.get(bot.id);
+    if (wv !== undefined) {
+      const k = (fx - wv) / WAVE_SECONDS;
+      if (k >= 0 && k < 1) {
+        waveK = k;
+        if (animate && !lying) {
+          lift += Math.abs(Math.sin(k * Math.PI * 3)) * 0.06;
+          h.rotation.z = Math.sin(k * Math.PI * 4) * 0.12;
+        }
+      } else if (k >= 1) botFx.wave.delete(bot.id);
+    }
+    if (handRef.current) {
+      const show = waveK >= 0 && !lying && !lounging;
+      handRef.current.visible = show;
+      if (show) handRef.current.rotation.z = 0.5 + (animate ? Math.sin(waveK * Math.PI * 10) * 0.45 : 0);
+    }
     p.position.y += lift;
 
     // Drink: in hand while standing or walking, resting on the bot when lying back.
@@ -445,6 +467,11 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
           <mesh ref={feet[1]} geometry={GEO.foot} material={MAT.foot} position={[0.08, 0.06, 0]} />
           <mesh geometry={GEO.body} material={bodyMat} position={[0, 0.38, 0]} />
           {isClaude && <Lei />}
+          {/* waving arm, only shown in the photo booth */}
+          <group ref={handRef} position={[-0.17, 0.48, 0.04]} visible={false}>
+            <mesh geometry={GEO.arm} material={bodyMat} position={[0, 0.16, 0]} />
+            <mesh geometry={GEO.hand} material={MAT.face} position={[0, 0.34, 0]} />
+          </group>
           <group ref={head} position={[0, 0.74, 0]}>
             <mesh geometry={GEO.head} material={MAT.face} position={[0, 0.04, 0]} />
             <mesh ref={eyes[0]} geometry={GEO.eye} material={MAT.eye} position={[-0.07, 0.06, 0.165]} />

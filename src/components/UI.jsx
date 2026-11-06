@@ -225,6 +225,29 @@ export function Toast({ message }) {
   );
 }
 
+// A small light card for island surprises (message in a bottle, treasure).
+export function IslandNote({ note, onClose }) {
+  useEffect(() => {
+    if (!note) return undefined;
+    const onKey = (e) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [note, onClose]);
+  if (!note) return null;
+  return (
+    <div className="island-note panel" role="dialog" aria-label={note.title} key={note.id}>
+      <button type="button" className="card-close" onClick={onClose} aria-label="Close">
+        ×
+      </button>
+      <div className="island-note-title">{note.title}</div>
+      {note.body.map((p, i) => (
+        <p key={i}>{p}</p>
+      ))}
+      {note.from && <div className="island-note-from">{note.from}</div>}
+    </div>
+  );
+}
+
 // Reduced motion: no walking, so list the last 24h of handoffs instead.
 export function RecentHandoffs({ handoffs, bots }) {
   const [open, setOpen] = useState(false);

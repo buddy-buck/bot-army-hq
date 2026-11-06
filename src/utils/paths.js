@@ -179,6 +179,50 @@ const SLOT_RULES = {
 // Porch height on Claude's guest bungalow.
 export const GUEST_PORCH_H = 0.14;
 
+// Night campfire on open ground south-west of the guest bungalow.
+export const CAMPFIRE = { x: -6.5, z: 5.2 };
+
+// Seats around the campfire, inner ring first. Each spot is on land, clear
+// of palms, decks and zone stations, and faces the fire.
+let campfireSpotCache = null;
+export function campfireSpots() {
+  if (campfireSpotCache) return campfireSpotCache;
+  const out = [];
+  for (const r of [1.85, 2.55, 3.25]) {
+    const n = Math.floor((2 * Math.PI * r) / 0.62);
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + r;
+      const x = CAMPFIRE.x + Math.cos(a) * r;
+      const z = CAMPFIRE.z + Math.sin(a) * r;
+      if (islandE(x, z) > 0.86) continue;
+      if (PALMS.some((p) => Math.hypot(p.x - x, p.z - z) < 0.65)) continue;
+      if (Object.values(ZONES).some((zz) => Math.hypot(zz.x - x, zz.z - z) < 2.2)) continue;
+      if (DECKS.some((d) => x > d.x0 - 0.5 && x < d.x1 + 0.5 && z > d.z0 - 0.5 && z < d.z1 + 0.5)) continue;
+      // Front of the circle (toward the default camera) first, so a small group sits where it's easy to see.
+      out.push({ x, z, r, rotY: Math.atan2(CAMPFIRE.x - x, CAMPFIRE.z - z), front: z - CAMPFIRE.z });
+    }
+  }
+  campfireSpotCache = out.sort((p, q) => p.r - q.r || q.front - p.front);
+  return campfireSpotCache;
+}
+
+// Where Claude stands while visiting a zone for work (outside the normal slots).
+export const CLAUDE_VISIT = {
+  dock: { x: -15.3, z: 4.4, rotY: Math.PI / 2 },
+  cabana: { x: -6.05, z: -4.05, rotY: Math.PI, lift: 0.2 },
+  lanai: { x: 10.75, z: 0.25, rotY: 2.4 },
+};
+
+// Treasure chest spots: one is picked per day.
+export const CHEST_SPOTS = [
+  { x: 3.4, z: 4.9, rotY: 0.4 },
+  { x: -9.6, z: -2.9, rotY: -0.6 },
+  { x: 7.3, z: 2.4, rotY: 0.9 },
+  { x: -2.3, z: -5.3, rotY: 0.2 },
+  { x: 9.2, z: -1.0, rotY: -0.3 },
+  { x: -7.6, z: -0.9, rotY: -0.8 },
+];
+
 // Hand-placed hammocks where the "step outward" rule would land in the water
 // or on top of the desk (the Real Estate Lanai is a crowded deck).
 const HAMMOCK_SPOTS = {
@@ -229,6 +273,7 @@ function findHammockSpot(bx, bz, ox, oz, zoneKey, placed, stations, raised) {
         score = Math.min(score, distToSegment(x, z, zz.entry[0], zz.entry[1], h.x, h.z) / 0.9);
       }
       for (const h of placed) score = Math.min(score, Math.hypot(x - h.x, z - h.z) / 2.4);
+      score = Math.min(score, Math.hypot(x - CAMPFIRE.x, z - CAMPFIRE.z) / 3.6); // keep the campfire circle clear
       for (const st of stations) score = Math.min(score, Math.hypot(x - st.x, z - st.z) / 1.0);
       for (const p of PALMS) score = Math.min(score, Math.hypot(x - p.x, z - p.z) / 1.25);
       score = Math.min(1, score) - d * 0.01 - Math.abs(t) * 0.01; // prefer close and straight out

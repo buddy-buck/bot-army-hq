@@ -637,6 +637,12 @@
       "to": "benji",
       "at": "2026-11-02T13:20:00-08:00",
       "what": "Course launch budget"
+    },
+    {
+      "from": "recon",
+      "to": "spin",
+      "at": "2026-11-02T14:10:00-08:00",
+      "what": "Market stats for a post"
     }
   ],
   "feed": [

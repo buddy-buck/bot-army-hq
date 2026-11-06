@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { routeBetween } from '../utils/paths.js';
+import { ZONES, routeBetween } from '../utils/paths.js';
+import { claimTravel, claudeTrip, releaseTravel } from '../wild/director.js';
 
 // Handoffs: the sending bot walks a glowing package along the sand path to
 // the receiving bot, hands it over, and walks home.
@@ -10,6 +11,10 @@ import { routeBetween } from '../utils/paths.js';
 //   - on page load, handoffs from the last 24 hours replay as a short recap
 //   - after that, only new handoffs (from a data refresh) play
 // Nothing loops. When there is nothing new, nobody walks.
+//
+// Far-apart zones (say the Research Lookout to the Content Cabana) get a
+// little delivery drone instead of a long walk. One drone at a time, and
+// only when the island's travel slot is free; nearby handoffs still walk.
 
 // Shared live state read by <Bot/> every frame.
 export const couriers = new Map(); // botId -> { x, y, z, heading }
@@ -22,6 +27,21 @@ const MAX_LEG_SECONDS = 13;
 const PAUSE = 1.8; // handoff moment at the receiver
 const MIN_GAP = 5; // seconds between walk starts
 const RECENT_MS = 24 * 3600 * 1000;
+const DRONE_DIST = 11; // zone-to-zone distance that calls for a drone
+const DRONE_SPEED = 5;
+const DRONE_Y = 6.2;
+
+export function zoneDistance(a, b) {
+  const za = ZONES[a];
+  const zb = ZONES[b];
+  return za && zb ? Math.hypot(za.x - zb.x, za.z - zb.z) : 0;
+}
+
+// Drone timing: rise, cruise, lower, release, leave.
+const DRONE_RISE = 1.0;
+const DRONE_LOWER = 0.9;
+const DRONE_DROP = 0.6;
+const DRONE_LEAVE = 1.4;
 
 const easeWalk = (u) => 0.5 - 0.5 * Math.cos(Math.PI * u);
 export const handoffKey = (h) => `${h.from}|${h.to}|${h.at}|${h.what}`;
@@ -44,8 +64,38 @@ export function scheduleHandoffs(list, queue, botsById, layout, clockNow) {
   const ends = queue.map((q) => q.end);
   const busy = {};
   for (const q of queue) busy[q.from] = Math.max(busy[q.from] ?? -Infinity, q.end);
+  let droneFree = Math.max(-Infinity, ...queue.filter((q) => q.kind === 'drone').map((q) => q.end));
   for (const h of list) {
     const fromSlot = layout[h.from];
+    const toSlot = layout[h.to];
+    if (zoneDistance(fromSlot.zone, toSlot.zone) >= DRONE_DIST) {
+      const a = new THREE.Vector3(fromSlot.home.x, fromSlot.home.y, fromSlot.home.z);
+      const b = new THREE.Vector3(toSlot.x, toSlot.y, toSlot.z);
+      const cruise = Math.max(2.5, Math.hypot(b.x - a.x, b.z - a.z) / DRONE_SPEED);
+      const total = DRONE_RISE + cruise + DRONE_LOWER + DRONE_DROP + DRONE_LEAVE;
+      const start = Math.max(prevStart + MIN_GAP, droneFree + 1.5);
+      items.push({
+        kind: 'drone',
+        key: h.key,
+        from: h.from,
+        to: h.to,
+        what: h.what,
+        fromName: botsById[h.from].name,
+        toName: botsById[h.to].name,
+        color: botsById[h.from].color,
+        a,
+        b,
+        cruise,
+        total,
+        start,
+        end: start + total,
+        target: new THREE.Vector3(toSlot.x, toSlot.y + 0.62 * 1.35, toSlot.z),
+        pulsed: false,
+      });
+      droneFree = start + total;
+      prevStart = start;
+      continue;
+    }
     const from = fromSlot.raised ? fromSlot : { ...fromSlot, ...fromSlot.home, raised: fromSlot.home.raised };
     const to = layout[h.to];
     const route = routeBetween(from, to);
@@ -76,6 +126,85 @@ export function scheduleHandoffs(list, queue, botsById, layout, clockNow) {
     prevStart = start;
   }
   return items;
+}
+
+// Where the drone is at time lt into its delivery, and where the package hangs.
+function dronePose(item, lt, out) {
+  const { a, b, cruise } = item;
+  const hoverA = a.y + 2.0;
+  const hoverB = b.y + 2.0;
+  let x;
+  let y;
+  let z;
+  let carrying = true;
+  let s = 0;
+  if (lt < DRONE_RISE) {
+    const u = easeWalk(lt / DRONE_RISE);
+    x = a.x;
+    z = a.z;
+    y = THREE.MathUtils.lerp(hoverA - 0.6, hoverA, u);
+  } else if (lt < DRONE_RISE + cruise) {
+    const u = easeWalk((lt - DRONE_RISE) / cruise);
+    x = THREE.MathUtils.lerp(a.x, b.x, u);
+    z = THREE.MathUtils.lerp(a.z, b.z, u);
+    y = THREE.MathUtils.lerp(hoverA, hoverB, u) + Math.sin(Math.PI * u) * (DRONE_Y - Math.max(hoverA, hoverB) + 1);
+  } else if (lt < DRONE_RISE + cruise + DRONE_LOWER) {
+    x = b.x;
+    z = b.z;
+    y = hoverB;
+  } else if (lt < DRONE_RISE + cruise + DRONE_LOWER + DRONE_DROP) {
+    x = b.x;
+    z = b.z;
+    y = hoverB;
+    s = (lt - DRONE_RISE - cruise - DRONE_LOWER) / DRONE_DROP;
+  } else {
+    const u = (lt - item.total + DRONE_LEAVE) / DRONE_LEAVE;
+    x = b.x + u * 3;
+    z = b.z - u * 2;
+    y = hoverB + u * u * 6;
+    carrying = false;
+  }
+  out.pos.set(x, y, z);
+  out.heading = Math.atan2(b.x - a.x, b.z - a.z);
+  out.carrying = carrying;
+  out.drop = s;
+  out.leaving = !carrying;
+  return out;
+}
+
+const DRONE_MAT = {
+  body: new THREE.MeshStandardMaterial({ color: '#2f3442', flatShading: true, roughness: 0.5 }),
+  arm: new THREE.MeshStandardMaterial({ color: '#4b5263', flatShading: true }),
+  rotor: new THREE.MeshBasicMaterial({ color: '#dfe6f2', transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide }),
+  box: new THREE.MeshStandardMaterial({ color: '#c99a52', flatShading: true }),
+};
+
+function Drone({ droneRef, rotorRefs, ledRef }) {
+  const arms = [[1, 1], [1, -1], [-1, 1], [-1, -1]];
+  return (
+    <group ref={droneRef} visible={false}>
+      <mesh material={DRONE_MAT.body}>
+        <boxGeometry args={[0.36, 0.12, 0.36]} />
+      </mesh>
+      <mesh ref={ledRef} position={[0, 0.08, 0.15]}>
+        <sphereGeometry args={[0.04, 6, 5]} />
+        <meshBasicMaterial color="#9fe3ff" />
+      </mesh>
+      {arms.map(([x, z], i) => (
+        <group key={i}>
+          <mesh material={DRONE_MAT.arm} position={[x * 0.2, 0.02, z * 0.2]} rotation={[0, Math.atan2(x, z), 0]}>
+            <boxGeometry args={[0.05, 0.04, 0.32]} />
+          </mesh>
+          <mesh ref={rotorRefs[i]} material={DRONE_MAT.rotor} position={[x * 0.32, 0.08, z * 0.32]} rotation={[-Math.PI / 2, 0, 0]}>
+            <circleGeometry args={[0.16, 10]} />
+          </mesh>
+        </group>
+      ))}
+      <mesh material={DRONE_MAT.arm} position={[0, -0.16, 0]}>
+        <cylinderGeometry args={[0.006, 0.006, 0.22, 3]} />
+      </mesh>
+    </group>
+  );
 }
 
 function OrbSlot({ slotRef }) {
@@ -118,6 +247,10 @@ export default function Handoffs({ bots, handoffs, layout, onActiveChange }) {
   const played = useRef(new Set());
   const lastKey = useRef('');
   const slots = [useRef(null), useRef(null), useRef(null)];
+  const droneRef = useRef();
+  const ledRef = useRef();
+  const rotorRefs = [useRef(), useRef(), useRef(), useRef()];
+  const pose = useRef({ pos: new THREE.Vector3(), heading: 0, carrying: true, drop: 0, leaving: false });
 
   // Queue any handoffs we haven't played yet.
   useEffect(() => {
@@ -127,7 +260,13 @@ export default function Handoffs({ bots, handoffs, layout, onActiveChange }) {
     queue.current = [...queue.current, ...scheduleHandoffs(fresh, queue.current, botsById, layout, clock.elapsedTime)];
   }, [handoffs, botsById, layout, clock]);
 
-  useEffect(() => () => couriers.clear(), []);
+  useEffect(
+    () => () => {
+      couriers.clear();
+      releaseTravel('drone');
+    },
+    []
+  );
 
   useFrame((state) => {
     const t = state.clock.elapsedTime;
@@ -137,8 +276,51 @@ export default function Handoffs({ bots, handoffs, layout, onActiveChange }) {
     const activeIds = new Set();
     const active = [];
     const orbJobs = [];
+    let droneShown = false;
 
     for (const item of items) {
+      if (item.kind === 'drone') {
+        if (t < item.start || t >= item.end) continue;
+        // Wait for the travel slot (a boat or plane may be out).
+        if (!item.claimed) {
+          if (!claimTravel('drone', item.total + 0.5)) {
+            item.start = t + 1;
+            item.end = item.start + item.total;
+            continue;
+          }
+          item.claimed = true;
+        }
+        const lt = t - item.start;
+        claimTravel('drone', 2); // keep the travel slot while flying
+        const dp = dronePose(item, lt, pose.current);
+        const drone = droneRef.current;
+        if (drone) {
+          droneShown = true;
+          drone.visible = true;
+          drone.position.copy(dp.pos);
+          drone.rotation.set(dp.leaving ? -0.25 : 0.12 * Math.sin(t * 2), dp.heading, 0.06 * Math.sin(t * 2.6));
+          const sc = dp.leaving ? Math.max(0.01, 1 - (lt - item.total + DRONE_LEAVE) / DRONE_LEAVE) : 1;
+          drone.scale.setScalar(1.6 * sc);
+          rotorRefs.forEach((r, i) => r.current && (r.current.rotation.z = t * 40 + i));
+        }
+        if (dp.carrying && orbJobs.length < MAX_ORBS) {
+          let pos = dp.pos.clone();
+          pos.y -= 0.55;
+          let scale = 1;
+          if (dp.drop > 0) {
+            pos = pos.lerp(item.target, dp.drop);
+            scale = dp.drop > 0.82 ? Math.max(0.05, (1 - dp.drop) / 0.18) : 1;
+            if (dp.drop > 0.8 && !item.pulsed) {
+              item.pulsed = true;
+              receivedPulses.set(item.to, t);
+            }
+          }
+          orbJobs.push({ key: item.key, pos, scale, color: item.color });
+          active.push(item);
+        }
+        if (t + 0.05 >= item.end) releaseTravel('drone');
+        continue;
+      }
       if (t < item.start || t >= item.end) continue;
       const lt = t - item.start;
       let u;
@@ -186,7 +368,8 @@ export default function Handoffs({ bots, handoffs, layout, onActiveChange }) {
       }
     }
 
-    for (const id of [...couriers.keys()]) if (!activeIds.has(id)) couriers.delete(id);
+    for (const id of [...couriers.keys()]) if (!activeIds.has(id) && !(id === 'claude' && claudeTrip.active)) couriers.delete(id);
+    if (!droneShown && droneRef.current) droneRef.current.visible = false;
 
     slots.forEach((ref, i) => {
       const slot = ref.current;
@@ -246,6 +429,7 @@ export default function Handoffs({ bots, handoffs, layout, onActiveChange }) {
       {slots.map((ref, i) => (
         <OrbSlot key={i} slotRef={ref} />
       ))}
+      <Drone droneRef={droneRef} rotorRefs={rotorRefs} ledRef={ledRef} />
     </group>
   );
 }

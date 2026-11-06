@@ -1110,6 +1110,99 @@ button.chip:focus-visible,
   right: 16px;
 }
 
+/* ---------- Wild extras ---------- */
+
+/* Campfire thought bubbles */
+.thought {
+  position: relative;
+  width: max-content;
+  max-width: 200px;
+  padding: 6px 10px;
+  border-radius: 14px;
+  border: 2px solid #ffffff;
+  background: rgba(255, 252, 244, 0.95);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
+  box-shadow: 0 2px 10px rgba(10, 20, 50, 0.3);
+  animation: fade-up 0.4s ease;
+  pointer-events: none;
+}
+
+.thought::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -12px;
+  width: 9px;
+  height: 9px;
+  margin-left: -4px;
+  border-radius: 50%;
+  background: rgba(255, 252, 244, 0.95);
+  box-shadow: -6px 7px 0 -2px rgba(255, 252, 244, 0.95);
+}
+
+/* Bottle and treasure notes */
+.island-note {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 92;
+  transform: translate(-50%, -50%);
+  width: min(380px, calc(100vw - 32px));
+  padding: 20px 22px 18px;
+  animation: fade-up 0.3s ease;
+}
+
+.island-note-title {
+  margin-bottom: 8px;
+  padding-right: 32px;
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.island-note p {
+  margin: 0 0 8px;
+  font-size: 17px;
+  line-height: 1.45;
+}
+
+.island-note-from {
+  margin-top: 6px;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+
+/* Photo booth: chrome hides while the shot is set up, then a soft flash */
+.app.is-photo .hud-top,
+.app.is-photo .hud-bottom-left,
+.app.is-photo .radar,
+.app.is-photo .zone-tag,
+.app.is-photo .bot-tag,
+.app.is-photo .sky-clock,
+.app.is-photo .photo-hide,
+.app.is-photo .toast {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 0.3s ease;
+}
+
+.photo-flash {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  background: #ffffff;
+  pointer-events: none;
+  animation: photo-flash 0.5s ease-out forwards;
+}
+
+@keyframes photo-flash {
+  from { opacity: 0.85; }
+  to { opacity: 0; }
+}
+
 /* ---------- Welcome sign at the guest bungalow ---------- */
 
 .welcome-sign {
