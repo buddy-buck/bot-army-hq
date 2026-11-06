@@ -5,8 +5,11 @@
 // The default camera sits to the south looking north.
 import * as THREE from 'three';
 
-export const ISLAND = { rx: 13, rz: 9.5 };
-export const HUB_RADIUS = 2.6; // sand ring around the tower hill
+// Everything is laid out 20% wider than the original island so the zones
+// have breathing room. Building and bot sizes don't change, only spacing.
+export const SPREAD = 1.2;
+export const ISLAND = { rx: 13 * SPREAD, rz: 9.5 * SPREAD };
+export const HUB_RADIUS = 3.0; // sand ring around the tower hill
 export const TOWER_LEG_H = 2.4;
 export const LOOKOUT_H = 1.6;
 
@@ -49,10 +52,13 @@ export function terrainY(x, z) {
 }
 
 // Wooden decks over the water. Each has a short ramp onto the sand.
+// Launch's Pier is long and wide enough for Buddy's cruiser and dock office.
 export const DECKS = [
-  { id: 'lanai', x0: 10.2, x1: 15.6, z0: -1.2, z1: 3.2, y: 0.62, ramp: { side: 'x0', len: 0.9, z0: 0.4, z1: 1.6 } },
-  { id: 'dock', x0: -16.5, x1: -10.4, z0: 3.75, z1: 5.05, y: 0.45, ramp: { side: 'x1', len: 0.8, z0: 3.75, z1: 5.05 } },
+  { id: 'lanai', x0: 12.8, x1: 18.2, z0: -1.0, z1: 3.4, y: 0.62, ramp: { side: 'x0', len: 0.9, z0: 0.6, z1: 1.8 } },
+  { id: 'dock', x0: -22.0, x1: -12.4, z0: 4.35, z1: 6.35, y: 0.45, ramp: { side: 'x1', len: 0.8, z0: 4.35, z1: 6.35 } },
 ];
+export const DOCK = DECKS[1];
+export const LANAI = DECKS[0];
 
 // Height a bot stands at: decks, ramps, then sand/grass, never under water.
 export function groundY(x, z) {
@@ -74,25 +80,37 @@ export function groundY(x, z) {
 }
 
 export const towerTopY = () => terrainY(0, 0) + TOWER_LEG_H + 0.08;
-export const lookoutTopY = () => terrainY(5.2, -3.0) + LOOKOUT_H + 0.07;
+export const lookoutTopY = () => terrainY(ZONES.lookout.x, ZONES.lookout.z) + LOOKOUT_H + 0.07;
 
 // ---------------------------------------------------------------------------
 // Zones
 // ---------------------------------------------------------------------------
 // entry: where the zone's sand path starts. labelY: tag height above ground.
 // bend: how much the sand path curves on its way to the tower ring.
+// Chief and Claude share the top of Chief's Tower. The Content Cabana has
+// an inside crew and a beach patio next door (same team, same tag).
 export const ZONES = {
-  tower: { label: "Chief's Tower", x: 0, z: 0, entry: [0, 2.6], labelY: 5.6, bend: 0, focusY: 2.6 },
-  cabana: { label: 'Content Cabana', x: -6.5, z: -4.5, entry: [-5.4, -1.5], labelY: 3.3, bend: 0.7 },
-  lanai: { label: 'Real Estate Lanai', x: 13, z: 1, entry: [9.4, 1.0], labelY: 2.6, bend: -0.6 },
-  tikihut: { label: 'Networking Tiki Hut', x: 0.5, z: 6.8, entry: [2.4, 5.5], labelY: 3.3, bend: 0.5 },
-  moneydesk: { label: 'Money Desk', x: -9.5, z: 0.5, entry: [-8.3, 1.5], labelY: 2.3, bend: -0.5 },
-  dock: { label: "Launch's Pier", x: -13.4, z: 4.4, entry: [-10.0, 4.4], labelY: 2.2, bend: 0.6 },
-  bungalow: { label: "Flo's Bungalow", x: 1.8, z: -7.3, entry: [1.7, -5.4], labelY: 2.8, bend: -0.4 },
-  lookout: { label: 'Research Lookout', x: 5.2, z: -3.0, entry: [5.2, -1.0], labelY: 3.6, bend: 0.5 },
-  beachchair: { label: "Nasty's Chair", x: 8.6, z: 6.0, entry: [7.6, 4.9], labelY: 2.0, bend: -0.6 },
-  guestdesk: { label: 'Guest Bungalow', x: -3.0, z: 3.4, entry: [-1.9, 3.7], labelY: 2.6, bend: 0.3, noLabel: true },
+  tower: { label: "Chief's Tower", x: 0, z: 0, entry: [0, 3.0], labelY: 6.6, bend: 0, focusY: 3.0 },
+  cabana: { label: 'Content Cabana', x: -7.8, z: -5.4, entry: [-6.4, -1.9], labelY: 3.4, bend: 0.7 },
+  patio: { label: 'Cabana Patio', x: -3.4, z: -9.6, entry: [-6.4, -1.9], labelY: 2.0, bend: 0.7, noLabel: true },
+  lanai: { label: 'Real Estate Lanai', x: 15.6, z: 1.2, entry: [11.4, 1.2], labelY: 2.6, bend: -0.6 },
+  tikihut: { label: 'Networking Tiki Hut', x: 0.6, z: 8.2, entry: [2.9, 6.6], labelY: 3.3, bend: 0.5 },
+  moneydesk: { label: 'Money Desk', x: -11.4, z: 0.6, entry: [-10.0, 1.8], labelY: 2.3, bend: -0.5 },
+  dock: { label: "Launch's Pier", x: -16.2, z: 5.35, entry: [-12.0, 5.35], labelY: 2.2, bend: 0.6 },
+  bungalow: { label: "Flo's Bungalow", x: 2.2, z: -8.6, entry: [2.6, -6.2], labelY: 2.8, bend: -0.4 },
+  lookout: { label: 'Research Lookout', x: 6.2, z: -3.6, entry: [6.2, -1.2], labelY: 3.6, bend: 0.5 },
+  beachchair: { label: "Nasty's Chair", x: 10.3, z: 7.2, entry: [9.1, 5.9], labelY: 2.0, bend: -0.6 },
 };
+
+// Older data may still say "guestdesk" for Claude: that's the tower now.
+export const ZONE_REDIRECTS = { guestdesk: 'tower' };
+
+// Content crew members who work out on the beach patio instead of inside.
+export const PATIO_BOTS = new Set(['echo', 'slide', 'stamp', 'scout-local', 'vibe']);
+
+// Flo's bungalow faces north-north-west, toward the water and the sunset.
+export const BUNGALOW_ROT = -2.6;
+const bungalowFront = (d) => ({ x: ZONES.bungalow.x + Math.sin(BUNGALOW_ROT) * d, z: ZONES.bungalow.z + Math.cos(BUNGALOW_ROT) * d });
 
 export const TEAM_ZONE = {
   leadership: 'tower',
@@ -104,7 +122,7 @@ export const TEAM_ZONE = {
   home: 'bungalow',
   research: 'lookout',
   fun: 'beachchair',
-  guest: 'guestdesk',
+  guest: 'tower',
 };
 
 export const TEAM_LABELS = {
@@ -163,30 +181,106 @@ function grid(cx, cz, cols, dx, dz, n) {
   return out;
 }
 
+// The two chairs on top of the tower (Chief on the left, Claude on the right).
+export const TOWER_SEATS = [
+  { x: -0.62, z: 0.25, rotY: 0.18 },
+  { x: 0.62, z: 0.25, rotY: -0.18 },
+];
+// Inside the cabana: a double-sided work table, three workstations a side.
+export const CABANA_DESK_Z = 0;
+export const CABANA_STATIONS = [-1.35, 0, 1.35].flatMap((x) => [
+  { x, z: -0.85, rotY: 0 }, // north side, facing the camera
+  { x, z: 0.85, rotY: Math.PI }, // south side
+]);
+// Patio loungers on the sand next to the cabana, facing the sea.
+export const PATIO_LOUNGERS = [-2.6, -1.3, 0, 1.3, 2.6].map((dx, i) => ({ x: dx, z: Math.abs(dx) * 0.18, rotY: Math.PI + dx * 0.06, i }));
+
 const SLOT_RULES = {
-  tower: (n) => [{ x: 0, z: 0.2, y: towerTopY(), raised: true }, ...arc(0, 0, 3.4, 40, 140, Math.max(0, n - 1))],
-  cabana: (n) => arc(-6.5, -4.5, 3.2, 15, 165, n).map((p) => ({ ...p, faceOut: true })),
-  lanai: (n) => grid(12.9, 0.9, 4, 1.1, 1.1, n),
-  tikihut: (n) => arc(0.5, 6.8, 1.75, 25, 155, n).map((p) => ({ ...p, faceOut: true })),
-  moneydesk: (n) => arc(-9.5, 0.5, 0.85, 250, 290, n),
-  dock: (n) => grid(-12.6, 4.4, 3, 0.8, 0.6, n),
-  bungalow: (n) => arc(1.8, -7.3, 1.5, 70, 110, n),
-  lookout: (n) => grid(5.2, -3.0, 2, 0.75, 0.6, n).map((p) => ({ ...p, y: lookoutTopY(), raised: true })),
-  beachchair: (n) => [{ x: 8.6, z: 6.0, lounge: true }, ...arc(8.6, 6.0, 1.5, 200, 340, Math.max(0, n - 1))],
-  guestdesk: (n) => [{ x: -2.55, z: 4.75 }, ...arc(-3.0, 3.4, 1.9, 20, 160, Math.max(0, n - 1))],
+  tower: (n) => [
+    ...TOWER_SEATS.slice(0, n).map((s) => ({ ...s, y: towerTopY(), raised: true, seat: true })),
+    ...arc(0, 0, 3.9, 40, 140, Math.max(0, n - 2)),
+  ],
+  cabana: (n) => {
+    const z = ZONES.cabana;
+    const out = CABANA_STATIONS.slice(0, n).map((s) => {
+      const x = z.x + s.x;
+      const zz = z.z + s.z;
+      return { x, z: zz, y: groundY(x, zz) + 0.2, rotY: s.rotY, fixedRot: true };
+    });
+    // more than six: overflow around the front
+    return out.concat(arc(z.x, z.z, 3.6, 30, 150, Math.max(0, n - out.length)).map((p) => ({ ...p, faceOut: true })));
+  },
+  patio: (n) => {
+    const z = ZONES.patio;
+    const out = PATIO_LOUNGERS.slice(0, n).map((s) => ({ x: z.x + s.x, z: z.z + s.z, rotY: s.rotY, fixedRot: true, lounge: true }));
+    return out.concat(arc(z.x, z.z, 2.2, 20, 160, Math.max(0, n - out.length)));
+  },
+  lanai: (n) => grid(15.5, 1.1, 4, 1.1, 1.1, n),
+  tikihut: (n) => arc(ZONES.tikihut.x, ZONES.tikihut.z, 1.75, 25, 155, n).map((p) => ({ ...p, faceOut: true })),
+  moneydesk: (n) => arc(ZONES.moneydesk.x, ZONES.moneydesk.z, 0.85, 250, 290, n),
+  dock: (n) => grid(-14.6, 5.35, 3, 0.8, 0.7, n),
+  bungalow: (n) => {
+    // on the porch, enjoying the view
+    const f = bungalowFront(1.55);
+    const porch = n ? [{ x: f.x, z: f.z, y: groundY(ZONES.bungalow.x, ZONES.bungalow.z) + 0.35, rotY: BUNGALOW_ROT, fixedRot: true, seat: true }] : [];
+    return porch.concat(arc(ZONES.bungalow.x, ZONES.bungalow.z, 2.0, 40, 140, Math.max(0, n - 1)));
+  },
+  lookout: (n) => grid(ZONES.lookout.x, ZONES.lookout.z, 2, 0.75, 0.6, n).map((p) => ({ ...p, y: lookoutTopY(), raised: true })),
+  beachchair: (n) => [{ x: ZONES.beachchair.x, z: ZONES.beachchair.z, lounge: true }, ...arc(ZONES.beachchair.x, ZONES.beachchair.z, 1.5, 200, 340, Math.max(0, n - 1))],
 };
 
-// Porch height on Claude's guest bungalow.
-export const GUEST_PORCH_H = 0.14;
+// Night campfire on open ground on the south-west side of the island.
+export const CAMPFIRE = { x: -7.8, z: 6.2 };
+
+// Seats around the campfire, inner ring first. Each spot is on land, clear
+// of palms, decks and zone stations, and faces the fire.
+let campfireSpotCache = null;
+export function campfireSpots() {
+  if (campfireSpotCache) return campfireSpotCache;
+  const out = [];
+  for (const r of [1.85, 2.55, 3.25]) {
+    const n = Math.floor((2 * Math.PI * r) / 0.62);
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + r;
+      const x = CAMPFIRE.x + Math.cos(a) * r;
+      const z = CAMPFIRE.z + Math.sin(a) * r;
+      if (islandE(x, z) > 0.86) continue;
+      if (PALMS.some((p) => Math.hypot(p.x - x, p.z - z) < 0.65)) continue;
+      if (Object.values(ZONES).some((zz) => Math.hypot(zz.x - x, zz.z - z) < 2.2)) continue;
+      if (DECKS.some((d) => x > d.x0 - 0.5 && x < d.x1 + 0.5 && z > d.z0 - 0.5 && z < d.z1 + 0.5)) continue;
+      // Front of the circle (toward the default camera) first, so a small group sits where it's easy to see.
+      out.push({ x, z, r, rotY: Math.atan2(CAMPFIRE.x - x, CAMPFIRE.z - z), front: z - CAMPFIRE.z });
+    }
+  }
+  campfireSpotCache = out.sort((p, q) => p.r - q.r || q.front - p.front);
+  return campfireSpotCache;
+}
+
+// Where Claude stands while visiting a zone for work (outside the normal slots).
+export const CLAUDE_VISIT = {
+  dock: { x: -17.6, z: 5.35, rotY: Math.PI / 2 },
+  cabana: { x: ZONES.cabana.x + 2.45, z: ZONES.cabana.z, rotY: -Math.PI / 2, lift: 0.2 },
+  lanai: { x: 13.35, z: 0.45, rotY: 2.4 },
+};
+
+// Treasure chest spots: one is picked per day.
+export const CHEST_SPOTS = [
+  { x: 4.1, z: 5.9, rotY: 0.4 },
+  { x: -11.5, z: -3.5, rotY: -0.6 },
+  { x: 8.8, z: 2.9, rotY: 0.9 },
+  { x: -1.2, z: -5.2, rotY: 0.2 },
+  { x: 11.0, z: -1.2, rotY: -0.3 },
+  { x: -9.1, z: -1.1, rotY: -0.8 },
+];
 
 // Hand-placed hammocks where the "step outward" rule would land in the water
 // or on top of the desk (the Real Estate Lanai is a crowded deck).
 const HAMMOCK_SPOTS = {
   lanai: [
-    { x: 11.35, z: 2.72, rotY: 0 },
-    { x: 13.5, z: 2.72, rotY: 0 },
-    { x: 8.4, z: -1.9, rotY: 0.35 },
-    { x: 8.3, z: 3.7, rotY: -0.35 },
+    { x: 13.95, z: 2.92, rotY: 0 },
+    { x: 16.1, z: 2.92, rotY: 0 },
+    { x: 10.1, z: -2.3, rotY: 0.35 },
+    { x: 10.0, z: 4.4, rotY: -0.35 },
   ],
 };
 
@@ -229,6 +323,7 @@ function findHammockSpot(bx, bz, ox, oz, zoneKey, placed, stations, raised) {
         score = Math.min(score, distToSegment(x, z, zz.entry[0], zz.entry[1], h.x, h.z) / 0.9);
       }
       for (const h of placed) score = Math.min(score, Math.hypot(x - h.x, z - h.z) / 2.4);
+      score = Math.min(score, Math.hypot(x - CAMPFIRE.x, z - CAMPFIRE.z) / 3.6); // keep the campfire circle clear
       for (const st of stations) score = Math.min(score, Math.hypot(x - st.x, z - st.z) / 1.0);
       for (const p of PALMS) score = Math.min(score, Math.hypot(x - p.x, z - p.z) / 1.25);
       score = Math.min(1, score) - d * 0.01 - Math.abs(t) * 0.01; // prefer close and straight out
@@ -244,15 +339,21 @@ function findHammockSpot(bx, bz, ox, oz, zoneKey, placed, stations, raised) {
 // Returns { [botId]: { id, zone, x, y, z, rotY, raised, lounge, doorstep,
 //   hammock, mode, home } }
 // mode: 'station' (working), 'chill' (idle, standing with a drink),
-//       'hammock' (sleeping, or idle and lying down), 'lounge' (Nasty's chair).
+//       'hammock' (sleeping, or idle and lying down), 'lounge' (a beach chair),
+//       'seat' (a chair on top of the tower, mai tai in hand).
 // home: where the bot should be right now for its status.
 export function layoutBots(bots) {
   const byZone = {};
   for (const b of bots) {
-    const key = ZONES[b.zone] ? b.zone : 'tower';
-    const extra = !ZONES[b.zone];
+    let zone = ZONE_REDIRECTS[b.zone] || b.zone;
+    if (zone === 'cabana' && PATIO_BOTS.has(b.id)) zone = 'patio';
+    const key = ZONES[zone] ? zone : 'tower';
+    const extra = !ZONES[zone];
     (byZone[key] ||= []).push({ bot: b, extra });
   }
+  // Chief and Claude get the two chairs on top of the tower.
+  const seatOrder = (id) => (id === 'chief' ? 0 : id === 'claude' ? 1 : 2);
+  if (byZone.tower) byZone.tower.sort((a, b) => a.extra - b.extra || seatOrder(a.bot.id) - seatOrder(b.bot.id));
   const out = {};
   const placedHammocks = [];
   for (const [key, list] of Object.entries(byZone)) {
@@ -270,10 +371,10 @@ export function layoutBots(bots) {
     const stations = all.map(({ s: st }) => st);
     all.forEach(({ l, s }) => {
       const bot = l.bot;
-      const y = s.y ?? groundY(s.x, s.z) + (s.porch ? GUEST_PORCH_H : 0);
+      const y = s.y ?? groundY(s.x, s.z);
       const dx = s.x - zone.x;
       const dz = s.z - zone.z;
-      const rotY = s.faceOut ? Math.atan2(dx, dz) : 0;
+      const rotY = s.fixedRot ? s.rotY : s.faceOut ? Math.atan2(dx, dz) : 0;
       let ox = dx;
       let oz = dz;
       const ol = Math.hypot(ox, oz);
@@ -286,8 +387,9 @@ export function layoutBots(bots) {
       }
 
       const lounge = !!s.lounge;
+      const seat = !!s.seat;
       const raised = !!s.raised;
-      const wantsHammock = !lounge && (bot.status === 'sleeping' || (bot.status === 'idle' && !raised && prefersHammock(bot)));
+      const wantsHammock = !lounge && !seat && (bot.status === 'sleeping' || (bot.status === 'idle' && !raised && prefersHammock(bot)));
 
       // Hammock: a hand-placed spot, or a step outward from the station.
       // Neighbors alternate near/far so two hammocks never overlap.
@@ -307,7 +409,7 @@ export function layoutBots(bots) {
 
       // Chill spot: a short step outward from the station, facing out.
       let chill = { x: s.x, y, z: s.z, rotY: rotY + 0.5 };
-      if (!raised && !lounge && !s.porch) {
+      if (!raised && !lounge && !s.fixedRot) {
         const cx = s.x + ox * 0.7;
         const cz = s.z + oz * 0.7;
         const cy = groundY(cx, cz);
@@ -316,6 +418,7 @@ export function layoutBots(bots) {
 
       let mode = 'station';
       if (lounge) mode = 'lounge';
+      else if (seat) mode = 'seat';
       else if (hammock) mode = 'hammock';
       else if (bot.status === 'idle') mode = 'chill';
 
@@ -502,16 +605,16 @@ function seeded(seed) {
 }
 
 const AVOID = [
-  { k: 'tower', r: 3.6 },
-  { k: 'cabana', r: 4.1 },
+  { k: 'tower', r: 4.2 },
+  { k: 'cabana', r: 4.6 },
+  { k: 'patio', r: 3.8 },
   { k: 'lanai', r: 3.6 },
   { k: 'tikihut', r: 2.9 },
   { k: 'moneydesk', r: 2.0 },
   { k: 'dock', r: 2.6 },
-  { k: 'bungalow', r: 2.5 },
+  { k: 'bungalow', r: 3.0 },
   { k: 'lookout', r: 2.3 },
   { k: 'beachchair', r: 2.1 },
-  { k: 'guestdesk', r: 2.9 },
 ];
 
 function distToSegment(px, pz, ax, az, bx, bz) {
@@ -527,6 +630,7 @@ function clearOfPaths(x, z, margin) {
     const zone = ZONES[k];
     if (Math.hypot(x - zone.x, z - zone.z) < r) return false;
   }
+  if (Math.hypot(x - CAMPFIRE.x, z - CAMPFIRE.z) < 3.4) return false; // keep the campfire circle open
   const rr = Math.hypot(x, z);
   if (Math.abs(rr - HUB_RADIUS) < margin + 0.4) return false;
   for (const k of Object.keys(ZONES)) {
@@ -540,7 +644,7 @@ function clearOfPaths(x, z, margin) {
 export const PALMS = (() => {
   const r = seeded(42);
   const list = [];
-  const count = 40;
+  const count = 76;
   for (let i = 0; i < count; i++) {
     const a = (i / count) * Math.PI * 2 + (r() - 0.5) * 0.14;
     const e = 0.6 + r() * 0.26;
@@ -553,15 +657,17 @@ export const PALMS = (() => {
     if (!clearOfPaths(x, z, 0.5)) continue;
     list.push({ x, z, h: 2.3 + r() * 1.2, tilt: 0.08 + r() * 0.2, tiltDir: r() * Math.PI * 2, yaw: r() * Math.PI * 2 });
   }
-  // Hand-placed groves: palms around the tiki hut, a screen in front of
-  // Flo's private bungalow, and a few near the cabana and lookout.
+  // Hand-placed groves: palms around the tiki hut, some shade behind Flo's
+  // bungalow (its porch keeps a clear view of the water), and a few near the
+  // cabana and lookout.
   const groves = [
     [-1.4, 8.1], [3.3, 8.0], [3.7, 6.5],
-    [-0.4, -5.0], [3.2, -5.2], [4.0, -6.2], [-1.3, -6.3], [0.2, -8.6], [3.4, -8.3],
-    [-9.7, -5.6], [-3.4, -6.6],
+    [-0.4, -5.0], [3.2, -5.2], [4.0, -6.2], [-1.3, -6.3],
+    [-9.7, -5.6],
     [6.9, -4.3], [3.5, -4.4],
-  ];
+  ].map(([x, z]) => [x * SPREAD, z * SPREAD]);
   for (const [x, z] of groves) {
+    if (!clearOfPaths(x, z, 0.1)) continue;
     list.push({ x, z, h: 2.4 + r() * 1.0, tilt: 0.08 + r() * 0.16, tiltDir: r() * Math.PI * 2, yaw: r() * Math.PI * 2 });
   }
   return list;
@@ -572,7 +678,7 @@ export const FLOWERS = (() => {
   const colors = ['#ff5d8f', '#ff8a3d', '#ffd23f', '#f25cff', '#ffffff', '#ff4d4d'];
   const list = [];
   let tries = 0;
-  while (list.length < 46 && tries < 600) {
+  while (list.length < 60 && tries < 900) {
     tries++;
     const x = (r() - 0.5) * 2 * ISLAND.rx * 0.85;
     const z = (r() - 0.5) * 2 * ISLAND.rz * 0.85;
@@ -595,7 +701,7 @@ export const ROCKS = (() => {
     const w = islandWobble(x, z);
     x *= w;
     z *= w;
-    if (Math.hypot(x - 12.9, z - 1) < 4 || Math.hypot(x + 13.4, z - 4.4) < 3.5) continue;
+    if (Math.hypot(x - ZONES.lanai.x, z - ZONES.lanai.z) < 4.5 || (x < DOCK.x1 + 2 && z > DOCK.z0 - 2.5 && z < DOCK.z1 + 2.5)) continue;
     list.push({ x, z, s: 0.25 + r() * 0.45, rot: r() * Math.PI });
   }
   return list;

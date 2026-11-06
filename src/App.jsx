@@ -4,7 +4,7 @@ import { Html, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 
 import Island from './components/Island.jsx';
-import Bot from './components/Bot.jsx';
+import Bot, { WAVE_SECONDS } from './components/Bot.jsx';
 import Handoffs from './components/Handoff.jsx';
 import SkyClock from './components/SkyClock.jsx';
 import Sky from './components/Sky.jsx';
@@ -13,13 +13,20 @@ import Radar from './components/Radar.jsx';
 import BotCard from './components/BotCard.jsx';
 import Feed from './components/Feed.jsx';
 import Roster from './components/Roster.jsx';
-import UI, { LoadingNotice, RecentHandoffs, Toast } from './components/UI.jsx';
+import UI, { IslandNote, LoadingNotice, RecentHandoffs, Toast } from './components/UI.jsx';
 import { botFx, fxNow, LabelDirector, labelState } from './components/labels.js';
 import useData, { HAS_LIVE, headlineMinutes, initialMode, saveMode } from './hooks/useData.js';
 import useSunPosition from './hooks/useSunPosition.js';
-import { DECKS, ISLAND, ZONES, botHash, groundY, islandWobble, layoutBots, nearestZone } from './utils/paths.js';
+import { DECKS, DOCK, ISLAND, LANAI, ZONES, botHash, groundY, islandWobble, layoutBots, nearestZone } from './utils/paths.js';
 import { formatNumber } from './utils/ticker.js';
 import { applySafeMode, isSafeMode } from './utils/safe.js';
+import ClaudeCommute, { claudeZoneFor, visitSlot } from './wild/ClaudeCommute.jsx';
+import Weather, { useWeather } from './wild/Weather.jsx';
+import Flyover from './wild/Flyover.jsx';
+import Surfer from './wild/Surfer.jsx';
+import Campfire, { campfireLayout } from './wild/Campfire.jsx';
+import { Bottle, CHIEF_WELCOME, DockOffice, PhotoBooth, TreasureChest } from './wild/Easter.jsx';
+import { TEST, isIslandNight } from './wild/director.js';
 
 // ---------------------------------------------------------------------------
 // Small hooks
@@ -250,9 +257,9 @@ const FIT_POINTS = (() => {
   for (const d of DECKS) {
     pts.push(new THREE.Vector3(d.x0, d.y + 0.6, d.z0), new THREE.Vector3(d.x1, d.y + 0.6, d.z0), new THREE.Vector3(d.x0, d.y + 0.6, d.z1), new THREE.Vector3(d.x1, d.y + 0.6, d.z1));
   }
-  pts.push(new THREE.Vector3(15.6, 3.0, 2.4)); // lanai umbrella
-  pts.push(new THREE.Vector3(-16.5, 1.4, 6.4)); // boat
-  pts.push(new THREE.Vector3(0, 7.5, 0)); // tower flag
+  pts.push(new THREE.Vector3(LANAI.x1, 3.0, LANAI.z1 - 0.8)); // lanai umbrella
+  pts.push(new THREE.Vector3(DOCK.x0, 1.4, DOCK.z1)); // end of the pier
+  pts.push(new THREE.Vector3(0, 8.6, 0)); // tower flag
   return pts;
 })();
 
@@ -389,6 +396,18 @@ function CameraRig({ fly, reduced, holdRotate, insets, controlsRef, layout, kios
     let dist;
     let pol;
     const current = new THREE.Spherical().setFromVector3(camera.position.clone().sub(c.target));
+    if (fly.photo) {
+      // Photo booth: a clean, slightly lower three-quarter view of the whole island.
+      const theta = reduced ? theta0 : theta0 + 0.35;
+      const fit = sampleFit(table, theta);
+      const endPos = HOME_TARGET.clone().add(new THREE.Vector3().setFromSphericalCoords(fit.dist * 0.97, reduced ? polar : polar + 0.06, theta));
+      s.autoFit = true;
+      s.offsetTarget = offsetFor(fit.center);
+      s.anim = { start: performance.now(), fromPos: camera.position.clone(), fromTarget: c.target.clone(), toPos: endPos, toTarget: HOME_TARGET.clone(), fromOffset: s.offsetY };
+      s.resumeAt = performance.now() + FLY_MS + 4500;
+      invalidate();
+      return;
+    }
     if (fly.zone === '__home') {
       const fit = sampleFit(table, current.theta);
       target = HOME_TARGET.clone();
@@ -412,7 +431,10 @@ function CameraRig({ fly, reduced, holdRotate, insets, controlsRef, layout, kios
       s.autoFit = false;
       s.offsetTarget = (table.want * size.height) / 2;
     }
-    const endPos = target.clone().add(new THREE.Vector3().setFromSphericalCoords(dist, pol, reduced ? theta0 : current.theta));
+    // Zones: look in from the seaward side, so the tower never blocks the view.
+    const zone = !fly.bot && ZONES[fly.zone];
+    const outward = zone && Math.hypot(zone.x, zone.z) > 3 ? Math.atan2(zone.x, zone.z) : current.theta;
+    const endPos = target.clone().add(new THREE.Vector3().setFromSphericalCoords(dist, pol, reduced ? theta0 : outward));
     s.anim = { start: performance.now(), fromPos: camera.position.clone(), fromTarget: c.target.clone(), toPos: endPos, toTarget: target, fromOffset: s.offsetY };
     s.resumeAt = performance.now() + (fly.zone === '__home' ? 1500 : IDLE_RESUME_MS);
     invalidate();
@@ -565,6 +587,9 @@ export default function App() {
   const [floats, setFloats] = useState([]);
   const [burst, setBurst] = useState(null);
   const [demoAdded, setDemoAdded] = useState(0);
+  const [note, setNote] = useState(null);
+  const [scoreOpen, setScoreOpen] = useState(false);
+  const [photo, setPhoto] = useState(null); // null | 'flying' | 'shoot' | 'flash'
   const lastTap = useRef({ t: 0, x: 0, z: 0 });
   const controlsRef = useRef();
   const hudTopRef = useRef();
@@ -572,16 +597,29 @@ export default function App() {
   const insets = useHudInsets(hudTopRef, hudBottomRef);
 
   const bots = data?.bots ?? [];
-  // The island follows the clock. After 10 PM (until 6 AM) Duvall time,
-  // every bot that isn't working sleeps in a hammock with ZZZs; during the
-  // day they're chillin'. Working bots always work. This only changes the 3D
-  // scene; the scoreboard, feed and bot cards keep the real status.
-  const bedtime = sky.hour >= 22 || sky.hour < 6;
+  // The island follows the clock. From 9 PM to 6 AM Duvall time, every bot
+  // that isn't working sleeps in a hammock with ZZZs and the working bots
+  // gather at the campfire; during the day they're chillin'. Working bots
+  // always work. This only changes the 3D scene; the scoreboard, feed and
+  // bot cards keep the real status.
+  const bedtime = isIslandNight(sky.hour);
   const sceneBots = useMemo(() => {
     const restStatus = bedtime ? 'sleeping' : 'idle';
     return bots.map((b) => (b.status === 'working' || b.status === restStatus ? b : { ...b, status: restStatus }));
   }, [bots, bedtime]);
-  const layout = useMemo(() => layoutBots(sceneBots), [sceneBots]);
+  const baseLayout = useMemo(() => layoutBots(sceneBots), [sceneBots]);
+  // Claude lives in the tower with Chief; while working, Claude walks down to the zone the work is about.
+  const claudeBot = bots.find((b) => b.id === 'claude');
+  const claudeWants = claudeBot?.status === 'working' ? claudeZoneFor(claudeBot.lastAction?.text) : null;
+  // undefined until the shuttle takes over: start Claude wherever the status says, no boat.
+  const [claudeVisitState, setClaudeVisit] = useState(undefined);
+  const claudeVisit = claudeVisitState === undefined ? claudeWants : claudeVisitState;
+  const layout = useMemo(() => {
+    let out = bedtime ? campfireLayout(baseLayout, sceneBots) : baseLayout;
+    if (claudeVisit && out.claude) out = { ...out, claude: visitSlot(out.claude, claudeVisit) };
+    return out;
+  }, [baseLayout, sceneBots, bedtime, claudeVisit]);
+  const claudeHome = baseLayout.claude || null;
   const clinks = useMemo(() => clinkPairs(layout), [layout]);
   const selected = bots.find((b) => b.id === selectedId) || null;
   const isExample = !!data?.isExample;
@@ -661,6 +699,30 @@ export default function App() {
 
   const displayTotal = headlineMinutes(data?.minutesSaved) + (isExample ? demoAdded : 0);
 
+  // Weather: one short effect at a time. Feed items can ask for one with
+  // type "shipped" (storm over the pier) or "fantasy_win" (rainbow); only new
+  // items after the page loads count. ?weather=test cycles all of them.
+  const [weather, requestWeather] = useWeather({ enabled: !reduced, test: TEST.weather });
+  const seenFeed = useRef(null);
+  useEffect(() => {
+    seenFeed.current = null; // a different dataset: start fresh, don't replay its items
+  }, [mode, fellBack]);
+  useEffect(() => {
+    if (!data) return;
+    const keyOf = (f) => `${f.at}|${f.bot}|${f.type}|${f.text}`;
+    const typed = data.feed.filter((f) => f.type === 'shipped' || f.type === 'fantasy_win');
+    if (seenFeed.current === null) {
+      seenFeed.current = new Set(typed.map(keyOf));
+      return;
+    }
+    for (const f of typed) {
+      const k = keyOf(f);
+      if (seenFeed.current.has(k)) continue;
+      seenFeed.current.add(k);
+      requestWeather(f.type === 'shipped' ? 'storm' : 'rainbow');
+    }
+  }, [data, requestWeather]);
+
   // Celebrate every round thousand: confetti from Chief's Tower and a toast.
   const prevTotal = useRef(null);
   useEffect(() => {
@@ -673,11 +735,12 @@ export default function App() {
     if (prev === null || Math.floor(displayTotal / 1000) <= Math.floor(prev / 1000)) return;
     const k = Math.floor(displayTotal / 1000) * 1000;
     setToast({ id: Date.now(), text: `Buck yeah! ${formatNumber(k)} minutes saved` });
+    requestWeather('double');
     if (!reduced) {
       const p = labelState.towerScreen || { x: window.innerWidth / 2, y: window.innerHeight * 0.4 };
       setBurst({ id: Date.now(), x: p.x, y: p.y });
     }
-  }, [displayTotal, data, reduced]);
+  }, [displayTotal, data, reduced, requestWeather]);
 
   // Next up: at T-0, spotlight the bot whose run is starting.
   useEffect(() => {
@@ -696,6 +759,34 @@ export default function App() {
   }, [data, reduced, spotlightId]);
 
   const flyTo = useCallback((zone) => setFly({ zone, n: Date.now() + Math.random() }), []);
+
+  // Easter eggs.
+  const openBottle = useCallback(() => setNote({ id: Date.now(), title: CHIEF_WELCOME.title, body: CHIEF_WELCOME.body, from: CHIEF_WELCOME.from }), []);
+  const openChest = useCallback((line) => setNote({ id: Date.now(), title: "Nasty's treasure", body: [line], from: 'Nasty' }), []);
+  const closeNote = useCallback(() => setNote(null), []);
+  const openOffice = useCallback(() => setScoreOpen(true), []);
+
+  // Photo booth: fly to a clean angle, hide the UI and have everyone wave
+  // for a couple of seconds (time to screenshot), flash, and bring it back.
+  const photoTimers = useRef([]);
+  const shootPhoto = useCallback(() => {
+    if (photo) return;
+    setSelectedId(null);
+    setRosterOpen(false);
+    setScoreOpen(false);
+    setNote(null);
+    setFly({ photo: true, n: Date.now() + Math.random() });
+    setPhoto('flying');
+    const later = (ms, fn) => photoTimers.current.push(setTimeout(fn, ms));
+    later(reduced ? 200 : FLY_MS + 100, () => {
+      setPhoto('shoot');
+      const t = fxNow();
+      (data?.bots || []).forEach((b) => botFx.wave.set(b.id, t));
+    });
+    later((reduced ? 200 : FLY_MS + 100) + Math.max(2000, WAVE_SECONDS * 1000 - 300), () => setPhoto('flash'));
+    later((reduced ? 200 : FLY_MS + 100) + Math.max(2000, WAVE_SECONDS * 1000 - 300) + 500, () => setPhoto(null));
+  }, [photo, reduced, data]);
+  useEffect(() => () => photoTimers.current.forEach(clearTimeout), []);
   const recenter = useCallback(() => setFly({ zone: '__home', n: Date.now() + Math.random() }), []);
   const select = useCallback((id) => setSelectedId(id), []);
   const closeCard = useCallback(() => setSelectedId(null), []);
@@ -734,7 +825,7 @@ export default function App() {
   const throttled = idle && !reduced && !hidden;
 
   return (
-    <div className={`app phase-${sky.phase}${reduced ? ' is-reduced' : ''}${kiosk ? ' is-kiosk' : ''}`} style={{ '--hud-top': `${Math.round(insets.top)}px` }}>
+    <div className={`app phase-${sky.phase}${reduced ? ' is-reduced' : ''}${kiosk ? ' is-kiosk' : ''}${photo === 'shoot' ? ' is-photo' : ''}`} style={{ '--hud-top': `${Math.round(insets.top)}px` }}>
       <div className="scene">
         <Canvas
           flat
@@ -770,6 +861,15 @@ export default function App() {
               ) : null
             )}
             {!reduced && data && <Handoffs bots={sceneBots} handoffs={data.handoffs} layout={layout} onActiveChange={setWalks} />}
+            {claudeBot && <ClaudeCommute desired={claudeWants} visit={claudeVisit} homeSlot={claudeHome} onVisit={setClaudeVisit} animate={!reduced} />}
+            {bedtime && <Campfire layout={layout} bots={sceneBots} animate={!reduced} />}
+            <Weather weather={weather} />
+            {!reduced && <Flyover />}
+            {!reduced && <Surfer color={bots.find((b) => b.id === 'echo')?.color} />}
+            <Bottle onOpen={openBottle} animate={!reduced} />
+            <TreasureChest onOpen={openChest} animate={!reduced} />
+            <DockOffice onOpen={openOffice} night={sky.stars} animate={!reduced} />
+            <PhotoBooth onShoot={shootPhoto} />
             <MinuteFloats floats={floats} />
             <CameraRig fly={fly} reduced={reduced} holdRotate={!!selected || rosterOpen} insets={insets} controlsRef={controlsRef} layout={layout} kiosk={kiosk} />
             <LabelDirector controls={controlsRef} />
@@ -794,7 +894,7 @@ export default function App() {
       </div>
 
       <div className="hud-bottom-left" ref={hudBottomRef}>
-        {data && <Scoreboard value={displayTotal} minutesSaved={data.minutesSaved} isExample={isExample} version={version} bots={bots} reduced={reduced} />}
+        {data && <Scoreboard value={displayTotal} minutesSaved={data.minutesSaved} isExample={isExample} version={version} bots={bots} reduced={reduced} open={scoreOpen} onOpenChange={setScoreOpen} />}
         {reduced && <RecentHandoffs handoffs={data?.handoffs} bots={bots} />}
         {data && <Feed feed={data.feed} bots={bots} walks={walks} nextUp={data.nextUp} minutesSaved={data.minutesSaved} onFlyBot={pickBot} forceClosed={kiosk} />}
       </div>
@@ -805,6 +905,8 @@ export default function App() {
 
       <Confetti burst={burst} />
       <Toast message={toast} />
+      <IslandNote note={note} onClose={closeNote} />
+      {photo === 'flash' && <div className="photo-flash" aria-hidden="true" />}
       <Roster open={rosterOpen} bots={bots} onPick={pickBot} onClose={closeRoster} />
       <BotCard bot={selected} onClose={closeCard} nextUp={data?.nextUp} minutesSaved={data?.minutesSaved} />
     </div>

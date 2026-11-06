@@ -62,15 +62,16 @@ const HOME_ZONE = {
   flo: 'bungalow',
   recon: 'lookout', brobot: 'lookout',
   nasty: 'beachchair',
-  claude: 'guestdesk',
+  claude: 'tower',
 };
-const ZONE_ALIASES = { 'guest-bungalow': 'guestdesk', guestbungalow: 'guestdesk', guest: 'guestdesk', vip: 'guestdesk' };
+// Claude used to live in a guest bungalow; every old name for it now means the tower.
+const ZONE_ALIASES = { guestdesk: 'tower', 'guest-bungalow': 'tower', guestbungalow: 'tower', guest: 'tower', vip: 'tower', patio: 'cabana' };
 const ZONE_TEAM = Object.fromEntries(Object.entries(TEAM_ZONE).map(([team, zone]) => [zone, team]));
 
 function resolveZone(id, zone, team) {
   const z = String(zone || '').trim().toLowerCase();
-  if (ZONES[z]) return z;
   if (ZONE_ALIASES[z]) return ZONE_ALIASES[z];
+  if (ZONES[z]) return z;
   return HOME_ZONE[id] || TEAM_ZONE[team] || 'tower';
 }
 
@@ -180,7 +181,7 @@ function normalizeBot(raw) {
       url: typeof la.url === 'string' ? la.url.trim() : '',
       at: la.at || null,
     },
-    note: raw.note || (id === 'claude' ? 'Launch and Chief drop by.' : ''),
+    note: raw.note || (id === 'claude' ? "Up in Chief's Tower with a mai tai." : ''),
     minutesToday: num(raw.minutesToday),
     avatarUrl: raw.avatarUrl || `${import.meta.env.BASE_URL}avatars/${id}.png`,
   };
@@ -194,7 +195,7 @@ export function normalizeData(json) {
         .filter((h) => h && ids.has(h.from) && ids.has(h.to) && h.from !== h.to)
         .map((h) => ({ from: h.from, to: h.to, at: h.at || null, what: h.what || '' }))
     : [];
-  // Activity feed: [{ bot, text, url, at, to? }], newest first, at most 40.
+  // Activity feed: [{ bot, text, url, at, to?, type? }], newest first, at most 40.
   const feed = Array.isArray(json?.feed)
     ? json.feed
         .filter((f) => f && ids.has(f.bot) && f.text)
@@ -205,6 +206,8 @@ export function normalizeData(json) {
           url: typeof f.url === 'string' ? f.url.trim() : '',
           at: f.at || null,
           to: f.to && ids.has(f.to) && f.to !== f.bot ? f.to : null,
+          // optional event type for island effects, e.g. "shipped", "fantasy_win"
+          type: typeof f.type === 'string' ? f.type.trim().toLowerCase() : '',
         }))
         .sort((a, b) => (Date.parse(b.at) || 0) - (Date.parse(a.at) || 0))
         .slice(0, MAX_FEED)

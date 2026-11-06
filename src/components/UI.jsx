@@ -7,7 +7,9 @@ import { formatAsOf } from '../utils/ticker.js';
 export function DemoNote() {
   return (
     <div className="chip chip-note" role="status" aria-label="Demo: sample data">
-      Demo<span className="demo-extra">: sample data</span>
+      <span>
+        Demo<span className="demo-extra">: sample data</span>
+      </span>
     </div>
   );
 }
@@ -221,6 +223,29 @@ export function Toast({ message }) {
   return (
     <div className="toast" role="status" aria-live="polite" key={message.id}>
       {message.text}
+    </div>
+  );
+}
+
+// A small light card for island surprises (message in a bottle, treasure).
+export function IslandNote({ note, onClose }) {
+  useEffect(() => {
+    if (!note) return undefined;
+    const onKey = (e) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [note, onClose]);
+  if (!note) return null;
+  return (
+    <div className="island-note panel" role="dialog" aria-label={note.title} key={note.id}>
+      <button type="button" className="card-close" onClick={onClose} aria-label="Close">
+        ×
+      </button>
+      <div className="island-note-title">{note.title}</div>
+      {note.body.map((p, i) => (
+        <p key={i}>{p}</p>
+      ))}
+      {note.from && <div className="island-note-from">{note.from}</div>}
     </div>
   );
 }

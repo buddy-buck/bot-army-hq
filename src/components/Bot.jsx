@@ -20,6 +20,7 @@ const DRINK_SCALE = 1.6; // big, easy-to-see drinks
 const CLINK_PERIOD = 26; // seconds between cheers for a pair of chillin' bots
 const CLINK_LEN = 2.4;
 const WALK_SPEED = 1.3; // units per second
+export const WAVE_SECONDS = 2.4;
 
 const GEO = {
   body: new THREE.CapsuleGeometry(0.17, 0.2, 3, 8),
@@ -28,6 +29,8 @@ const GEO = {
   antenna: new THREE.CylinderGeometry(0.012, 0.012, 0.16, 4),
   bulb: new THREE.IcosahedronGeometry(0.048, 0),
   foot: new THREE.SphereGeometry(0.065, 6, 5),
+  arm: new THREE.CapsuleGeometry(0.035, 0.24, 2, 6),
+  hand: new THREE.SphereGeometry(0.055, 6, 5),
   shadow: new THREE.CircleGeometry(0.32, 16).rotateX(-Math.PI / 2),
   ring: new THREE.RingGeometry(0.36, 0.46, 32).rotateX(-Math.PI / 2),
   hit: new THREE.CylinderGeometry(0.42, 0.42, 1.2, 8),
@@ -112,7 +115,8 @@ const MAT = {
 
 const DRINK_TYPES = ['maitai', 'margarita', 'coconut'];
 // Drinks these two never put down.
-const ALWAYS_DRINK = { nasty: 'coconut', claude: 'maitai' };
+// Chief and Claude always have a mai tai up in the tower chairs.
+const ALWAYS_DRINK = { nasty: 'coconut', claude: 'maitai', chief: 'maitai' };
 
 function Drink({ type }) {
   if (type === 'margarita') {
@@ -189,6 +193,7 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
   const handDrink = useRef();
   const restDrink = useRef();
   const tabletRef = useRef();
+  const handRef = useRef();
   const zzzRef = useRef();
   const pulseStart = useRef(null);
   const cur = useRef(null);
@@ -259,7 +264,7 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
       pos.set(c.x, c.y, c.z);
       curRaised.current = false;
       g.rotation.y = lerpAngle(g.rotation.y, c.heading, Math.min(1, dt * 8));
-      walking = true;
+      walking = !c.ride; // riding in a boat: sit still
     } else {
       const dx = home.x - pos.x;
       const dz = home.z - pos.z;
@@ -284,7 +289,8 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
 
     const lying = !walking && mode === 'hammock';
     const lounging = !walking && mode === 'lounge';
-    labelState.positions.set(bot.id, { x: pos.x, y: pos.y, z: pos.z, labelY: (lying ? 0.95 : lounging ? 1.15 : 1.42) * BOT_SCALE, name: bot.name });
+    const seated = !walking && mode === 'seat';
+    labelState.positions.set(bot.id, { x: pos.x, y: pos.y, z: pos.z, labelY: (lying ? 0.95 : lounging ? 1.15 : seated ? 1.55 : 1.42) * BOT_SCALE, name: bot.name });
 
     // Pose
     let lift = 0;
@@ -294,7 +300,7 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
     h.rotation.set(0, 0, 0);
     feet[0].current.position.z = 0;
     feet[1].current.position.z = 0;
-    const eyeScale = lying && sleeping ? 0.18 : 1;
+    const eyeScale = (lying || seated) && sleeping ? 0.18 : 1;
     eyes[0].current.scale.y = eyeScale;
     eyes[1].current.scale.y = eyeScale;
 
@@ -310,6 +316,21 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
       p.position.set(0, 0.34, 0.35);
       h.rotation.y = Math.sin(t * 0.3) * 0.35;
       h.rotation.x = 0.35;
+    } else if (seated) {
+      // sitting back in a chair, feet forward, mai tai in hand
+      p.rotation.x = -0.18;
+      p.position.set(0, 0.2, 0.04);
+      feet[0].current.position.z = 0.12;
+      feet[1].current.position.z = 0.12;
+      if (sleeping) {
+        h.rotation.x = 0.35;
+        h.rotation.z = 0.15;
+      } else {
+        h.rotation.y = Math.sin(t * 0.35) * 0.4; // taking in the view
+        const cyc = (t * 0.14) % 1;
+        sip = cyc > 0.82 ? Math.sin(((cyc - 0.82) / 0.18) * Math.PI) : 0;
+        h.rotation.x = -sip * 0.3;
+      }
     } else if (lying) {
       p.rotation.z = Math.PI / 2;
       p.position.set(0.48, 0.42, 0);
@@ -360,6 +381,24 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
         } else if (k >= 1) botFx.cheer.delete(bot.id);
       }
     }
+    // Photo booth: wave at the camera with a little bounce.
+    let waveK = -1;
+    const wv = botFx.wave.get(bot.id);
+    if (wv !== undefined) {
+      const k = (fx - wv) / WAVE_SECONDS;
+      if (k >= 0 && k < 1) {
+        waveK = k;
+        if (animate && !lying) {
+          lift += Math.abs(Math.sin(k * Math.PI * 3)) * 0.06;
+          h.rotation.z = Math.sin(k * Math.PI * 4) * 0.12;
+        }
+      } else if (k >= 1) botFx.wave.delete(bot.id);
+    }
+    if (handRef.current) {
+      const show = waveK >= 0 && !lying && !lounging;
+      handRef.current.visible = show;
+      if (show) handRef.current.rotation.z = 0.5 + (animate ? Math.sin(waveK * Math.PI * 10) * 0.45 : 0);
+    }
     p.position.y += lift;
 
     // Drink: in hand while standing or walking, resting on the bot when lying back.
@@ -384,7 +423,7 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
       if (animate) lanternRef.current.scale.setScalar(1 + Math.sin(clock * 7 + phase) * 0.06 + Math.sin(clock * 11.3) * 0.04);
     }
     if (zzzRef.current) {
-      const show = lying && sleeping ? '' : 'none';
+      const show = (lying || seated) && sleeping ? '' : 'none';
       if (zzzRef.current.style.display !== show) zzzRef.current.style.display = show;
     }
 
@@ -445,6 +484,11 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
           <mesh ref={feet[1]} geometry={GEO.foot} material={MAT.foot} position={[0.08, 0.06, 0]} />
           <mesh geometry={GEO.body} material={bodyMat} position={[0, 0.38, 0]} />
           {isClaude && <Lei />}
+          {/* waving arm, only shown in the photo booth */}
+          <group ref={handRef} position={[-0.17, 0.48, 0.04]} visible={false}>
+            <mesh geometry={GEO.arm} material={bodyMat} position={[0, 0.16, 0]} />
+            <mesh geometry={GEO.hand} material={MAT.face} position={[0, 0.34, 0]} />
+          </group>
           <group ref={head} position={[0, 0.74, 0]}>
             <mesh geometry={GEO.head} material={MAT.face} position={[0, 0.04, 0]} />
             <mesh ref={eyes[0]} geometry={GEO.eye} material={MAT.eye} position={[-0.07, 0.06, 0.165]} />
@@ -496,12 +540,12 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
           }}
         />
 
-        <Html position={[0, mode === 'hammock' ? 0.95 : mode === 'lounge' ? 1.15 : 1.42, 0]} center zIndexRange={[10, 0]} pointerEvents="none">
+        <Html position={[0, mode === 'hammock' ? 0.95 : mode === 'lounge' ? 1.15 : mode === 'seat' ? 1.55 : 1.42, 0]} center zIndexRange={[10, 0]} pointerEvents="none">
           <div ref={labelRef} className={`bot-tag${selected ? ' is-selected' : ''}`} style={{ opacity: 0, borderColor: bot.color }}>
             {bot.name}
           </div>
         </Html>
-        {sleeping && mode === 'hammock' && (
+        {sleeping && (mode === 'hammock' || mode === 'seat') && (
           <Html position={[-0.2, 1.25, 0]} center zIndexRange={[9, 0]} pointerEvents="none">
             <div ref={zzzRef} className="zzz" aria-hidden="true" style={{ display: 'none' }}>
               <span>Z</span>

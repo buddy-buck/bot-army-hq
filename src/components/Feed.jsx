@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { timeAgo } from '../utils/ticker.js';
 import { countdown, formatTimePT } from '../utils/time.js';
 
-// Activity panel: starts as a slim chip at the bottom left, opens to a side
-// drawer with three tabs.
+// Activity panel: starts as a slim chip at the bottom left and opens in
+// place to a compact panel (at most 30% of the screen tall, about five lines
+// visible, scroll for more). New lines slide in at the top. Three tabs:
 //   Past : real feed entries from the last 24 hours, with PT time and bot
 //   Now  : bots whose status is "working". Tap to fly to them.
 //   Next : the optional nextUp array [{ bot, job, at }], soonest first, with
@@ -51,7 +52,7 @@ function FlyIcon() {
   );
 }
 
-function PastLine({ item, bot, toBot, now }) {
+function PastLine({ item, bot, toBot, now, isNew }) {
   const body = (
     <>
       <span className="feed-dot" style={{ background: bot.color }} aria-hidden="true" />
@@ -65,9 +66,9 @@ function PastLine({ item, bot, toBot, now }) {
         )}{' '}
         {item.text}
         {item.minutes != null && <span className="gain feed-gain">+{item.minutes} min</span>}
-        <span className="feed-time">
-          {formatTimePT(item.at)} PT &middot; {timeAgo(item.at, now)}
-        </span>
+      </span>
+      <span className="feed-when" title={`${formatTimePT(item.at)} PT`}>
+        {timeAgo(item.at, now)}
       </span>
       {item.url && (
         <svg className="feed-go" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
@@ -77,7 +78,7 @@ function PastLine({ item, bot, toBot, now }) {
     </>
   );
   return (
-    <li>
+    <li className={isNew ? 'is-new' : undefined}>
       {item.url ? (
         <a className="feed-line is-link" href={item.url} target="_blank" rel="noopener noreferrer">
           {body}
@@ -111,6 +112,23 @@ export default function Feed({ feed, bots, walks, nextUp, minutesSaved, onFlyBot
 
   const byId = Object.fromEntries(bots.map((b) => [b.id, b]));
   const past = pastItems(feed, minutesSaved?.recent, now).filter((f) => byId[f.bot]);
+  const lineKey = (item) => `${item.bot}|${item.at}|${item.text}`;
+
+  // Lines that arrive while the panel is open slide in at the top.
+  const seen = useRef(null);
+  const bodyRef = useRef();
+  useEffect(() => {
+    if (!open) {
+      seen.current = null;
+      return;
+    }
+    const keys = past.map(lineKey);
+    if (seen.current === null) {
+      seen.current = new Set(keys);
+      return;
+    }
+    if (keys.some((k) => !seen.current.has(k)) && bodyRef.current && bodyRef.current.scrollTop < 60) bodyRef.current.scrollTop = 0;
+  });
   const working = bots.filter((b) => b.status === 'working');
   const next = upcoming(nextUp, now).filter((n) => byId[n.bot]);
   const walking = walks?.[0];
@@ -159,18 +177,18 @@ export default function Feed({ feed, bots, walks, nextUp, minutesSaved, onFlyBot
   return (
     <section className="feed panel is-open" aria-label="Team activity">
       <div className="feed-top">
-        <h2 className="feed-h">Team activity</h2>
-        <button type="button" className="card-close feed-close" onClick={() => setOpen(false)} aria-label="Close team activity">
+        <h2 className="feed-h">Activity</h2>
+        <div className="tabs" role="tablist" aria-label="Past, now and next">
+          {TABS.map(([key, label, n]) => (
+            <button key={key} type="button" role="tab" aria-selected={tab === key} className={`tab${tab === key ? ' is-on' : ''}`} onClick={() => setTab(key)}>
+              {label}
+              <span className="tab-n">{n}</span>
+            </button>
+          ))}
+        </div>
+        <button type="button" className="feed-close" onClick={() => setOpen(false)} aria-label="Close team activity">
           ×
         </button>
-      </div>
-      <div className="tabs" role="tablist" aria-label="Past, now and next">
-        {TABS.map(([key, label, n]) => (
-          <button key={key} type="button" role="tab" aria-selected={tab === key} className={`tab${tab === key ? ' is-on' : ''}`} onClick={() => setTab(key)}>
-            {label}
-            <span className="tab-n">{n}</span>
-          </button>
-        ))}
       </div>
       {walking && (
         <div className="feed-walk" aria-live="polite">
@@ -180,14 +198,21 @@ export default function Feed({ feed, bots, walks, nextUp, minutesSaved, onFlyBot
           </span>
         </div>
       )}
-      <div className="feed-body" role="tabpanel">
+      <div className="feed-body" role="tabpanel" ref={bodyRef}>
         {tab === 'past' &&
           (past.length === 0 ? (
             <p className="feed-empty">{"All quiet. The team is chillin'."}</p>
           ) : (
             <ul className="feed-list">
-              {past.map((item, i) => (
-                <PastLine key={`${item.bot}-${item.at}-${i}`} item={item} bot={byId[item.bot]} toBot={item.to ? byId[item.to] : null} now={now} />
+              {past.map((item) => (
+                <PastLine
+                  key={lineKey(item)}
+                  item={item}
+                  bot={byId[item.bot]}
+                  toBot={item.to ? byId[item.to] : null}
+                  now={now}
+                  isNew={!!seen.current && !seen.current.has(lineKey(item))}
+                />
               ))}
             </ul>
           ))}

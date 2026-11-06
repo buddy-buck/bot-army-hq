@@ -1,5 +1,29 @@
 # Changelog
 
+## Island Wild Ideas
+
+1. **Claude's commute.** When the status turns working, Claude walks from the tower to the zone the work is about (pier for builds, cabana for content, lanai for real estate) and back up when idle. (A first version used a speedboat; Claude now lives in the tower, so it walks.)
+2. **Weather events.** 5-second thunderstorm over the pier (`feed[].type: "shipped"`), rainbow (`"fantasy_win"`) and double rainbow (every round thousand minutes). One at a time. `?weather=test` cycles them.
+3. **Buddy flies over.** Once per session, a BB seaplane with a "Buck's Island" banner.
+4. **Campfire mode.** 9 PM to 6 AM: working bots gather at a campfire with thought bubbles; everyone else sleeps (sleeping now starts at 9 PM instead of 10 PM).
+5. **Message in a bottle.** First visit only; tap for a note from Chief.
+6. **Treasure chest.** A new spot every day; tap for a Nasty line.
+7. **Echo surfs** past the island every 3 to 5 minutes.
+8. **Delivery drones** for handoffs between far-apart zones, one at a time.
+9. **Buddy's dock office.** A BB houseboat at the pier; tap for the minutes drawer.
+10. **Photo booth.** Tap the beach camera for a clean group shot with the UI hidden.
+
+11. **Sun redesign.** A faceted glowing sun with soft layered glow and two rings of tapered rays. Golden hour stretches the rays and turns them orange; near sunrise and sunset the sun dips and blooms pink-orange. The moon is a faceted silver crescent. The sun fades out when you zoom in on a zone.
+12. **Open-air Chief's Tower.** Bamboo legs with cross braces, a wide deck, a low rail, a see-through thatched canopy on tall posts, string lights, two chairs, a little table and a brass telescope.
+13. **Claude lives in the tower** next to Chief. The guest bungalow is gone; `guestdesk` now means `tower`.
+14. **Content Cabana split.** A wider cabana with six workstations inside (Spin, Caption, Poster, Cue, Download, Desk) and a beach patio with loungers and umbrellas next door (Echo, Slide, Stamp, Scout-Local, Vibe).
+15. **Compact activity panel.** Opens in place under the score, at most 30% of the screen tall, about five lines visible with scroll for more; new lines slide in at the top.
+16. **Buddy's cruiser.** Launch's Pier is longer and wider, with a low-poly cabin cruiser (blue hull, gold trim, flybridge) that bobs and rocks.
+17. **Flo's bungalow** turns to face the water and the sunset, with a porch, Flo's chair, planters and flowers.
+18. **Bigger island.** The footprint is 20% larger and every zone is spread out to match. Building and bot sizes are unchanged.
+
+Also: one travel animation at a time (drone, plane, surfer) and one weather effect at a time. These timed extras only advance while the island is actually on screen, so nothing plays unseen in a background tab.
+
 ## Island Round 3
 
 1. **No more blue blobs.** The far-ocean disk sat at y=-0.12 and poked through wave troughs (down to about -0.15). It now sits at y=-0.4.
