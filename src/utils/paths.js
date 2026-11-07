@@ -62,7 +62,8 @@ export const DECKS = [
   { id: 'lanai', x0: 12.8, x1: 18.2, z0: -1.0, z1: 3.4, y: 0.62, ramp: { side: 'x0', len: 0.9, z0: 0.6, z1: 1.8 } },
   { id: 'dock', x0: -22.0, x1: -12.4, z0: 4.35, z1: 6.35, y: 0.45, ramp: { side: 'x1', len: 0.8, z0: 4.35, z1: 6.35 } },
   { id: 'floWalk', x0: 13.4, x1: 17.0, z0: -7.0, z1: -6.1, y: 0.62, ramp: { side: 'x0', len: 0.9, z0: -7.0, z1: -6.1 } },
-  { id: 'floDeck', x0: 17.0, x1: 21.4, z0: -8.6, z1: -4.4, y: 0.62 },
+  // Villa on the north half, sun deck (glass floor, loungers, Flo's chair) south and east.
+  { id: 'floDeck', x0: 17.0, x1: 22.0, z0: -9.6, z1: -4.4, y: 0.62 },
 ];
 export const DOCK = DECKS[1];
 export const LANAI = DECKS[0];
@@ -106,7 +107,7 @@ export const ZONES = {
   tikihut: { label: 'Networking Tiki Hut', x: 0.6, z: 8.2, entry: [2.9, 6.6], labelY: 3.3, bend: 0.5 },
   moneydesk: { label: 'Money Desk', x: -11.4, z: 0.6, entry: [-10.0, 1.8], labelY: 2.3, bend: -0.5 },
   dock: { label: "Launch's Pier", x: -16.2, z: 5.35, entry: [-12.0, 5.35], labelY: 2.2, bend: 0.6 },
-  bungalow: { label: "Flo's Bungalow", x: 19.2, z: -6.5, entry: [12.6, -7.0], labelY: 3.0, bend: 1.6 },
+  bungalow: { label: "Flo's Bungalow", x: 19.6, z: -6.6, entry: [12.6, -6.55], labelY: 3.4, bend: 1.6 },
   lookout: { label: 'Research Lookout', x: 6.2, z: -3.6, entry: [6.2, -1.2], labelY: 3.6, bend: 0.5 },
   beachchair: { label: "Nasty's Chair", x: 10.3, z: 7.2, entry: [9.1, 5.9], labelY: 2.0, bend: -0.6 },
 };
@@ -121,15 +122,15 @@ export const SITES = {
   watchtower: { x: 13.2, z: 6.2, r: 1.6, rotY: 2.2 }, // south-east beach, looking out to sea
   visitor: { x: -8.6, z: 11.0, r: 2.6, rotY: 0.3 }, // Visitor Center, south-west
   tikibar: { x: 5.0, z: 12.4, r: 2.4, rotY: -0.2 }, // Tiki bar with stools, south
-  foodtruck: { x: -0.6, z: 13.2, r: 2.2, rotY: 0 }, // food truck; the line forms to its west
-  volleyball: { x: 9.6, z: 12.0, r: 3.0, rotY: 0.55, w: 4.4, d: 2.6 }, // court, net along local x = 0
-  dj: { x: 0.9, z: -9.0, r: 1.6, rotY: 2.9 }, // DJ booth by the Cabana Patio (the social media crew)
+  foodtruck: { x: -0.6, z: 12.0, r: 2.2, rotY: 0 }, // food truck; the line forms to its west
+  volleyball: { x: 8.82, z: 10.72, r: 3.0, rotY: 0.55, w: 4.4, d: 2.6 }, // court, net along local x = 0
+  dj: { x: 0.9, z: -9.0, r: 1.6, rotY: -0.6 }, // DJ booth by the Cabana Patio (the social media crew), facing the patio and the camera
   hammock: { x: -11.6, z: 8.2, r: 1.8, rotY: 0.5 }, // two palms with a hammock and a napping bot
   picnic: { x: -3.8, z: 10.2, r: 1.6, rotY: 0.2 }, // picnic table: arm wrestling
   pushups: { x: 2.0, z: 10.8, r: 0.9, rotY: -0.4 },
-  selfie: { x: 1.8, z: 15.0, r: 0.9, rotY: Math.PI }, // on the south beach, back to the water
-  sandcastle: { x: -3.6, z: 15.0, r: 1.2, rotY: 0 },
-  beachwalk: { x: -6.0, z: 14.4, x1: 6.0, z1: 14.4, r: 0 }, // a stroll along the south beach (trip / help, high fives)
+  selfie: { x: -6.2, z: 13.9, r: 0.9, rotY: Math.PI }, // on the south beach, back to the water
+  sandcastle: { x: -3.4, z: 14.5, r: 1.2, rotY: 0 },
+  beachwalk: { x: -0.8, z: 14.0, x1: 6.8, z1: 14.0, r: 0 }, // a stroll along the south beach (trip / help, high fives)
   fishing: { x: -21.4, z: 6.1, r: 0, rotY: 0 }, // end of Launch's Pier, south edge, facing +z
 };
 
@@ -142,7 +143,7 @@ export const PATIO_BOTS = new Set(['echo', 'slide', 'stamp', 'scout-local', 'vib
 // Flo's overwater bungalow: its glass-floored porch faces east, out over the
 // lagoon toward the sunrise. (Rotation is about +y; 0 means the porch faces +z.)
 export const BUNGALOW_ROT = Math.PI / 2;
-const bungalowFront = (d) => ({ x: ZONES.bungalow.x + Math.sin(BUNGALOW_ROT) * d, z: ZONES.bungalow.z + Math.cos(BUNGALOW_ROT) * d });
+export const bungalowFront = (d) => ({ x: ZONES.bungalow.x + Math.sin(BUNGALOW_ROT) * d, z: ZONES.bungalow.z + Math.cos(BUNGALOW_ROT) * d });
 
 export const TEAM_ZONE = {
   leadership: 'tower',
@@ -254,9 +255,10 @@ const SLOT_RULES = {
   bungalow: (n) => {
     // on the porch, enjoying the view
     const f = bungalowFront(1.55);
-    const porch = n ? [{ x: f.x, z: f.z, y: FLO_DECK.y + 0.04, rotY: BUNGALOW_ROT, fixedRot: true, seat: true }] : [];
-    // anyone else at Flo's stands on the deck around the bungalow
-    return porch.concat(arc(ZONES.bungalow.x, ZONES.bungalow.z, 1.7, 200, 340, Math.max(0, n - 1)));
+    const porch = n ? [{ x: f.x, z: f.z, y: FLO_DECK.y, rotY: BUNGALOW_ROT, fixedRot: true, seat: true }] : [];
+    // anyone else at Flo's stands on the sun deck south of the villa (the
+    // villa itself fills the north half of the platform), some on the glass floor
+    return porch.concat(arc(ZONES.bungalow.x, ZONES.bungalow.z, 1.4, 50, 130, Math.max(0, n - 1)).map((p) => ({ ...p, y: FLO_DECK.y })));
   },
   lookout: (n) => grid(ZONES.lookout.x, ZONES.lookout.z, 2, 0.75, 0.6, n).map((p) => ({ ...p, y: lookoutTopY(), raised: true })),
   beachchair: (n) => [{ x: ZONES.beachchair.x, z: ZONES.beachchair.z, lounge: true }, ...arc(ZONES.beachchair.x, ZONES.beachchair.z, 1.5, 200, 340, Math.max(0, n - 1))],
@@ -265,14 +267,15 @@ const SLOT_RULES = {
 // Night campfire on open ground on the south-west side of the island.
 export const CAMPFIRE = { x: -7.8, z: 6.2 };
 
-// Seats around the campfire, inner ring first. Each spot is on land, clear
-// of palms, decks and zone stations, and faces the fire.
+// Seats (stumps) around the campfire, inner ring first, about 0.9 apart so
+// the bots have elbow room. Each spot is on land, clear of palms, decks and
+// zone stations, and faces the fire.
 let campfireSpotCache = null;
 export function campfireSpots() {
   if (campfireSpotCache) return campfireSpotCache;
   const out = [];
-  for (const r of [1.85, 2.55, 3.25]) {
-    const n = Math.floor((2 * Math.PI * r) / 0.62);
+  for (const r of [2.4, 3.3, 4.2]) {
+    const n = Math.floor((2 * Math.PI * r) / 0.9);
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2 + r;
       const x = CAMPFIRE.x + Math.cos(a) * r;

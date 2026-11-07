@@ -1,5 +1,74 @@
 # Changelog
 
+## Island Mega Upgrade
+
+The island grew (north and south) and filled up. Everything below is low-poly, matches the existing bot style, and only plays while the island is on screen. `?rare=test` makes the rare sights come around every 20 to 40 seconds so they can be checked.
+
+**Water and ocean**
+1. **Real waves.** Gerstner waves (they roll sideways as well as up and down): calm in the lagoon, choppier offshore with faint whitecaps.
+2. **Foam on the beach.** Waves wash up the sand with a ragged white edge, leave wet sand and slide back, at different times along the coast.
+3. **Bioluminescence.** At night the shoreline glows cyan, and the water lights up around bots out over the water, around moving boats and in their wakes.
+4. **Ripples.** Expanding rings with a bright crest that ride the waves (turtles, fish, the fishing bot's catch).
+5. **V-shaped wakes** behind every boat (and the shark fins), bending through turns.
+6. **Fish schools dart away** when a boat or shark gets close, then regroup.
+7. **Sea turtles** (two) surface, poke their heads up to breathe and dive again.
+8. **Dolphins** leap in pairs far out, in sync, during the day.
+9. **Whale.** About every 10 minutes in daylight a humpback breaches near the horizon, crashes down, blows and dives with its flukes up.
+
+**Boats**
+10. **Jet ski.** Echo's surfboard is now a jet ski with a rooster-tail spray, carving S-turns behind the island every 3 to 5 minutes.
+11. **Sailboat** circling far out with a bot lounging on deck, reading a tablet.
+12. **Glass-bottom tour boat** with tourists, a guide pointing things out, and fish swimming under the glass.
+13. **Tugboat** pulling a barge of "PROMPTS" crates to Launch's Pier every few minutes, smoke puffing.
+
+**Sky and atmosphere**
+14. **Hot air balloons** with a bot-face logo and a waving passenger.
+15. **Pelicans** fly over in a V.
+16. **Shooting stars** at night, and a **fireworks** show every few minutes after dark (some bursts make a bot face).
+17. **Bot cloud.** Now and then a cloud turns into a bot, waves, and drifts apart.
+18. **Northern lights** (rare, at night) and a **UFO** (rare, at night, with a tractor beam).
+19. **Rainbows** now also appear on their own after a passing shower.
+20. **Sunrise and sunset** have 15 color key frames, from pre-dawn blue to blue hour, and the sky glows toward the sun at dawn and dusk.
+21. Buddy's banner seaplane is unchanged.
+
+**Buildings**
+22. **Lighthouse** on the north-west point, with a sweeping beam at night. Tap it for a foghorn (made in the browser, no audio file).
+23. **Launch's Pier** has a rowboat, a runabout and a catamaran tied up, and a hand-painted "Welcome to Bot Island" sign.
+24. **Watchtower** on the south-east beach, with a bot scanning the horizon through binoculars.
+25. **Airstrip** ("BOT AIR") on the back of the island: a prop plane lands every few minutes and new recruits climb out and walk in, waving.
+26. **Helipad** on Chief's Tower. A helicopter lifts off every few minutes, circles the island and lands.
+27. **Visitor Center** with a counter of bots deployed worldwide that ticks up, and greeters holding "Welcome!", "Aloha!" and "Hi there!" signs.
+28. **Flo's overwater villa.** Flo's bungalow moved out over the lagoon on a boardwalk: a steep thatched roof, glass doors, a plunge pool, loungers, a ladder into the water and a glass floor with fish and coral underneath.
+
+**Island life**
+29. **Tiki bar** with stools, a bartender and regulars who clink glasses.
+30. **Food truck** ("Bytes & Bites") with a line that moves up; each bot walks off with a taco or a shave ice.
+31. **Hammock** between two palms with a napping bot and floating Z's.
+32. **Volleyball**: two against two with serves, sets and spikes.
+33. **DJ booth** by the Cabana Patio with spinning decks, pulsing speakers, lights and floating music notes.
+34. **Waiters** carry trays of drinks to the patio loungers and Nasty's Chair.
+35. **Campfire.** Bots spread out over three rings, sit on stumps and keep working on tablets and laptops.
+
+**Bot personality**
+36. **High fives** when two bots pass each other (with a little star burst).
+37. A bot on the beach **trips**, and its friend helps it up.
+38. **Arm wrestling** at a picnic table, with a spectator.
+39. **Push-ups** with a rep counter, then a flex.
+40. **Selfie** on the beach with a flash and a little instant photo.
+41. **Fishing** off the end of Launch's Pier: now and then a fish (or a boot, or a tiny chest) comes up and goes back with a splash.
+42. **Sandcastle** that grows a piece at a time through the day (saved for the day), until a wave washes it away.
+
+**Easter eggs**
+43. **Message in a bottle.** Chief's welcome still comes first. After that a bottle washes up on the south beach every so often with a note from one of the bots.
+44. **Treasure chest** glows gold when it opens and now holds useful bot tips and Build Your Own Bot ("BYOB") facts.
+
+**Under the hood**
+- The island is 45% longer north to south. `SITES` in `paths.js` reserves a spot for every new landmark; palms, flowers, hammocks and campfire seats keep clear of them.
+- `MiniBot` draws the extra bots with the real bots' own geometry and materials, so they look the same. Extras can't be tapped.
+- `world.js` is a shared boat registry: wakes, fleeing fish and the night glow all read it.
+- `StaticMerge` bakes scenery that never moves into a few draw calls (the island went from about 2,500 draw calls a frame to about 1,400). Moving parts opt out.
+- Reduced motion shows a still island with all the new buildings and no moving extras. Low-power devices get fewer extras and particles.
+
 ## Island Wild Ideas
 
 1. **Claude's commute.** When the status turns working, Claude walks from the tower to the zone the work is about (pier for builds, cabana for content, lanai for real estate) and back up when idle. (A first version used a speedboat; Claude now lives in the tower, so it walks.)

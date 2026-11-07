@@ -1,9 +1,23 @@
-// Boats agent: sailboat with a reading bot, glass-bottom tour boat, tugboat pulling a barge of prompt crates.
-// Mounted in App.jsx inside the Canvas. Props: { sky, animate, lowPower, bots, layout }
-//   sky: useSunPosition() output (sky.stars 0..1 = how dark it is, sky.phase, sky.hour)
-//   animate: false under reduced motion: draw a still frame (or nothing for pure motion)
-//   lowPower: phones and ?lite=1: fewer particles and extras
-//   bots / layout: the scene bots and their layout from paths.js layoutBots
-export default function Boats() {
-  return null;
+import Sailboat from './boats/Sailboat.jsx';
+import TourBoat from './boats/TourBoat.jsx';
+import Tugboat from './boats/Tugboat.jsx';
+
+// Boats around the island (Echo's jet ski lives in Surfer.jsx):
+//   Sailboat: always out there, circling r 41-53, a bot reading a tablet on deck
+//   Glass-bottom tour boat: loops r ~29 (wide around the west pier), pauses now and then
+//   Tugboat + barge of PROMPT crates: in to Launch's Pier every few minutes
+// Every hull registers itself in world.boats each frame (ids: sailboat,
+// tourboat, tugboat, barge; the jet ski is jetski) so the water can draw
+// wakes, fish can scatter and the night water can glow around them.
+// Mounted in App.jsx only when motion is allowed.
+//   Props: { sky, animate, lowPower, bots, layout }
+export default function Boats({ sky, animate = true, lowPower = false }) {
+  if (!animate) return null;
+  return (
+    <group>
+      <Sailboat sky={sky} lowPower={lowPower} />
+      <TourBoat sky={sky} lowPower={lowPower} />
+      <Tugboat sky={sky} lowPower={lowPower} />
+    </group>
+  );
 }

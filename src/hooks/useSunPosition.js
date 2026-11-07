@@ -3,38 +3,79 @@ import * as THREE from 'three';
 
 // Sky and light palette driven by the time in Duvall, WA (America/Los_Angeles).
 //   Sunrise 5-7 AM, Day 7 AM-5 PM, Golden hour 5-7 PM, Night 7 PM-5 AM.
+//   (Phase labels; the colors ease through finer key frames, see KEYS.)
 // For testing, add ?hour=21 (or any 0-24 value) to the URL.
 
 const TZ = 'America/Los_Angeles';
 
+// Key frames. Each one is a full palette; skyForHour eases between the two
+// around the current hour with a smoothstep, so dawn and dusk roll through
+// pre-dawn blue, pink, orange, gold, red-orange, violet and blue hour.
+//   glow / glowI: the horizon glow toward the sun (sunrise and sunset).
 const NIGHT = {
   top: '#0b1433', horizon: '#25356b', fog: '#1a2550',
   sun: '#b4c4ff', sunI: 0.8, hemiSky: '#5f74b8', hemiGround: '#1f2944', hemiI: 1.0,
-  water: '#7f97c4', cloud: '#56628a', stars: 1,
+  water: '#7f97c4', cloud: '#56628a', stars: 1, glow: '#3a4a8a', glowI: 0,
+};
+const PREDAWN = {
+  top: '#1c2a5c', horizon: '#5a6aa8', fog: '#46558e',
+  sun: '#b9c2ff', sunI: 0.9, hemiSky: '#7a88c8', hemiGround: '#2a3150', hemiI: 1.0,
+  water: '#a3b2dc', cloud: '#7a84b4', stars: 0.65, glow: '#8f86d8', glowI: 0.35,
+};
+const DAWN = {
+  top: '#6f74b8', horizon: '#f2a6c0', fog: '#e2b0c8',
+  sun: '#ffb0c0', sunI: 1.2, hemiSky: '#f0c8dc', hemiGround: '#5e5470', hemiI: 1.0,
+  water: '#ffe4f0', cloud: '#f7c2d6', stars: 0.3, glow: '#ff9ec0', glowI: 0.8,
 };
 const SUNRISE = {
   top: '#d99ac4', horizon: '#ffb27f', fog: '#f6c3a8',
   sun: '#ffb98f', sunI: 1.6, hemiSky: '#ffd6c8', hemiGround: '#7b6a78', hemiI: 1.0,
-  water: '#fff0ee', cloud: '#ffd0d8', stars: 0.1,
+  water: '#fff0ee', cloud: '#ffd0d8', stars: 0.08, glow: '#ffa060', glowI: 1,
+};
+const MORNING = {
+  top: '#6aa6e8', horizon: '#ffe0c0', fog: '#f4e6d8',
+  sun: '#ffe2c0', sunI: 2.0, hemiSky: '#f0eeff', hemiGround: '#8cb07a', hemiI: 1.15,
+  water: '#fffaf4', cloud: '#fff2ea', stars: 0, glow: '#ffd2a0', glowI: 0.45,
 };
 const DAY = {
   top: '#3d8fe8', horizon: '#c4ebff', fog: '#cdeeff',
   sun: '#fff4e0', sunI: 2.3, hemiSky: '#e6f5ff', hemiGround: '#8cbf74', hemiI: 1.25,
-  water: '#ffffff', cloud: '#ffffff', stars: 0,
+  water: '#ffffff', cloud: '#ffffff', stars: 0, glow: '#fff6e0', glowI: 0.12,
+};
+const LATE_GOLD = {
+  top: '#7fa0d8', horizon: '#ffe6a6', fog: '#fbe8c0',
+  sun: '#ffd890', sunI: 2.15, hemiSky: '#fff0d0', hemiGround: '#8fb070', hemiI: 1.15,
+  water: '#fff6e8', cloud: '#fff0d4', stars: 0, glow: '#ffd27a', glowI: 0.5,
 };
 const GOLDEN = {
   top: '#e0955a', horizon: '#ffd77e', fog: '#ffdca0',
   sun: '#ffbe6a', sunI: 2.0, hemiSky: '#ffe2b8', hemiGround: '#8a7650', hemiI: 1.05,
-  water: '#fff1e2', cloud: '#ffe0b8', stars: 0,
+  water: '#fff1e2', cloud: '#ffe0b8', stars: 0, glow: '#ffb050', glowI: 0.85,
+};
+const SUNSET = {
+  top: '#c27aa6', horizon: '#ff9a6a', fog: '#f8b392',
+  sun: '#ff9a62', sunI: 1.6, hemiSky: '#ffc8b0', hemiGround: '#7a5c62', hemiI: 1.0,
+  water: '#ffe2d6', cloud: '#ffbca8', stars: 0.05, glow: '#ff6a40', glowI: 1,
+};
+const DUSK = {
+  top: '#5a5aa6', horizon: '#d88ab8', fog: '#b98ab8',
+  sun: '#e0a0d0', sunI: 1.15, hemiSky: '#c0a6dc', hemiGround: '#463e60', hemiI: 1.0,
+  water: '#e6d0f0', cloud: '#c39ac8', stars: 0.35, glow: '#ff7aa0', glowI: 0.7,
+};
+const BLUE_HOUR = {
+  top: '#1c2a64', horizon: '#4a5aa6', fog: '#3a4882',
+  sun: '#b0bcff', sunI: 0.9, hemiSky: '#6a7cc4', hemiGround: '#252c4c', hemiI: 1.0,
+  water: '#9aaad8', cloud: '#6a74a6', stars: 0.75, glow: '#7a6ac8', glowI: 0.3,
 };
 
 const KEYS = [
-  [0, NIGHT], [4.8, NIGHT], [6, SUNRISE], [7.2, DAY],
-  [16.8, DAY], [18, GOLDEN], [19.2, NIGHT], [24, NIGHT],
+  [0, NIGHT], [4.5, NIGHT], [5.15, PREDAWN], [5.65, DAWN], [6.15, SUNRISE], [6.9, MORNING], [7.8, DAY],
+  [16.3, DAY], [17.1, LATE_GOLD], [17.7, GOLDEN], [18.15, SUNSET], [18.65, DUSK], [19.2, BLUE_HOUR], [20.0, NIGHT], [24, NIGHT],
 ];
 
-const COLOR_FIELDS = ['top', 'horizon', 'fog', 'sun', 'hemiSky', 'hemiGround', 'water', 'cloud'];
-const NUM_FIELDS = ['sunI', 'hemiI', 'stars'];
+const COLOR_FIELDS = ['top', 'horizon', 'fog', 'sun', 'hemiSky', 'hemiGround', 'water', 'cloud', 'glow'];
+const NUM_FIELDS = ['sunI', 'hemiI', 'stars', 'glowI'];
+const smooth = (t) => t * t * (3 - 2 * t);
 
 export function getLAHour(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -67,7 +108,7 @@ export function skyForHour(hour) {
   while (i < KEYS.length - 2 && h >= KEYS[i + 1][0]) i++;
   const [h0, a] = KEYS[i];
   const [h1, b] = KEYS[i + 1];
-  const t = h1 > h0 ? Math.min(1, Math.max(0, (h - h0) / (h1 - h0))) : 0;
+  const t = h1 > h0 ? smooth(Math.min(1, Math.max(0, (h - h0) / (h1 - h0)))) : 0;
   const out = {};
   const ca = new THREE.Color();
   const cb = new THREE.Color();

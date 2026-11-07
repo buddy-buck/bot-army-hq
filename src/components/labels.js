@@ -26,7 +26,8 @@ export const labelState = {
 //   cheer  : this bot just earned minutes (little spin and hop)
 //   sipHop : this bot just finished a task (happy hop and a sip)
 //   wave   : photo booth: wave at the camera
-export const botFx = { cheer: new Map(), sipHop: new Map(), wave: new Map() };
+//   highFive : bot id -> { at, x, z }: a passing bot high fives the one at (x, z)
+export const botFx = { cheer: new Map(), sipHop: new Map(), wave: new Map(), highFive: new Map() };
 export const fxNow = () => performance.now() / 1000;
 
 const v = new THREE.Vector3();

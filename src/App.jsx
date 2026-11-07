@@ -768,8 +768,12 @@ export default function App() {
   const flyTo = useCallback((zone) => setFly({ zone, n: Date.now() + Math.random() }), []);
 
   // Easter eggs.
-  const openBottle = useCallback(() => setNote({ id: Date.now(), title: CHIEF_WELCOME.title, body: CHIEF_WELCOME.body, from: CHIEF_WELCOME.from }), []);
-  const openChest = useCallback((line) => setNote({ id: Date.now(), title: "Nasty's treasure", body: [line], from: 'Nasty' }), []);
+  // The bottle hands over its note: Chief's welcome first, then drift-in notes.
+  const openBottle = useCallback((msg) => {
+    const m = msg?.body ? msg : CHIEF_WELCOME;
+    setNote({ id: Date.now(), title: m.title || CHIEF_WELCOME.title, body: m.body, from: m.from });
+  }, []);
+  const openChest = useCallback((line) => setNote({ id: Date.now(), title: 'Treasure: bot tip', body: [line], from: 'Nasty' }), []);
   const closeNote = useCallback(() => setNote(null), []);
   const openOffice = useCallback(() => setScoreOpen(true), []);
 

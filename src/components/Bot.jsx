@@ -21,6 +21,8 @@ const CLINK_PERIOD = 26; // seconds between cheers for a pair of chillin' bots
 const CLINK_LEN = 2.4;
 const WALK_SPEED = 1.3; // units per second
 export const WAVE_SECONDS = 2.4;
+export const HIGH_FIVE_SECONDS = 1.3; // hands meet at HIGH_FIVE_SLAP of the way through
+export const HIGH_FIVE_SLAP = 0.45;
 
 // GEO and MAT are shared with the ambient extras (src/wild/MiniBot.jsx), so
 // every bot on the island looks the same.
@@ -289,6 +291,18 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
     }
     g.position.copy(pos);
 
+    // High five with a passing bot (src/wild/antics/HighFives.jsx sets it):
+    // turn toward them, a little to the right so the raised left hands meet.
+    let fiveK = -1;
+    const hf = botFx.highFive.get(bot.id);
+    if (hf !== undefined) {
+      const k = (fx - hf.at) / HIGH_FIVE_SECONDS;
+      if (k >= 0 && k < 1 && animate && (walking || mode === 'chill' || mode === 'station')) {
+        fiveK = k;
+        g.rotation.y = lerpAngle(g.rotation.y, Math.atan2(hf.x - pos.x, hf.z - pos.z) + 0.4, Math.min(1, dt * 12));
+      } else if (k >= 1 || k < 0) botFx.highFive.delete(bot.id);
+    }
+
     const lying = !walking && mode === 'hammock';
     const lounging = !walking && mode === 'lounge';
     const seated = !walking && mode === 'seat';
@@ -397,9 +411,20 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
       } else if (k >= 1) botFx.wave.delete(bot.id);
     }
     if (handRef.current) {
-      const show = waveK >= 0 && !lying && !lounging;
+      const show = (waveK >= 0 || fiveK >= 0) && !lying && !lounging;
       handRef.current.visible = show;
-      if (show) handRef.current.rotation.z = 0.5 + (animate ? Math.sin(waveK * Math.PI * 10) * 0.45 : 0);
+      if (show && fiveK >= 0) {
+        // raise, slap at HIGH_FIVE_SLAP (a forward jolt and a hop), lower
+        const up = Math.min(1, fiveK / 0.3, (1 - fiveK) / 0.25);
+        const slap = Math.max(0, 1 - Math.abs(fiveK - HIGH_FIVE_SLAP) / 0.08);
+        handRef.current.rotation.set(0.25 + up * 0.35 + slap * 0.35, 0, 1.2 - up * 1.45);
+        handRef.current.scale.setScalar(Math.max(0.01, up));
+        lift += slap * 0.05;
+        h.rotation.x -= up * 0.12;
+      } else if (show) {
+        handRef.current.rotation.set(0, 0, 0.5 + (animate ? Math.sin(waveK * Math.PI * 10) * 0.45 : 0));
+        handRef.current.scale.setScalar(1);
+      }
     }
     p.position.y += lift;
 

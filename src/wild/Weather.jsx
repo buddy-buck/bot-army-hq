@@ -2,17 +2,35 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { ZONES } from '../utils/paths.js';
+import StaticMerge from '../utils/StaticMerge.jsx';
 
 // Weather events: short, 5 seconds, then clear. Only one plays at a time;
 // extra requests wait their turn (at most 3 waiting, no repeats in a row).
 //   storm  : a thundercloud over Launch's Pier (feed item with type "shipped")
 //   rainbow: a rainbow over the island (feed item with type "fantasy_win")
 //   double : a double rainbow (minutes saved crossing a round thousand)
-// ?weather=test cycles through all three. Nothing plays by default.
+//   shower : a gentle grey cloud with rain, no lightning (the sky's own
+//            "passing shower", usually followed by a rainbow)
+// ?weather=test cycles through storm, rainbow and double. Nothing plays by
+// default. The sky (SkyShow) also asks for a shower + rainbow now and then in
+// the daytime through requestAmbientWeather(), only when nothing else is
+// playing or waiting, so feed events always come first.
 
 export const WEATHER_SECONDS = 5;
 const GAP_MS = 1200;
 const KINDS = ['storm', 'rainbow', 'double'];
+const ALLOWED = [...KINDS, 'shower'];
+
+// The live weather queue, for ambient requests from inside the Canvas.
+const bus = { request: null, idle: () => false };
+
+// Queue a short sequence (e.g. ['shower', 'rainbow']) if the weather is
+// clear and nothing is waiting. Returns true if it was accepted.
+export function requestAmbientWeather(kinds) {
+  if (!bus.request || !bus.idle()) return false;
+  for (const k of kinds) bus.request(k);
+  return true;
+}
 
 export function useWeather({ enabled = true, test = false } = {}) {
   const [weather, setWeather] = useState(null);
@@ -40,7 +58,7 @@ export function useWeather({ enabled = true, test = false } = {}) {
 
   const request = useCallback(
     (kind) => {
-      if (!enabled || !KINDS.includes(kind)) return;
+      if (!enabled || !ALLOWED.includes(kind)) return;
       const q = queue.current;
       if (q.length >= 3 || q[q.length - 1] === kind) return;
       q.push(kind);
@@ -50,6 +68,19 @@ export function useWeather({ enabled = true, test = false } = {}) {
   );
 
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
+
+  useEffect(() => {
+    if (!enabled) return undefined;
+    const idle = () => !busy.current && !queue.current.length;
+    bus.request = request;
+    bus.idle = idle;
+    return () => {
+      if (bus.request === request) {
+        bus.request = null;
+        bus.idle = () => false;
+      }
+    };
+  }, [enabled, request]);
 
   // Test mode: cycle storm, rainbow, double rainbow.
   useEffect(() => {
@@ -84,17 +115,17 @@ function envelope(t) {
 const DROPS = 140;
 const PUFF = new THREE.IcosahedronGeometry(1, 0);
 
-function Storm() {
+function Storm({ gentle = false }) {
   const dock = ZONES.dock;
-  const cx = dock.x - 0.5;
-  const cz = dock.z;
-  const top = 6.2;
+  const cx = gentle ? 2.5 : dock.x - 0.5;
+  const cz = gentle ? -3 : dock.z;
+  const top = gentle ? 7 : 6.2;
   const start = useRef(null);
   const cloud = useRef();
   const rain = useRef();
   const bolt = useRef();
   const flash = useRef();
-  const cloudMat = useMemo(() => new THREE.MeshLambertMaterial({ color: '#4a5263', flatShading: true, transparent: true, opacity: 0 }), []);
+  const cloudMat = useMemo(() => new THREE.MeshLambertMaterial({ color: gentle ? '#a7afbd' : '#4a5263', flatShading: true, transparent: true, opacity: 0 }), []); // eslint-disable-line react-hooks/exhaustive-deps
   const rainMat = useMemo(() => new THREE.LineBasicMaterial({ color: '#cfe3ff', transparent: true, opacity: 0 }), []);
   const boltMat = useMemo(() => new THREE.MeshBasicMaterial({ color: '#fffbe0', transparent: true, opacity: 0, depthWrite: false, fog: false }), []);
   const flashMat = useMemo(() => new THREE.MeshBasicMaterial({ color: '#dfe8ff', transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }), []);
@@ -133,7 +164,7 @@ function Storm() {
     const t = now - start.current;
     const e = envelope(t);
     cloudMat.opacity = 0.92 * e;
-    rainMat.opacity = 0.55 * e;
+    rainMat.opacity = (gentle ? 0.4 : 0.55) * e;
     if (cloud.current) cloud.current.position.x = Math.sin(t * 0.6) * 0.15;
 
     const pos = drops.g.attributes.position;
@@ -147,7 +178,7 @@ function Storm() {
 
     // Two lightning strikes.
     const strike = (at) => (t > at && t < at + 0.16 ? 1 : t > at + 0.22 && t < at + 0.3 ? 0.6 : 0);
-    const s = Math.max(strike(1.3), strike(3.1)) * e;
+    const s = gentle ? 0 : Math.max(strike(1.3), strike(3.1)) * e;
     boltMat.opacity = s;
     flashMat.opacity = s * 0.35;
   });
@@ -158,15 +189,19 @@ function Storm() {
   return (
     <group>
       <group ref={cloud} position={[cx, top, cz]}>
-        {puffs.map(([x, y, z, s], i) => (
-          <mesh key={i} geometry={PUFF} material={cloudMat} position={[x, y, z]} scale={[s * 1.2, s * 0.75, s]} />
-        ))}
+        <StaticMerge>
+          {puffs.map(([x, y, z, s], i) => (
+            <mesh key={i} geometry={PUFF} material={cloudMat} position={[x, y, z]} scale={[s * 1.2, s * 0.75, s]} />
+          ))}
+        </StaticMerge>
       </group>
       <lineSegments geometry={drops.g} material={rainMat} frustumCulled={false} />
-      <mesh ref={bolt} geometry={boltGeo} material={boltMat} />
-      <mesh ref={flash} position={[cx, top - 1.5, cz]} material={flashMat}>
-        <sphereGeometry args={[5, 12, 8]} />
-      </mesh>
+      {!gentle && <mesh ref={bolt} geometry={boltGeo} material={boltMat} />}
+      {!gentle && (
+        <mesh ref={flash} position={[cx, top - 1.5, cz]} material={flashMat}>
+          <sphereGeometry args={[5, 12, 8]} />
+        </mesh>
+      )}
     </group>
   );
 }
@@ -227,5 +262,6 @@ function Rainbow({ double }) {
 export default function Weather({ weather }) {
   if (!weather) return null;
   if (weather.kind === 'storm') return <Storm key={weather.id} />;
+  if (weather.kind === 'shower') return <Storm key={weather.id} gentle />;
   return <Rainbow key={weather.id} double={weather.kind === 'double'} />;
 }

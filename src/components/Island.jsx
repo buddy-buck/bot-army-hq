@@ -8,6 +8,8 @@ import {
   CABANA_STATIONS,
   DECKS,
   DOCK,
+  FLO_DECK,
+  FLO_WALK,
   PATIO_LOUNGERS,
   TOWER_SEATS,
   FLOWERS,
@@ -18,15 +20,22 @@ import {
   ROCKS,
   TOWER_LEG_H,
   ZONES,
+  bungalowFront,
   groundY,
   islandE,
   islandWobble,
   ringPoints,
+  smoothstep,
   terrainY,
   zonePathCurve,
 } from '../utils/paths.js';
 import { labelState } from './labels.js';
 import { Foam, Water } from './Water.jsx';
+import StaticMerge from '../utils/StaticMerge.jsx';
+
+// Moving parts inside merged scenery (see StaticMerge).
+const NO_MERGE = { noMerge: true };
+import { claimTravel, rareGap, releaseTravel } from '../wild/director.js';
 
 // ---------------------------------------------------------------------------
 // Shared materials and geometry
@@ -307,7 +316,7 @@ function BrandLaptop({ p, index, mats, animate }) {
       <Box p={[0, 0, 0.05]} s={[0.42, 0.03, 0.28]} m={M.dark} />
       <group position={[0, 0.14, -0.1]} rotation={[-0.25, 0, 0]}>
         <Box p={[0, 0, 0]} s={[0.42, 0.28, 0.02]} m={M.dark} />
-        <mesh ref={screen} position={[0, 0, 0.0115]} geometry={SCREEN_GEO} material={mats[index % mats.length]} />
+        <mesh ref={screen} userData={NO_MERGE} position={[0, 0, 0.0115]} geometry={SCREEN_GEO} material={mats[index % mats.length]} />
       </group>
     </group>
   );
@@ -619,7 +628,7 @@ function Flag({ p, color, animate, w = 0.6, h = 0.36 }) {
   return (
     <group position={p}>
       <Cyl p={[0, 0.45, 0]} rt={0.025} h={0.9} m={M.darkWood} />
-      <group ref={ref} position={[0, 0.72, 0]}>
+      <group ref={ref} position={[0, 0.72, 0]} userData={NO_MERGE}>
         <mesh position={[w / 2, 0, 0]}>
           <boxGeometry args={[w, h, 0.02]} />
           <meshStandardMaterial color={color} flatShading side={THREE.DoubleSide} />
@@ -665,6 +674,196 @@ function TowerChair({ seat, top, cushion }) {
       {[-0.3, 0.3].map((x) => (
         <Box key={x} p={[x, 0.5, 0]} s={[0.06, 0.05, 0.46]} m={M.darkWood} />
       ))}
+    </group>
+  );
+}
+
+// Helipad on top of Chief's canopy: a round pad with the H marking and
+// edge lights that pulse softly at night. Chief's little helicopter sits on
+// it and every few minutes lifts off, circles the island once and lands.
+const PAD_R = 1.05;
+const HM = {
+  pad: std('#4a5059'),
+  padRim: std('#f5f1e6'),
+  body: std('#D63AF9'),
+  stripe: std('#ffffff'),
+  skid: std('#2e2a33'),
+  rotor: std('#26232b'),
+  glass: std('#8fd8ff', { roughness: 0.15, metalness: 0.2 }),
+};
+
+function helipadTexture() {
+  const c = document.createElement('canvas');
+  c.width = 256;
+  c.height = 256;
+  const x = c.getContext('2d');
+  x.clearRect(0, 0, 256, 256);
+  x.strokeStyle = '#ffd23f';
+  x.lineWidth = 14;
+  x.beginPath();
+  x.arc(128, 128, 104, 0, Math.PI * 2);
+  x.stroke();
+  x.setLineDash([16, 12]);
+  x.lineWidth = 5;
+  x.strokeStyle = '#ffffff';
+  x.beginPath();
+  x.arc(128, 128, 120, 0, Math.PI * 2);
+  x.stroke();
+  x.setLineDash([]);
+  x.fillStyle = '#ffffff';
+  x.font = '900 150px "Arial Black", Arial, sans-serif';
+  x.textAlign = 'center';
+  x.textBaseline = 'middle';
+  x.fillText('H', 128, 136);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}
+
+const HELI_R = 19; // circles just off the beach
+const HELI_UP = 4.2; // cruising height above the pad
+const HELI_OMEGA = (Math.PI * 2) / 32;
+const HELI_FLIGHT = 51;
+
+// Flight path at time t (seconds since takeoff), relative to the pad.
+function heliPath(t, out) {
+  const lift = smoothstep(3, 8, t) * (1 - smoothstep(40, 48, t));
+  const rr = HELI_R * smoothstep(6, 13, t) * (1 - smoothstep(36, 45, t));
+  const a = HELI_OMEGA * Math.max(0, t - 6);
+  out.x = rr * Math.cos(a);
+  out.y = lift * HELI_UP;
+  out.z = rr * Math.sin(a);
+  out.rr = rr;
+  return out;
+}
+
+function wrapAngle(a) {
+  while (a > Math.PI) a -= Math.PI * 2;
+  while (a < -Math.PI) a += Math.PI * 2;
+  return a;
+}
+
+function Helicopter({ animate }) {
+  const ref = useRef();
+  const rotor = useRef();
+  const tail = useRef();
+  const st = useMemo(() => ({ clock: 0, next: rareGap(150, 300), flying: false, t0: 0, heading: 0, a: { x: 0, y: 0, z: 0, rr: 0 }, b: { x: 0, y: 0, z: 0, rr: 0 } }), []);
+  useEffect(() => () => releaseTravel('helicopter'), []);
+  useFrame((_, delta) => {
+    const g = ref.current;
+    if (!g) return;
+    const dt = Math.min(delta, 0.1);
+    if (!animate) return;
+    st.clock += dt;
+    if (!st.flying) {
+      if (st.clock >= st.next) {
+        if (claimTravel('helicopter', HELI_FLIGHT + 4)) {
+          st.flying = true;
+          st.t0 = st.clock;
+        } else st.next = st.clock + 15;
+      }
+      if (!st.flying) return;
+    }
+    const t = st.clock - st.t0;
+    if (t >= HELI_FLIGHT) {
+      st.flying = false;
+      st.next = st.clock + rareGap(150, 300);
+      releaseTravel('helicopter');
+      g.position.set(0, 0, 0);
+      g.rotation.set(0, st.heading, 0);
+      return;
+    }
+    const p = heliPath(t, st.a);
+    const q = heliPath(t + 0.1, st.b);
+    const vx = (q.x - p.x) * 10;
+    const vz = (q.z - p.z) * 10;
+    const speed = Math.hypot(vx, vz);
+    const target = speed > 0.3 ? Math.atan2(vx, vz) : t > 30 ? 0 : st.heading;
+    st.heading = wrapAngle(st.heading + wrapAngle(target - st.heading) * Math.min(1, dt * 2.2));
+    g.position.set(p.x, p.y, p.z);
+    const cruise = HELI_R * HELI_OMEGA;
+    g.rotation.set(Math.min(0.22, (speed / cruise) * 0.16), st.heading, (p.rr / HELI_R) * 0.22, 'YXZ');
+    const spin = smoothstep(0, 3, t) * (1 - smoothstep(47.5, HELI_FLIGHT, t));
+    if (rotor.current) rotor.current.rotation.y += spin * 32 * dt;
+    if (tail.current) tail.current.rotation.x += spin * 40 * dt;
+  });
+  // Built nose along +z, skids at y = 0.
+  return (
+    <group ref={ref}>
+      {/* skids */}
+      {[-0.22, 0.22].map((x) => (
+        <group key={x}>
+          <Box p={[x, 0.02, 0.02]} s={[0.04, 0.04, 0.8]} m={HM.skid} />
+          <Beam a={[x, 0.02, 0.22]} b={[x * 0.6, 0.2, 0.16]} r={0.016} m={HM.skid} />
+          <Beam a={[x, 0.02, -0.16]} b={[x * 0.6, 0.2, -0.12]} r={0.016} m={HM.skid} />
+        </group>
+      ))}
+      {/* body, glass bubble, white stripe */}
+      <mesh position={[0, 0.36, 0]} scale={[0.3, 0.26, 0.42]} material={HM.body}>
+        <icosahedronGeometry args={[1, 1]} />
+      </mesh>
+      <mesh position={[0, 0.42, 0.2]} scale={[0.24, 0.2, 0.26]} material={HM.glass}>
+        <icosahedronGeometry args={[1, 1]} />
+      </mesh>
+      <Box p={[0, 0.3, -0.05]} s={[0.61, 0.05, 0.5]} m={HM.stripe} />
+      {/* tail boom, fin, tail rotor */}
+      <Cyl p={[0, 0.42, -0.62]} rt={0.035} rb={0.08} h={0.75} seg={6} m={HM.body} r={[Math.PI / 2, 0, 0]} />
+      <Box p={[0, 0.55, -0.98]} s={[0.03, 0.26, 0.14]} r={[-0.4, 0, 0]} m={HM.body} />
+      <Box p={[0, 0.44, -0.95]} s={[0.3, 0.025, 0.08]} m={HM.stripe} />
+      <group ref={tail} position={[0.05, 0.5, -0.98]}>
+        <Box p={[0, 0, 0]} s={[0.015, 0.34, 0.035]} m={HM.rotor} />
+      </group>
+      {/* mast and main rotor */}
+      <Cyl p={[0, 0.66, 0]} rt={0.03} h={0.1} m={HM.rotor} />
+      <group ref={rotor} position={[0, 0.72, 0]}>
+        <Box p={[0, 0, 0]} s={[1.5, 0.018, 0.08]} m={HM.rotor} />
+        <Box p={[0, 0, 0]} s={[0.08, 0.018, 1.5]} m={HM.rotor} />
+        <Cyl p={[0, 0.02, 0]} rt={0.05} h={0.05} seg={6} m={HM.stripe} />
+      </group>
+    </group>
+  );
+}
+
+function Helipad({ y, night, animate }) {
+  const deck = useMemo(() => {
+    const map = helipadTexture();
+    return new THREE.MeshStandardMaterial({ map, transparent: true, depthWrite: false, roughness: 0.8, polygonOffset: true, polygonOffsetFactor: -2 });
+  }, []);
+  useEffect(() => () => (deck.map.dispose(), deck.dispose()), [deck]);
+  const lights = useMemo(() => new THREE.MeshStandardMaterial({ color: '#7dffb2', emissive: '#7dffb2', emissiveIntensity: 0.2, flatShading: true }), []);
+  useEffect(() => () => lights.dispose(), [lights]);
+  const nightRef = useRef(night);
+  nightRef.current = night;
+  useFrame((state) => {
+    const n = nightRef.current;
+    const pulse = animate ? 0.5 + 0.5 * Math.sin(state.clock.elapsedTime * 2.4) : 1;
+    lights.emissiveIntensity = 0.2 + n * (0.5 + 1.4 * pulse);
+  });
+  const top = y + 0.08;
+  return (
+    <group>
+      {/* mast through the roof apex and four struts down onto the rafters */}
+      <Cyl p={[0, y - 0.25, 0]} rt={0.07} h={0.5} m={M.darkWood} />
+      {[[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([sx, sz], i) => (
+        <Beam key={i} a={[sx * 0.62, y - 0.02, sz * 0.62]} b={[sx * 0.86, y - 0.53, sz * 0.86]} r={0.035} m={M.darkWood} />
+      ))}
+      <Cyl p={[0, y + 0.03, 0]} rt={PAD_R} h={0.1} seg={16} m={HM.pad} />
+      <Cyl p={[0, y + 0.03, 0]} rt={PAD_R + 0.04} rb={PAD_R + 0.04} h={0.06} seg={16} m={HM.padRim} />
+      <mesh position={[0, top + 0.003, 0]} rotation={[-Math.PI / 2, 0, 0]} material={deck}>
+        <planeGeometry args={[PAD_R * 1.95, PAD_R * 1.95]} />
+      </mesh>
+      {Array.from({ length: 10 }, (_, i) => {
+        const a = (i / 10) * Math.PI * 2;
+        return (
+          <mesh key={i} position={[Math.cos(a) * (PAD_R - 0.02), top + 0.03, Math.sin(a) * (PAD_R - 0.02)]} material={lights}>
+            <icosahedronGeometry args={[0.04, 0]} />
+          </mesh>
+        );
+      })}
+      <group position={[0, top, 0]} userData={NO_MERGE}>
+        <Helicopter animate={animate} />
+      </group>
     </group>
   );
 }
@@ -724,7 +923,9 @@ function Tower({ night, animate }) {
       ))}
       <Roof p={[0, canopyY + 0.65, 0]} halfX={2.2} halfZ={2.2} h={1.3} m={M.thatchSeeTower} />
       <Fringe p={[0, canopyY, 0]} halfX={2.2} halfZ={2.2} drop={0.3} m={M.thatchSeeTower} />
-      <Flag p={[0, canopyY + 1.2, 0]} color="#D63AF9" animate={animate} />
+      {/* helipad on the roof peak; Chief's flag flies from the pad's edge */}
+      <Helipad y={canopyY + 1.36} night={night} animate={animate} />
+      <Flag p={[0.75, canopyY + 1.44, -0.75]} color="#D63AF9" animate={animate} />
       <StringLights
         points={[[-L * 1.07, canopyY - 0.12, L * 1.07], [L * 1.07, canopyY - 0.12, L * 1.07], [L * 1.07, canopyY - 0.12, -L * 1.07], [-L * 1.07, canopyY - 0.12, -L * 1.07], [-L * 1.07, canopyY - 0.12, L * 1.07]]}
         sag={0.2}
@@ -846,7 +1047,7 @@ function Cabana({ night }) {
 }
 
 // Hip roof (ridge along x) as four see-through thatch panels.
-function CabanaThatch({ eaveY, apexY, hx, hz, ridgeX }) {
+function CabanaThatch({ eaveY, apexY, hx, hz, ridgeX, m = M.thatchSee }) {
   const geo = useMemo(() => {
     const A = [-hx, eaveY, -hz];
     const B = [hx, eaveY, -hz];
@@ -866,7 +1067,7 @@ function CabanaThatch({ eaveY, apexY, hx, hz, ridgeX }) {
     return g;
   }, [eaveY, apexY, hx, hz, ridgeX]);
   useEffect(() => () => geo.dispose(), [geo]);
-  return <mesh geometry={geo} material={M.thatchSee} renderOrder={3} />;
+  return <mesh geometry={geo} material={m} renderOrder={m.transparent ? 3 : 0} />;
 }
 
 // Beach patio next to the cabana: five loungers facing the water, with
@@ -1007,7 +1208,7 @@ function Torch({ p, night, animate }) {
     <group position={p}>
       <Cyl p={[0, 0.65, 0]} rt={0.04} rb={0.06} h={1.3} m={M.bamboo} />
       <Cyl p={[0, 1.33, 0]} rt={0.1} rb={0.07} h={0.16} m={M.darkWood} />
-      <mesh ref={flame} position={[0, 1.52, 0]} material={mat}>
+      <mesh ref={flame} userData={NO_MERGE} position={[0, 1.52, 0]} material={mat}>
         <coneGeometry args={[0.09, 0.26, 5]} />
       </mesh>
       {night > 0.3 && (
@@ -1135,6 +1336,269 @@ function Cruiser({ animate }) {
   );
 }
 
+// Small boats tied up along Launch's Pier, clear of Buddy's cruiser (north),
+// the dock office (south) and the fishing spot at the end of the pier.
+const BOAT_M = {
+  row: std('#e8604c'),
+  rowIn: std('#f3d9a8'),
+  runHull: std('#fdf8ee'),
+  runStripe: std('#2bb3c0'),
+  seat: std('#2e5d8a'),
+  motor: std('#2b2a33'),
+  catHull: std('#f5f1e6'),
+  net: std('#5bc0be'),
+  sail: std('#ffffff'),
+};
+const MOORED = [
+  // rowboat, south side near the land end
+  { id: 'row', x: -15.35, z: 7.15, rotY: 0, ph: 0.4, amp: 0.05, cleat: [-0.7, 0.22, -0.1], bollard: [-15.85, DOCK.z1 - 0.12] },
+  // runabout, north side between the cruiser's stern and the beach
+  { id: 'run', x: -15.55, z: 3.35, rotY: 0, ph: 2.1, amp: 0.045, cleat: [-0.55, 0.32, 0.3], bollard: [-15.95, DOCK.z0 + 0.12] },
+  // little catamaran off the west end of the pier (bows north)
+  { id: 'cat', x: -23.35, z: 5.0, rotY: Math.PI, ph: 4.0, amp: 0.04, cleat: [-0.45, 0.28, 0.5], bollard: [DOCK.x0 + 0.14, 4.85] },
+];
+
+function Rowboat() {
+  return (
+    <group>
+      <Box p={[0.05, 0.06, 0]} s={[1.0, 0.24, 0.52]} m={BOAT_M.row} />
+      <mesh position={[-0.62, 0.06, 0]} rotation={[0, 0, Math.PI / 2]} scale={[0.34, 1, 0.74]} material={BOAT_M.row}>
+        <coneGeometry args={[0.36, 0.3, 4, 1]} />
+      </mesh>
+      <Box p={[0.05, 0.19, 0]} s={[1.02, 0.03, 0.54]} m={M.white} />
+      <Box p={[0.05, 0.15, 0]} s={[0.92, 0.03, 0.44]} m={BOAT_M.rowIn} />
+      {[-0.25, 0.3].map((x) => (
+        <Box key={x} p={[x, 0.2, 0]} s={[0.12, 0.03, 0.48]} m={M.wood} />
+      ))}
+      {/* oars resting across the seats */}
+      <Box p={[0.05, 0.24, 0.12]} s={[0.95, 0.025, 0.03]} r={[0, 0.12, 0]} m={M.wood} />
+      <Box p={[0.05, 0.24, -0.12]} s={[0.95, 0.025, 0.03]} r={[0, -0.12, 0]} m={M.wood} />
+    </group>
+  );
+}
+
+function Runabout() {
+  return (
+    <group>
+      <Box p={[0.1, 0.08, 0]} s={[1.3, 0.3, 0.64]} m={BOAT_M.runHull} />
+      <mesh position={[-0.75, 0.08, 0]} rotation={[0, 0, Math.PI / 2]} scale={[0.42, 1, 0.9]} material={BOAT_M.runHull}>
+        <coneGeometry args={[0.36, 0.4, 4, 1]} />
+      </mesh>
+      <Box p={[0.1, 0.06, 0]} s={[1.32, 0.06, 0.66]} m={BOAT_M.runStripe} />
+      <Box p={[0.15, 0.24, 0]} s={[1.0, 0.03, 0.54]} m={M.plank} />
+      {/* windshield and two seats */}
+      <Box p={[-0.2, 0.36, 0]} s={[0.03, 0.2, 0.56]} r={[0, 0, 0.45]} m={M.glass} />
+      {[-0.13, 0.13].map((z) => (
+        <group key={z} position={[0.15, 0.26, z]}>
+          <Box p={[0, 0.06, 0]} s={[0.2, 0.08, 0.2]} m={BOAT_M.seat} />
+          <Box p={[0.09, 0.16, 0]} s={[0.04, 0.2, 0.2]} m={BOAT_M.seat} />
+        </group>
+      ))}
+      {/* outboard motor */}
+      <Box p={[0.82, 0.3, 0]} s={[0.18, 0.24, 0.16]} m={BOAT_M.motor} />
+      <Box p={[0.86, 0.06, 0]} s={[0.06, 0.3, 0.06]} m={BOAT_M.motor} />
+    </group>
+  );
+}
+
+function Catamaran() {
+  return (
+    <group>
+      {[-0.42, 0.42].map((x) => (
+        <mesh key={x} position={[x, 0.06, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[1, 1, 0.75]} material={BOAT_M.catHull}>
+          <capsuleGeometry args={[0.13, 1.4, 3, 6]} />
+        </mesh>
+      ))}
+      <Box p={[0, 0.2, 0.05]} s={[0.9, 0.03, 1.1]} m={BOAT_M.net} />
+      {[-0.5, 0.6].map((z) => (
+        <Box key={z} p={[0, 0.22, z]} s={[0.98, 0.05, 0.06]} m={M.white} />
+      ))}
+      {/* mast, boom with a furled sail, a little pennant */}
+      <Cyl p={[0, 1.05, -0.1]} rt={0.025} h={1.7} m={M.white} />
+      <Cyl p={[0, 0.5, 0.3]} rt={0.02} h={0.85} m={M.white} r={[Math.PI / 2, 0, 0]} />
+      <Cyl p={[0, 0.56, 0.3]} rt={0.05} rb={0.07} h={0.75} seg={6} m={BOAT_M.sail} r={[Math.PI / 2, 0, 0]} />
+      <Box p={[0.1, 1.86, -0.1]} s={[0.2, 0.08, 0.01]} m={M.launch} />
+    </group>
+  );
+}
+
+const BOAT_MODELS = { row: Rowboat, run: Runabout, cat: Catamaran };
+
+function MooredBoats({ animate }) {
+  const refs = useRef([]);
+  useFrame((state) => {
+    const t = animate ? state.clock.elapsedTime : 0;
+    for (let i = 0; i < MOORED.length; i++) {
+      const g = refs.current[i];
+      if (!g) continue;
+      const b = MOORED[i];
+      g.position.y = 0.04 + Math.sin(t * 1.1 + b.ph) * b.amp;
+      g.rotation.z = Math.sin(t * 0.85 + b.ph) * 0.05;
+      g.rotation.x = Math.sin(t * 0.7 + b.ph * 1.3) * 0.035;
+    }
+  });
+  return (
+    <group>
+      {MOORED.map((b, i) => {
+        const Model = BOAT_MODELS[b.id];
+        const c = Math.cos(b.rotY);
+        const sn = Math.sin(b.rotY);
+        const [lx, ly, lz] = b.cleat;
+        const cleat = [b.x + lx * c + lz * sn, ly + 0.04, b.z - lx * sn + lz * c];
+        return (
+          <group key={b.id}>
+            <group position={[b.x, 0, b.z]} rotation={[0, b.rotY, 0]}>
+              <group ref={(el) => (refs.current[i] = el)}>
+                <Model />
+              </group>
+            </group>
+            <Cyl p={[b.bollard[0], DOCK.y + 0.13, b.bollard[1]]} rt={0.08} h={0.26} m={M.darkWood} />
+            <Beam a={cleat} b={[b.bollard[0], DOCK.y + 0.22, b.bollard[1]]} r={0.012} m={M.rope} seg={4} />
+          </group>
+        );
+      })}
+    </group>
+  );
+}
+
+// "Welcome to Bot Island": a hand-painted sign on carved posts at the land
+// end of the pier (north edge, so it never hides the bots on the deck).
+function welcomeTexture(back) {
+  const W = 1024;
+  const H = 330;
+  const c = document.createElement('canvas');
+  c.width = W;
+  c.height = H;
+  const x = c.getContext('2d');
+  // board outline: an arched top and a gently wavy bottom
+  const shape = () => {
+    x.beginPath();
+    x.moveTo(24, 90);
+    x.quadraticCurveTo(W / 2, -40, W - 24, 90);
+    x.lineTo(W - 14, H - 34);
+    x.quadraticCurveTo(W * 0.75, H - 6, W / 2, H - 22);
+    x.quadraticCurveTo(W * 0.25, H - 38, 14, H - 20);
+    x.closePath();
+  };
+  shape();
+  const wood = x.createLinearGradient(0, 0, 0, H);
+  wood.addColorStop(0, '#d79a5c');
+  wood.addColorStop(1, '#a8683a');
+  x.fillStyle = wood;
+  x.fill();
+  x.save();
+  x.clip();
+  x.strokeStyle = 'rgba(110,60,25,0.28)';
+  x.lineWidth = 3;
+  for (let i = 0; i < 14; i++) {
+    const yy = 40 + i * 22;
+    x.beginPath();
+    x.moveTo(0, yy);
+    for (let k = 0; k <= 8; k++) x.lineTo((k / 8) * W, yy + Math.sin(k * 1.7 + i) * 5);
+    x.stroke();
+  }
+  x.restore();
+  shape();
+  x.lineWidth = 12;
+  x.strokeStyle = '#6b3b1c';
+  x.stroke();
+  // little hibiscus flowers in the corners
+  const flower = (fx, fy, r, col) => {
+    x.fillStyle = col;
+    for (let k = 0; k < 5; k++) {
+      const a = (k / 5) * Math.PI * 2;
+      x.beginPath();
+      x.arc(fx + Math.cos(a) * r * 0.62, fy + Math.sin(a) * r * 0.62, r * 0.55, 0, Math.PI * 2);
+      x.fill();
+    }
+    x.fillStyle = '#ffe14d';
+    x.beginPath();
+    x.arc(fx, fy, r * 0.28, 0, Math.PI * 2);
+    x.fill();
+  };
+  flower(86, H - 78, 34, '#ff5d8f');
+  flower(W - 86, H - 78, 34, '#ff8a3d');
+  flower(140, 112, 20, '#f25cff');
+  flower(W - 140, 112, 20, '#ff5d8f');
+  x.textAlign = 'center';
+  x.textBaseline = 'middle';
+  x.lineJoin = 'round';
+  const hand = '"Marker Felt", "Chalkboard SE", "Comic Sans MS", "Segoe Print", cursive';
+  const small = back ? 'Come back soon!' : 'Welcome to';
+  const big = back ? 'Aloha!' : 'Bot Island';
+  x.font = `700 62px ${hand}`;
+  x.lineWidth = 10;
+  x.strokeStyle = '#1d6f78';
+  x.strokeText(small, W / 2, 92);
+  x.fillStyle = '#ffffff';
+  x.fillText(small, W / 2, 92);
+  x.font = `900 138px ${hand}`;
+  x.lineWidth = 18;
+  x.strokeStyle = '#5a2a10';
+  x.strokeText(big, W / 2, 210);
+  const paint = x.createLinearGradient(0, 150, 0, 270);
+  paint.addColorStop(0, '#ffe14d');
+  paint.addColorStop(1, '#ff8a2a');
+  x.fillStyle = paint;
+  x.fillText(big, W / 2, 210);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  return t;
+}
+
+const SIGN_AT = { x: -13.4, z: 4.02, rotY: 0.12 };
+const SIGN_W = 2.8;
+const SIGN_H = SIGN_W * (330 / 1024);
+
+function WelcomeSign({ night }) {
+  const mats = useMemo(
+    () =>
+      [false, true].map((back) => {
+        const map = welcomeTexture(back);
+        return new THREE.MeshStandardMaterial({ map, emissiveMap: map, emissive: '#ffffff', emissiveIntensity: 0.06, alphaTest: 0.5, roughness: 0.85 });
+      }),
+    []
+  );
+  useEffect(() => {
+    mats.forEach((m) => (m.emissiveIntensity = 0.06 + night * 0.4));
+  }, [mats, night]);
+  useEffect(() => () => mats.forEach((m) => (m.map.dispose(), m.dispose())), [mats]);
+  const lights = useMemo(() => [[-1.42, 2.27, 0.1], [1.42, 2.27, 0.1]], []);
+  const px = SIGN_W / 2 + 0.12;
+  return (
+    <group position={[SIGN_AT.x, DOCK.y, SIGN_AT.z]} rotation={[0, SIGN_AT.rotY, 0]}>
+      {/* carved posts on pilings, with tiki caps */}
+      {[-px, px].map((x) => (
+        <group key={x} position={[x, 0, 0]}>
+          <Cyl p={[0, 0.45, 0]} rt={0.1} rb={0.12} h={3.5} seg={7} m={M.darkWood} />
+          {[0.35, 1.1, 1.9].map((yy) => (
+            <Cyl key={yy} p={[0, yy, 0]} rt={0.13} h={0.07} seg={7} m={M.wood} />
+          ))}
+          <Cone p={[0, 2.36, 0]} rad={0.17} h={0.26} seg={7} m={M.thatchDark} />
+          <mesh position={[0, 2.54, 0]} material={M.coconut}>
+            <icosahedronGeometry args={[0.08, 0]} />
+          </mesh>
+        </group>
+      ))}
+      <Box p={[0, 2.2, 0]} s={[px * 2 + 0.3, 0.12, 0.12]} m={M.wood} />
+      {/* the board hangs from the beam on two short ropes */}
+      {[-0.9, 0.9].map((x) => (
+        <Cyl key={x} p={[x, 2.08, 0]} rt={0.012} h={0.14} m={M.rope} />
+      ))}
+      <mesh position={[0, 2.0 - SIGN_H / 2, 0.012]} material={mats[0]}>
+        <planeGeometry args={[SIGN_W, SIGN_H]} />
+      </mesh>
+      <mesh position={[0, 2.0 - SIGN_H / 2, -0.012]} rotation={[0, Math.PI, 0]} material={mats[1]}>
+        <planeGeometry args={[SIGN_W, SIGN_H]} />
+      </mesh>
+      <StringLights points={lights} sag={0.12} per={9} night={night} />
+      <Lantern p={[-px, 2.0, 0.16]} night={night} />
+      <Lantern p={[px, 2.0, 0.16]} night={night} />
+    </group>
+  );
+}
+
 function Dock({ night, animate }) {
   const deck = DOCK;
   const cx = (deck.x0 + deck.x1) / 2;
@@ -1163,56 +1627,350 @@ function Dock({ night, animate }) {
       <Cyl p={[deck.x0 + 0.15, y + 0.3, deck.z0 + 0.1]} rt={0.06} h={0.6} m={M.darkWood} />
       <Lantern p={[deck.x0 + 0.15, y + 0.7, deck.z0 + 0.1]} night={night} />
       <Flag p={[deck.x0 + 0.5, y, cz]} color="#2BA84A" animate={animate} />
-      <Cruiser animate={animate} />
+      <group userData={NO_MERGE}>
+        <Cruiser animate={animate} />
+        <MooredBoats animate={animate} />
+      </group>
+      <WelcomeSign night={night} />
     </group>
   );
 }
 
-// Flo's bungalow: home base for the home and family bot. It faces the water
-// and the sunset, with a porch, a chair for Flo, planters and flowers.
-function Bungalow({ night }) {
-  const zone = ZONES.bungalow;
-  const g = groundY(zone.x, zone.z);
-  const windowMat = useGlowMaterial('#ffd27a', night, 0.05, 1.5);
+// Flo's Bungalow: a Maldives-style overwater villa off the east beach. A
+// rope-railed boardwalk runs out from the sand to a platform on stilts. The
+// villa (white walls, big glass sliding doors, a steep thatched hip roof)
+// fills the north half; the sun deck wraps around it with a plunge pool,
+// loungers, a ladder down into the lagoon, Flo's chair facing the sunrise,
+// and a glass floor panel with fish and coral swimming underneath.
+const VILLA = { x0: 17.4, x1: 20.2, z0: -9.4, z1: -7.6, h: 1.3 };
+const POOL = { x0: 20.45, x1: 21.85, z0: -9.35, z1: -7.75 };
+const GLASS = { x0: 19.0, x1: 20.2, z0: -6.05, z1: -5.0 };
+const FLO_LADDER_Z = -5.3;
+
+const VM = {
+  thatch: std('#d8ae62', { side: THREE.DoubleSide }),
+  thatchDark: std('#b98a45', { side: THREE.DoubleSide }),
+  pool: std('#4fd6e6', { emissive: '#36c4dc', emissiveIntensity: 0.18, roughness: 0.15 }),
+  glassFloor: new THREE.MeshStandardMaterial({ color: '#c8f6ff', emissive: '#6fe6ff', emissiveIntensity: 0.06, transparent: true, opacity: 0.22, roughness: 0.05, depthWrite: false }),
+  // Calm water seen through the glass floor (sits just above the wave crests).
+  window: new THREE.MeshStandardMaterial({ color: '#5fe3ea', transparent: true, opacity: 0.32, roughness: 0.2, depthWrite: false }),
+  coralPink: std('#ff6f91'),
+  coralOrange: std('#ff9a3c'),
+  coralPurple: std('#a46cf0'),
+  coralYellow: std('#ffd23f'),
+  sand: std('#e9d6a4'),
+  float: std('#ff6f91'),
+  lounger: std('#f2a3b8'),
+};
+
+// Little reef fish: a flat diamond body (nose along +z) with a tail fin.
+const FISH_BODY = new THREE.OctahedronGeometry(0.075, 0).scale(0.5, 0.85, 1.6);
+const FISH_TAIL = new THREE.ConeGeometry(0.06, 0.1, 4).rotateX(Math.PI / 2).scale(0.3, 1, 1).translate(0, 0, -0.15);
+const FISH = [
+  { c: std('#ff8a2a'), r: 0.42, w: 0.55, ph: 0, y: 0.15 },
+  { c: std('#ffe14d'), r: 0.3, w: -0.75, ph: 1.7, y: 0.18 },
+  { c: std('#3fb6ff'), r: 0.5, w: 0.4, ph: 3.4, y: 0.13 },
+  { c: std('#ff5da2'), r: 0.24, w: 0.9, ph: 4.6, y: 0.19 },
+  { c: std('#7cf0a0'), r: 0.36, w: -0.5, ph: 2.5, y: 0.16 },
+];
+
+function GlassFloorReef({ animate }) {
+  const refs = useRef([]);
+  const cx = (GLASS.x0 + GLASS.x1) / 2;
+  const cz = (GLASS.z0 + GLASS.z1) / 2;
+  useFrame((state) => {
+    const t = animate ? state.clock.elapsedTime : 0;
+    for (let i = 0; i < FISH.length; i++) {
+      const g = refs.current[i];
+      if (!g) continue;
+      const f = FISH[i];
+      const a = f.ph + t * f.w;
+      const r = f.r * (1 + 0.15 * Math.sin(t * 0.3 + f.ph));
+      g.position.set(cx + Math.cos(a) * r, f.y + Math.sin(t * 1.3 + f.ph) * 0.02, cz + Math.sin(a) * r * 0.8);
+      const s = Math.sign(f.w);
+      g.rotation.y = Math.atan2(-Math.sin(a) * s, Math.cos(a) * 0.8 * s) + Math.sin(t * 9 + i) * 0.12;
+    }
+  });
   return (
-    <group position={[zone.x, g, zone.z]} rotation={[0, BUNGALOW_ROT, 0]}>
-      {[[-0.9, -0.6], [0.9, -0.6], [-0.9, 2.05], [0.9, 2.05], [0, 2.05]].map(([x, z], i) => (
-        <Cyl key={i} p={[x, 0.14, z]} rt={0.07} h={0.4} m={M.darkWood} />
-      ))}
-      <Box p={[0, 0.3, 0.75]} s={[2.1, 0.1, 2.9]} m={M.plank} />
-      <Box p={[0, 0.9, -0.15]} s={[1.7, 1.1, 1.2]} m={M.white} />
-      <Roof p={[0, 1.45 + 0.42, -0.15]} halfX={1.15} halfZ={0.9} h={0.85} m={M.thatch} />
-      <Fringe p={[0, 1.46, -0.15]} halfX={1.15} halfZ={0.9} drop={0.2} />
-      <Box p={[0, 0.75, 0.46]} s={[0.42, 0.8, 0.04]} m={M.darkWood} />
-      <Box p={[-0.55, 1.0, 0.46]} s={[0.36, 0.3, 0.04]} m={windowMat} />
-      <Box p={[0.55, 1.0, 0.46]} s={[0.36, 0.3, 0.04]} m={windowMat} />
-      {/* short awning by the door; Flo's chair sits out in the open with the view */}
-      <Cyl p={[-0.95, 0.85, 1.05]} rt={0.045} h={1.1} m={M.wood} />
-      <Cyl p={[0.95, 0.85, 1.05]} rt={0.045} h={1.1} m={M.wood} />
-      <Box p={[0, 1.42, 0.78]} s={[2.15, 0.06, 0.7]} r={[0.15, 0, 0]} m={M.thatchDark} />
-      <Fringe p={[0, 1.36, 1.12]} halfX={1.07} halfZ={0.02} drop={0.14} />
-      {/* porch rail, open in the middle so the view stays clear */}
-      <Beam a={[-1.0, 0.68, 0.5]} b={[-1.0, 0.68, 2.15]} r={0.03} m={M.bamboo} />
-      <Beam a={[1.0, 0.68, 0.5]} b={[1.0, 0.68, 2.15]} r={0.03} m={M.bamboo} />
-      {/* Flo's chair on the porch (her seat slot sits right on it) */}
-      <TowerChair seat={{ x: 0, z: 1.55, rotY: 0 }} top={0.35} cushion={M.floCushion} />
-      {/* planters with flowers at the porch corners, and a pot by the door */}
-      {[-0.78, 0.78].map((x) => (
-        <group key={x} position={[x, 0.35, 2.0]}>
-          <Box p={[0, 0.1, 0]} s={[0.36, 0.2, 0.24]} m={M.darkWood} />
-          {[[-0.1, '#ff5d8f'], [0, '#ffd23f'], [0.1, '#f25cff']].map(([dx, c]) => (
-            <mesh key={dx} position={[dx, 0.26, 0]}>
-              <icosahedronGeometry args={[0.07, 0]} />
-              <meshStandardMaterial color={c} flatShading />
-            </mesh>
-          ))}
+    <group>
+      {/* calm water under the glass */}
+      <mesh position={[cx, 0.26, cz]} rotation={[-Math.PI / 2, 0, 0]} material={VM.window} renderOrder={3}>
+        <planeGeometry args={[GLASS.x1 - GLASS.x0 + 0.5, GLASS.z1 - GLASS.z0 + 0.5]} />
+      </mesh>
+      {/* coral cluster rising from the lagoon floor */}
+      <group position={[cx + 0.05, 0, cz + 0.05]}>
+        <mesh position={[0, -0.65, 0]} scale={[0.7, 0.18, 0.55]} material={VM.sand}>
+          <icosahedronGeometry args={[1, 0]} />
+        </mesh>
+        <Cone p={[-0.18, -0.3, 0.05]} rad={0.14} h={0.75} seg={5} m={VM.coralPink} />
+        <Cyl p={[-0.05, -0.3, -0.12]} rt={0.03} rb={0.06} h={0.72} seg={5} m={VM.coralPink} r={[0.25, 0, -0.3]} />
+        <Cyl p={[0.12, -0.32, -0.08]} rt={0.03} rb={0.06} h={0.68} seg={5} m={VM.coralOrange} r={[-0.2, 0, 0.35]} />
+        <mesh position={[0.2, -0.05, 0.14]} scale={[0.17, 0.12, 0.15]} material={VM.coralPurple}>
+          <icosahedronGeometry args={[1, 0]} />
+        </mesh>
+        <mesh position={[0.2, -0.4, 0.14]} material={VM.coralPurple}>
+          <cylinderGeometry args={[0.07, 0.12, 0.6, 5]} />
+        </mesh>
+        <mesh position={[-0.3, -0.12, -0.2]} rotation={[0.2, 0.6, 0]} scale={[0.22, 0.26, 0.03]} material={VM.coralOrange}>
+          <icosahedronGeometry args={[1, 0]} />
+        </mesh>
+        <Cyl p={[-0.3, -0.45, -0.2]} rt={0.03} rb={0.05} h={0.5} seg={4} m={VM.coralOrange} />
+        {[[0.02, 0.07], [-0.12, -0.02], [0.08, 0.2]].map(([x, z], i) => (
+          <mesh key={i} position={[x, 0.06 - i * 0.03, z]} material={VM.coralYellow}>
+            <icosahedronGeometry args={[0.045, 0]} />
+          </mesh>
+        ))}
+      </group>
+      {FISH.map((f, i) => (
+        <group key={i} ref={(el) => (refs.current[i] = el)}>
+          <mesh geometry={FISH_BODY} material={f.c} />
+          <mesh geometry={FISH_TAIL} material={f.c} />
         </group>
       ))}
-      <group position={[0.42, 0.35, 0.65]}>
-        <Cyl p={[0, 0.09, 0]} rt={0.1} rb={0.08} h={0.18} seg={8} m={M.claude} />
-        <Cone p={[0, 0.32, 0]} rad={0.14} h={0.32} seg={6} m={M.launch} />
+    </group>
+  );
+}
+
+// A rope rail: posts along a polyline with a gently sagging rope between them.
+function RopeRail({ pts, y, h = 0.5, step = 1.0 }) {
+  const { posts, ropes } = useMemo(() => {
+    const posts = [];
+    const ropes = [];
+    for (let s = 0; s < pts.length - 1; s++) {
+      const [ax, az] = pts[s];
+      const [bx, bz] = pts[s + 1];
+      const n = Math.max(1, Math.round(Math.hypot(bx - ax, bz - az) / step));
+      for (let i = 0; i <= n; i++) {
+        if (s > 0 && i === 0) continue;
+        posts.push([ax + ((bx - ax) * i) / n, az + ((bz - az) * i) / n]);
+      }
+    }
+    for (let i = 0; i < posts.length - 1; i++) {
+      const [ax, az] = posts[i];
+      const [bx, bz] = posts[i + 1];
+      const m = [(ax + bx) / 2, y + h - 0.12, (az + bz) / 2];
+      ropes.push([[ax, y + h - 0.04, az], m], [m, [bx, y + h - 0.04, bz]]);
+    }
+    return { posts, ropes };
+  }, [pts, y, h, step]);
+  return (
+    <group>
+      {posts.map(([x, z], i) => (
+        <group key={`p${i}`}>
+          <Cyl p={[x, y + h / 2, z]} rt={0.035} rb={0.045} h={h} m={M.darkWood} />
+          <Cyl p={[x, y + h + 0.02, z]} rt={0.05} h={0.05} m={M.wood} />
+        </group>
+      ))}
+      {ropes.map(([a, b], i) => (
+        <Beam key={`r${i}`} a={a} b={b} r={0.016} m={M.rope} seg={4} />
+      ))}
+    </group>
+  );
+}
+
+// Planter box with flowers.
+function Planter({ p }) {
+  return (
+    <group position={p}>
+      <Box p={[0, 0.1, 0]} s={[0.36, 0.2, 0.24]} m={M.darkWood} />
+      {[[-0.1, '#ff5d8f'], [0, '#ffd23f'], [0.1, '#f25cff']].map(([dx, c]) => (
+        <mesh key={dx} position={[dx, 0.26, 0]}>
+          <icosahedronGeometry args={[0.07, 0]} />
+          <meshStandardMaterial color={c} flatShading />
+        </mesh>
+      ))}
+      <Cone p={[0, 0.3, 0.05]} rad={0.08} h={0.22} seg={5} m={M.launch} />
+    </group>
+  );
+}
+
+function Bungalow({ night, animate }) {
+  const W = FLO_WALK;
+  const D = FLO_DECK;
+  const y = D.y;
+  const windowMat = useGlowMaterial('#ffe2a8', night, 0.05, 1.4);
+  const edgeMat = useGlowMaterial('#6ff3ff', night, 0.35, 1.3);
+  const seat = bungalowFront(1.55);
+  const wz = (W.z0 + W.z1) / 2;
+  const rampBottom = Math.max(terrainY(W.x0 - W.ramp.len, wz), 0);
+  const rampAngle = Math.atan2(y - rampBottom, W.ramp.len);
+  const vx = (VILLA.x0 + VILLA.x1) / 2;
+  const vz = (VILLA.z0 + VILLA.z1) / 2;
+  const vw = VILLA.x1 - VILLA.x0;
+  const vd = VILLA.z1 - VILLA.z0;
+  const eaveY = y + VILLA.h + 0.02;
+  const apexY = y + VILLA.h + 1.45;
+  const roofHX = vw / 2 + 0.45;
+  const roofHZ = vd / 2 + 0.5;
+  const roofZ = vz + 0.08;
+  const deckPart = (x0, x1, z0, z1) => ({ p: [(x0 + x1) / 2, y - 0.07, (z0 + z1) / 2], s: [x1 - x0, 0.14, z1 - z0] });
+  const deckParts = [
+    deckPart(D.x0, D.x1, D.z0, GLASS.z0),
+    deckPart(D.x0, D.x1, GLASS.z1, D.z1),
+    deckPart(D.x0, GLASS.x0, GLASS.z0, GLASS.z1),
+    deckPart(GLASS.x1, D.x1, GLASS.z0, GLASS.z1),
+  ];
+  const stilts = [];
+  for (const x of [17.2, 18.4, 19.6, 20.8, 21.8]) {
+    for (const z of [-9.4, -8.2, -7.0, -5.8, -4.6]) {
+      if (x > GLASS.x0 - 0.15 && x < GLASS.x1 + 0.15 && z > GLASS.z0 - 0.15 && z < GLASS.z1 + 0.15) continue;
+      stilts.push([x, z]);
+    }
+  }
+  const walkPosts = [];
+  for (let x = W.x0 + 0.3; x < W.x1; x += 1.2) walkPosts.push(x);
+  const plankZs = [];
+  for (let z = D.z0 + 0.35; z < D.z1; z += 0.5) plankZs.push(z);
+  const glassCx = (GLASS.x0 + GLASS.x1) / 2;
+  const glassCz = (GLASS.z0 + GLASS.z1) / 2;
+  const gw = GLASS.x1 - GLASS.x0;
+  const gd = GLASS.z1 - GLASS.z0;
+  const ladderTop = y + 0.55;
+  const ladderBot = -0.75;
+  const ladderLen = ladderTop - ladderBot;
+  // stable arrays for the rope rails (Beam memoizes on them)
+  const rails = useMemo(
+    () => ({
+      walkN: [[W.x0 + 0.05, W.z0 + 0.04], [W.x1, W.z0 + 0.04]],
+      walkS: [[W.x0 + 0.05, W.z1 - 0.04], [W.x1, W.z1 - 0.04]],
+      south: [[D.x0 + 0.05, W.z1 + 0.05], [D.x0 + 0.05, D.z1 - 0.05], [D.x1 - 0.05, D.z1 - 0.05], [D.x1 - 0.05, FLO_LADDER_Z + 0.32]],
+      east: [[D.x1 - 0.05, FLO_LADDER_Z - 0.32], [D.x1 - 0.05, D.z0 + 0.05], [VILLA.x1 + 0.1, D.z0 + 0.05]],
+      west: [[D.x0 + 0.05, W.z0 - 0.05], [D.x0 + 0.05, VILLA.z1 - 0.1]],
+    }),
+    [W, D]
+  );
+  return (
+    <group>
+      {/* ---- boardwalk out from the beach ---- */}
+      <Box p={[(W.x0 + W.x1) / 2, y - 0.06, wz]} s={[W.x1 - W.x0, 0.12, W.z1 - W.z0]} m={M.plank} />
+      {Array.from({ length: 12 }, (_, i) => (
+        <Box key={`wl${i}`} p={[W.x0 + 0.15 + i * 0.3, y + 0.002, wz]} s={[0.025, 0.005, W.z1 - W.z0 - 0.04]} m={M.darkWood} />
+      ))}
+      {walkPosts.flatMap((x) =>
+        [W.z0 + 0.05, W.z1 - 0.05].map((z) => <Cyl key={`ws${x}${z}`} p={[x, y - 0.75, z]} rt={0.07} h={1.4} m={M.darkWood} />)
+      )}
+      <Box p={[W.x0 - W.ramp.len / 2, (y + rampBottom) / 2, wz]} s={[Math.hypot(W.ramp.len, y - rampBottom), 0.08, W.z1 - W.z0]} r={[0, 0, rampAngle]} m={M.plank} />
+      <RopeRail pts={rails.walkN} y={y} step={1.2} />
+      <RopeRail pts={rails.walkS} y={y} step={1.2} />
+      <Lantern p={[W.x0 + 0.05, y + 0.68, W.z0 + 0.04]} night={night} />
+      <Lantern p={[W.x0 + 0.05, y + 0.68, W.z1 - 0.04]} night={night} />
+
+      {/* ---- platform on stilts, with a hole for the glass floor ---- */}
+      {deckParts.map((d, i) => (
+        <Box key={`dp${i}`} p={d.p} s={d.s} m={M.plank} />
+      ))}
+      {plankZs.flatMap((z) => {
+        const inHole = z > GLASS.z0 && z < GLASS.z1;
+        const segs = inHole ? [[D.x0, GLASS.x0], [GLASS.x1, D.x1]] : [[D.x0, D.x1]];
+        return segs.map(([a, b]) => <Box key={`dl${z}${a}`} p={[(a + b) / 2, y + 0.002, z]} s={[b - a - 0.04, 0.005, 0.025]} m={M.darkWood} />);
+      })}
+      {/* fascia board around the edge */}
+      <Box p={[(D.x0 + D.x1) / 2, y - 0.2, D.z1]} s={[D.x1 - D.x0, 0.14, 0.05]} m={M.darkWood} />
+      <Box p={[(D.x0 + D.x1) / 2, y - 0.2, D.z0]} s={[D.x1 - D.x0, 0.14, 0.05]} m={M.darkWood} />
+      <Box p={[D.x1, y - 0.2, (D.z0 + D.z1) / 2]} s={[0.05, 0.14, D.z1 - D.z0]} m={M.darkWood} />
+      <Box p={[D.x0, y - 0.2, (D.z0 + D.z1) / 2]} s={[0.05, 0.14, D.z1 - D.z0]} m={M.darkWood} />
+      {stilts.map(([x, z], i) => (
+        <Cyl key={`st${i}`} p={[x, -0.2, z]} rt={0.09} h={1.4} m={M.darkWood} />
+      ))}
+
+      {/* ---- glass floor panel: look straight down at the reef ---- */}
+      <mesh position={[glassCx, y - 0.03, glassCz]} material={VM.glassFloor} renderOrder={4}>
+        <boxGeometry args={[gw, 0.04, gd]} />
+      </mesh>
+      <Box p={[glassCx, y + 0.008, GLASS.z0]} s={[gw + 0.08, 0.02, 0.06]} m={edgeMat} />
+      <Box p={[glassCx, y + 0.008, GLASS.z1]} s={[gw + 0.08, 0.02, 0.06]} m={edgeMat} />
+      <Box p={[GLASS.x0, y + 0.008, glassCz]} s={[0.06, 0.02, gd]} m={edgeMat} />
+      <Box p={[GLASS.x1, y + 0.008, glassCz]} s={[0.06, 0.02, gd]} m={edgeMat} />
+      <Box p={[glassCx, y + 0.004, glassCz]} s={[0.03, 0.012, gd]} m={M.darkWood} />
+      <group userData={NO_MERGE}>
+        <GlassFloorReef animate={animate} />
       </group>
-      <Lantern p={[0.95, 1.2, 1.05]} night={night} />
+
+      {/* ---- the villa ---- */}
+      <Box p={[vx, y + VILLA.h / 2, vz]} s={[vw, VILLA.h, vd]} m={M.white} />
+      <Box p={[vx, y + 0.08, vz]} s={[vw + 0.04, 0.16, vd + 0.04]} m={M.darkWood} />
+      <Box p={[vx, y + VILLA.h - 0.04, vz]} s={[vw + 0.06, 0.08, vd + 0.06]} m={M.wood} />
+      {[[VILLA.x0, VILLA.z0], [VILLA.x1, VILLA.z0], [VILLA.x0, VILLA.z1], [VILLA.x1, VILLA.z1]].map(([x, z], i) => (
+        <Box key={`vc${i}`} p={[x, y + VILLA.h / 2, z]} s={[0.1, VILLA.h, 0.1]} m={M.wood} />
+      ))}
+      {/* big glass sliding doors on the sun deck side (one slid open) */}
+      <Box p={[vx, y + 0.62, VILLA.z1 + 0.012]} s={[2.1, 1.12, 0.03]} m={M.darkWood} />
+      <Box p={[vx, y + 0.6, VILLA.z1 + 0.03]} s={[1.98, 1.02, 0.01]} m={windowMat} />
+      <Box p={[vx + 0.5, y + 0.6, VILLA.z1 + 0.06]} s={[0.97, 1.02, 0.025]} m={M.glass} />
+      <Box p={[vx + 0.2, y + 0.6, VILLA.z1 + 0.1]} s={[0.97, 1.02, 0.025]} m={M.glass} />
+      {[vx - 0.29, vx + 0.02, vx + 0.69, vx + 0.99].map((x, i) => (
+        <Box key={`mu${i}`} p={[x, y + 0.6, VILLA.z1 + (i < 2 ? 0.1 : 0.06)]} s={[0.04, 1.02, 0.035]} m={M.darkWood} />
+      ))}
+      <Box p={[vx, y + 0.07, VILLA.z1 + 0.08]} s={[2.1, 0.03, 0.14]} m={M.darkWood} />
+      {/* east window toward the pool, west door toward the boardwalk */}
+      <Box p={[VILLA.x1 + 0.02, y + 0.75, vz]} s={[0.03, 0.5, 0.8]} m={windowMat} />
+      <Box p={[VILLA.x1 + 0.035, y + 0.75, vz]} s={[0.02, 0.06, 0.86]} m={M.darkWood} />
+      <Box p={[VILLA.x0 - 0.02, y + 0.5, vz + 0.2]} s={[0.04, 0.95, 0.5]} m={M.darkWood} />
+      <mesh position={[VILLA.x0 - 0.05, y + 0.5, vz + 0.38]} material={M.brass}>
+        <icosahedronGeometry args={[0.03, 0]} />
+      </mesh>
+      {/* steep thatched hip roof with a layered fringe */}
+      {[[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([sx, sz], i) => (
+        <Beam key={`vr${i}`} a={[vx + sx * roofHX, eaveY, roofZ + sz * roofHZ]} b={[vx + sx * 0.45, apexY, roofZ]} r={0.04} m={M.darkWood} />
+      ))}
+      <group position={[vx, 0, roofZ]}>
+        <CabanaThatch eaveY={eaveY} apexY={apexY} hx={roofHX} hz={roofHZ} ridgeX={0.45} m={VM.thatch} />
+        <CabanaThatch eaveY={eaveY + 0.6} apexY={apexY + 0.1} hx={roofHX * 0.72} hz={roofHZ * 0.66} ridgeX={0.45} m={VM.thatchDark} />
+        <Fringe p={[0, eaveY, 0]} halfX={roofHX} halfZ={roofHZ} drop={0.26} />
+        <Beam a={[-0.6, apexY + 0.06, 0]} b={[0.6, apexY + 0.06, 0]} r={0.07} m={M.darkWood} />
+        <Cone p={[-0.6, apexY + 0.2, 0]} rad={0.06} h={0.3} seg={5} m={M.darkWood} />
+        <Cone p={[0.6, apexY + 0.2, 0]} rad={0.06} h={0.3} seg={5} m={M.darkWood} />
+      </group>
+      <Lantern p={[VILLA.x0 + 0.1, y + 1.05, roofZ + roofHZ - 0.1]} night={night} />
+      <Lantern p={[VILLA.x1 - 0.1, y + 1.05, roofZ + roofHZ - 0.1]} night={night} />
+
+      {/* ---- plunge pool ---- */}
+      <Box p={[(POOL.x0 + POOL.x1) / 2, y + 0.06, (POOL.z0 + POOL.z1) / 2]} s={[POOL.x1 - POOL.x0, 0.12, POOL.z1 - POOL.z0]} m={M.white} />
+      <Box p={[(POOL.x0 + POOL.x1) / 2, y + 0.1, (POOL.z0 + POOL.z1) / 2]} s={[POOL.x1 - POOL.x0 - 0.18, 0.03, POOL.z1 - POOL.z0 - 0.18]} m={VM.pool} />
+      <mesh position={[POOL.x0 + 0.45, y + 0.13, POOL.z0 + 0.5]} rotation={[Math.PI / 2, 0, 0]} material={VM.float}>
+        <torusGeometry args={[0.15, 0.05, 5, 10]} />
+      </mesh>
+      <Beam a={[POOL.x1 - 0.2, y + 0.1, POOL.z1 - 0.12]} b={[POOL.x1 - 0.2, y + 0.4, POOL.z1 - 0.02]} r={0.015} m={M.brass} />
+      <Beam a={[POOL.x1 - 0.45, y + 0.1, POOL.z1 - 0.12]} b={[POOL.x1 - 0.45, y + 0.4, POOL.z1 - 0.02]} r={0.015} m={M.brass} />
+
+      {/* ---- sun deck: loungers, Flo's chair, side table, planters ---- */}
+      <group position={[0, y, 0]}>
+        <Lounger s={{ x: 17.5, z: -5.2, rotY: 0 }} color={VM.lounger} />
+        <Lounger s={{ x: 18.22, z: -5.2, rotY: 0 }} color={M.floCushion} />
+        <TowerChair seat={{ x: seat.x, z: seat.z, rotY: BUNGALOW_ROT }} top={0} cushion={M.floCushion} />
+        <group position={[seat.x, 0, seat.z - 0.62]}>
+          <Cyl p={[0, 0.17, 0]} rt={0.03} h={0.34} m={M.darkWood} />
+          <Cyl p={[0, 0.35, 0]} rt={0.16} h={0.04} seg={8} m={M.bamboo} />
+          <mesh position={[0, 0.43, 0]} material={M.coconut}>
+            <icosahedronGeometry args={[0.07, 0]} />
+          </mesh>
+          <Cyl p={[0.03, 0.52, 0]} rt={0.008} h={0.12} m={M.white} r={[0, 0, 0.3]} />
+        </group>
+        <Planter p={[D.x1 - 0.35, 0, D.z1 - 0.3]} />
+        <Planter p={[D.x0 + 0.3, 0, W.z0 - 0.3]} />
+        <group position={[VILLA.x1 - 0.25, 0, VILLA.z1 + 0.3]}>
+          <Cyl p={[0, 0.09, 0]} rt={0.1} rb={0.08} h={0.18} seg={8} m={M.claude} />
+          <Cone p={[0, 0.32, 0]} rad={0.14} h={0.32} seg={6} m={M.launch} />
+        </group>
+      </group>
+
+      {/* ---- rope rails, ladder into the lagoon ---- */}
+      <RopeRail pts={rails.south} y={y} h={0.45} />
+      <RopeRail pts={rails.east} y={y} h={0.45} />
+      <RopeRail pts={rails.west} y={y} h={0.45} />
+      <group position={[D.x1 + 0.06, 0, FLO_LADDER_Z]}>
+        {[-0.2, 0.2].map((z) => (
+          <Box key={z} p={[0, (ladderTop + ladderBot) / 2, z]} s={[0.05, ladderLen, 0.05]} m={M.white} />
+        ))}
+        {Array.from({ length: 6 }, (_, i) => (
+          <Box key={`lr${i}`} p={[0, ladderBot + 0.15 + i * 0.25, 0]} s={[0.05, 0.035, 0.4]} m={M.white} />
+        ))}
+        {[-0.2, 0.2].map((z) => (
+          <Beam key={`lh${z}`} a={[0, ladderTop, z]} b={[-0.25, ladderTop, z]} r={0.022} m={M.brass} />
+        ))}
+      </group>
+      <Lantern p={[D.x1 - 0.05, y + 0.6, D.z1 - 0.05]} night={night} />
+      <Lantern p={[D.x0 + 0.05, y + 0.6, W.z1 + 0.05]} night={night} />
     </group>
   );
 }
@@ -1373,22 +2131,26 @@ export default function Island({ sky, animate = true, onGroundTap, onZoneTap, sh
   return (
     <group>
       <Terrain onTap={onGroundTap} />
-      <Water tint={sky.water} animate={animate} onTap={onGroundTap} glow={animate && !lowPower ? sky.stars : 0} lowPower={lowPower} />
+      <Water tint={sky.water} animate={animate} onTap={onGroundTap} glow={animate ? sky.stars : 0} lowPower={lowPower} />
       <Foam animate={animate} />
       <SandPaths />
       <Palms animate={animate} />
-      <Flowers />
-      <Rocks />
-      <Tower night={night} animate={animate} />
-      <Cabana night={night} />
-      <Patio />
-      <Lanai night={night} animate={animate} />
-      <TikiHut night={night} animate={animate} />
-      <MoneyDesk night={night} />
-      <Dock night={night} animate={animate} />
-      <Bungalow night={night} />
-      <Lookout night={night} animate={animate} />
-      <BeachChair />
+      {/* Buildings never move (flags, torches, boats and the helicopter opt
+          out with NO_MERGE), so they're merged into a few draw calls. */}
+      <StaticMerge version={night > 0.3 ? 1 : 0}>
+        <Flowers />
+        <Rocks />
+        <Tower night={night} animate={animate} />
+        <Cabana night={night} />
+        <Patio />
+        <Lanai night={night} animate={animate} />
+        <TikiHut night={night} animate={animate} />
+        <MoneyDesk night={night} />
+        <Dock night={night} animate={animate} />
+        <Bungalow night={night} animate={animate} />
+        <Lookout night={night} animate={animate} />
+        <BeachChair />
+      </StaticMerge>
       {showLabels && <ZoneLabels onZoneTap={onZoneTap} />}
     </group>
   );

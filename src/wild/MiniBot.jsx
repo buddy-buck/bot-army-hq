@@ -13,7 +13,7 @@ import { BOT_SCALE, GEO, MAT } from '../components/Bot.jsx';
 //   <MiniBot ref={b} color="#2E86DE" right={<Tray />} />
 //   b.current.root / pose / head / armL / armR / footL / footR / eyeL / eyeR
 //   (all THREE.Object3D). Arms hang from the shoulder: rotation.x < 0 swings
-//   an arm forward, rotation.z swings it out to the side (armL +z, armR -z).
+//   an arm forward, rotation.z swings it out to the side (armL -z, armR +z).
 //   b.current.reset() puts every part back to the standing rest pose.
 // Units match the real bots: origin at the feet, about 1.35 tall with the
 // default scale. Faces local +z.
@@ -75,8 +75,8 @@ const MiniBot = forwardRef(function MiniBot({ color = '#2E86DE', left = null, ri
       pose.current.position.set(0, 0, 0);
       pose.current.rotation.set(0, 0, 0);
       head.current.rotation.set(0, 0, 0);
-      armL.current.rotation.set(0, 0, 0.12);
-      armR.current.rotation.set(0, 0, -0.12);
+      armL.current.rotation.set(0, 0, -0.12);
+      armR.current.rotation.set(0, 0, 0.12);
       footL.current.position.set(-0.08, 0.06, 0);
       footR.current.position.set(0.08, 0.06, 0);
     },
@@ -96,12 +96,12 @@ const MiniBot = forwardRef(function MiniBot({ color = '#2E86DE', left = null, ri
         <mesh ref={footR} geometry={GEO.foot} material={MAT.foot} position={[0.08, 0.06, 0]} />
         <mesh geometry={GEO.body} material={mats.body} position={[0, 0.38, 0]} />
         {/* arms hang from the shoulders; hands at the bottom */}
-        <group ref={armL} position={[-SHOULDER_X, SHOULDER_Y, 0]} rotation={[0, 0, 0.12]}>
+        <group ref={armL} position={[-SHOULDER_X, SHOULDER_Y, 0]} rotation={[0, 0, -0.12]}>
           <mesh geometry={ARM_GEO} material={mats.body} position={[0, -0.15, 0]} />
           <mesh geometry={HAND_GEO} material={MAT.face} position={[0, -0.32, 0]} />
           {left && <group position={[0, -0.34, 0.04]}>{left}</group>}
         </group>
-        <group ref={armR} position={[SHOULDER_X, SHOULDER_Y, 0]} rotation={[0, 0, -0.12]}>
+        <group ref={armR} position={[SHOULDER_X, SHOULDER_Y, 0]} rotation={[0, 0, 0.12]}>
           <mesh geometry={ARM_GEO} material={mats.body} position={[0, -0.15, 0]} />
           <mesh geometry={HAND_GEO} material={MAT.face} position={[0, -0.32, 0]} />
           {right && <group position={[0, -0.34, 0.04]}>{right}</group>}
