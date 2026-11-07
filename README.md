@@ -40,10 +40,11 @@ Handy test switches (add to the URL):
 
 | Area | Names |
 |---|---|
-| Sea | `whale`, `dolphins`, `turtles`, `fish`, `wake` (a test dinghy doing figure-eights to show wakes and night glow) |
-| Boats | `tug`, `tour`, `jetski`, plus close-up cameras `camtug`, `camtour`, `camsail`, `camjet` |
-| Sky | `pelicans`, `stars`, `meteors`, `fireworks`, `aurora`, `ufo`, `rainbow` |
-| Buildings | `plane2` (airstrip plane), `heli` (helicopter on Chief's helipad) |
+| Sea | `whale`, `dolphins`, `turtles`, `fish`, `wake` (a test dinghy doing figure-eights to show wakes and night glow), `bigfoot`, `nessie`, `tide` |
+| Boats | `tug`, `tour`, `jetski`, `jetboat`, `race`, plus close-up cameras `camtug`, `camtour`, `camsail`, `camjet`, `camjetboat`, `camrival` |
+| Sky | `pelicans`, `stars`, `meteors`, `fireworks`, `aurora`, `ufo`, `rainbow`, `byob`, `drop` |
+| Buildings | `plane2` (airstrip plane), `heli` (helicopter on Chief's helipad), `vane` (lighthouse weather vane gusts), `pool` (bots visit Flo's pool) |
+| Island life | `concert`, `yoga`, `shaveice` |
 | Bots | `highfive`, `trip`, `selfie`, `pushups`, `antics` (all four), `fishing`, `armwrestle`, `sandcastle`, `bottle` |
 
 Note: if npm prints a warning that esbuild's install script was skipped, the build still works. If `npm run dev` ever fails because esbuild is missing, run `npm rebuild esbuild`.
@@ -200,7 +201,7 @@ The island grew (it's about 20% wider and 40% deeper) to make room for a whole r
   - A red-and-white lighthouse on the north-east rocks sweeps the sea with its beam from golden hour on. Tap it for the foghorn.
   - A "Welcome to Bot Island HQ" tiki arch stands at Launch's Pier, with lanterns along the pier.
   - A lifeguard watchtower on the south beach, with a lifeguard bot on binoculars by day.
-  - An airstrip on the north shore (BOT AIR hangar, control tower, windsock, edge lights) where a little island-hopper plane takes off and lands every few minutes.
+  - An inland airstrip on the east side of the island (BOT AIR hangar, control tower, windsock, edge lights) where a little island-hopper plane takes off and lands over the east shore every few minutes. The north beach is the lounge beach: loungers, volleyball and sunrise yoga.
   - A helipad on top of Chief's Tower, where Chief's magenta helicopter visits now and then.
   - A Visitor Center by the pier, whose counter shows how many bots are on the island, working and chillin' right now. Tap it for the breakdown by team.
 - **Flo's overwater bungalow.** A Maldives-style villa on stilts off the north shore, reached by a boardwalk, with a layered thatched roof, a sun deck with a plunge pool, a ladder into the lagoon and a glass floor panel with coral and fish below (it glows at night). Flo's porch chair looks west to the sunset.
@@ -225,6 +226,10 @@ The island grew (it's about 20% wider and 40% deeper) to make room for a whole r
   - A humpback whale breach far out, every 8 to 15 minutes on screen.
   - A UFO at night that tries to beam up a beach ball (tap it).
   - The lighthouse foghorn (tap the lighthouse).
+
+### Round 3
+
+The full list of easter eggs, interactions, rare events and their timing lives in [EASTER-EGGS.md](EASTER-EGGS.md).
 
 ### Avatars
 

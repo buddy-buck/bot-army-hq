@@ -1,6 +1,7 @@
 // Where things stand in the water, so the sea can lap foam and ripples
 // around them: deck and pier stilts, rocks in the surf, moored boats.
 import { DOCK, FLO, LANAI, ROCKS, terrainY } from '../../utils/paths.js';
+import { SLIP } from '../boats/jet.js';
 
 const wet = (x, z) => terrainY(x, z) < -0.04;
 
@@ -42,5 +43,6 @@ export const COLLARS = (() => {
   for (const r of ROCKS) if (terrainY(r.x, r.z) < 0.05) out.push([r.x, r.z, 0.5 + r.s * 1.4, ph(), 1.15, r.rot, 0.48]);
   out.push([CRUISER_AT.x - 0.3, CRUISER_AT.z, 1.0, ph(), 2.4, 0, 0.74]);
   out.push([OFFICE_AT.x, OFFICE_AT.z, 1.0, ph(), 1.65, -0.12, 0.74]);
+  out.push([SLIP.x, SLIP.z, 0.95, ph(), 2.2, 0, 0.74]); // Launch's jet boat (south side of the pier)
   return out;
 })();

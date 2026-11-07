@@ -934,27 +934,101 @@ button.chip:focus-visible,
   padding: 0;
 }
 
-/* ---------- "+18 min" chip and confetti ---------- */
+/* ---------- "+7 min" floats and confetti ---------- */
 
-.gain-float {
-  padding: 4px 10px;
-  border-radius: var(--radius);
-  background: var(--cream);
-  color: #17672f;
-  border: 2px solid #2ba84a;
-  box-shadow: 0 4px 14px rgba(14, 30, 45, 0.22);
-  font-size: 18px;
-  font-weight: 900;
-  white-space: nowrap;
-  animation: gain-float 2.6s ease-out forwards;
+/* Outer wrapper: moved by the bubble layout (labels.js), never animated in CSS. */
+.gain-wrap,
+.story-wrap {
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+  will-change: transform;
 }
 
-@keyframes gain-float {
-  0% { transform: translateY(10px) scale(0.7); opacity: 0; }
-  12% { transform: translateY(0) scale(1.08); opacity: 1; }
-  20% { transform: translateY(-4px) scale(1); }
-  80% { opacity: 1; }
-  100% { transform: translateY(-46px); opacity: 0; }
+.gain-pop {
+  position: relative;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 2px 6px;
+  font-family: 'Arial Rounded MT Bold', ui-rounded, 'SF Pro Rounded', var(--font);
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+  color: #ffd23f;
+  -webkit-text-stroke: 1.5px #6b3a00;
+  paint-order: stroke fill;
+  text-shadow: 0 0 10px rgba(255, 200, 60, 0.95), 0 0 22px rgba(255, 150, 20, 0.7), 0 3px 0 #8a4a00, 0 5px 10px rgba(40, 20, 0, 0.55);
+  transform-origin: 50% 80%;
+  animation: gain-pop 2.9s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+}
+
+.gain-num {
+  font-size: 40px;
+  background: linear-gradient(180deg, #fff6c2 0%, #ffd84a 42%, #ff9f1a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 1.5px #7a3d00;
+  text-shadow: none;
+  filter: drop-shadow(0 0 6px rgba(255, 190, 40, 0.9)) drop-shadow(0 3px 0 #8a4a00) drop-shadow(0 4px 8px rgba(40, 20, 0, 0.5));
+}
+
+.gain-unit {
+  font-size: 22px;
+  color: #fff3c4;
+}
+
+/* a little star burst behind the number */
+.gain-burst {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+}
+
+.gain-burst i {
+  position: absolute;
+  left: -7px;
+  top: -7px;
+  width: 14px;
+  height: 14px;
+  background: radial-gradient(circle, #fffbe0 0%, #ffd84a 45%, rgba(255, 216, 74, 0) 72%);
+  clip-path: polygon(50% 0, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0 50%, 39% 39%);
+  opacity: 0;
+  animation: gain-star 0.95s 0.08s ease-out forwards;
+}
+
+@keyframes gain-pop {
+  0% { transform: scale(0.2); opacity: 0; }
+  9% { transform: scale(1.4); opacity: 1; }
+  16% { transform: scale(0.9); }
+  23% { transform: scale(1.06); }
+  30% { transform: scale(1); }
+  78% { opacity: 1; }
+  100% { transform: scale(0.94); opacity: 0; }
+}
+
+@keyframes gain-star {
+  0% { transform: rotate(var(--a)) translateX(4px) scale(0.4); opacity: 1; }
+  60% { opacity: 1; }
+  100% { transform: rotate(var(--a)) translateX(var(--d)) scale(1.1) rotate(90deg); opacity: 0; }
+}
+
+.gain-pop.is-static {
+  animation: gain-fade 2.9s ease forwards;
+}
+
+@keyframes gain-fade {
+  0% { opacity: 0; }
+  12% { opacity: 1; }
+  78% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@media (max-width: 600px) {
+  .gain-num { font-size: 36px; }
+  .gain-unit { font-size: 20px; }
 }
 
 .confetti {
@@ -1146,36 +1220,80 @@ button.chip:focus-visible,
 
 /* ---------- Wild extras ---------- */
 
-/* Campfire thought bubbles */
-.thought {
+/* Campfire stories: warm parchment speech bubbles with a tail that points
+   at the speaker (--tail is set by the bubble layout when it nudges one). */
+.story {
   position: relative;
   width: max-content;
-  max-width: 200px;
-  padding: 6px 10px;
+  max-width: min(220px, 58vw);
+  padding: 8px 13px 9px;
   border-radius: 14px;
-  border: 2px solid #ffffff;
-  background: rgba(255, 252, 244, 0.95);
-  color: var(--ink);
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1.25;
-  text-align: center;
-  box-shadow: 0 2px 10px rgba(10, 20, 50, 0.3);
-  animation: fade-up 0.4s ease;
+  border: 2px solid #7a4a1e;
+  background: linear-gradient(180deg, #fffaf0 0%, #fbedcc 100%);
+  color: #3a2614;
+  box-shadow: 0 0 0 3px rgba(255, 196, 110, 0.35), 0 6px 18px rgba(20, 8, 0, 0.45), 0 0 26px rgba(255, 150, 60, 0.35);
+  text-align: left;
   pointer-events: none;
+  animation: story-in 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.2);
 }
 
-.thought::after {
+.story::after,
+.story::before {
   content: '';
   position: absolute;
-  left: 50%;
-  bottom: -12px;
-  width: 9px;
-  height: 9px;
-  margin-left: -4px;
-  border-radius: 50%;
-  background: rgba(255, 252, 244, 0.95);
-  box-shadow: -6px 7px 0 -2px rgba(255, 252, 244, 0.95);
+  left: calc(50% + var(--tail, 0px));
+  width: 0;
+  height: 0;
+  border-style: solid;
+}
+
+.story::before {
+  bottom: -14px;
+  margin-left: -11px;
+  border-width: 14px 11px 0;
+  border-color: #7a4a1e transparent transparent;
+}
+
+.story::after {
+  bottom: -10px;
+  margin-left: -8px;
+  border-width: 11px 8px 0;
+  border-color: #fbedcc transparent transparent;
+}
+
+.story-name {
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--bot, #7a4a1e);
+  filter: saturate(1.2) brightness(0.8);
+}
+
+.story-kicker {
+  display: inline-block;
+  margin: 2px 0 1px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #ffd84a;
+  color: #5a3000;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.story-text {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+@keyframes story-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.85); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .story { animation: none; }
 }
 
 /* Bottle and treasure notes */
@@ -1209,6 +1327,18 @@ button.chip:focus-visible,
   color: var(--ink-soft);
 }
 
+.island-note-links {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.island-note-links .card-open {
+  margin-top: 8px;
+  font-size: 18px;
+}
+
 /* Photo booth: chrome hides while the shot is set up, then a soft flash */
 .app.is-photo .hud-top,
 .app.is-photo .hud-bottom-left,
@@ -1217,7 +1347,16 @@ button.chip:focus-visible,
 .app.is-photo .bot-tag,
 .app.is-photo .sky-clock,
 .app.is-photo .photo-hide,
-.app.is-photo .toast {
+.app.is-photo .toast,
+.app.is-postcard .hud-top,
+.app.is-postcard .hud-bottom-left,
+.app.is-postcard .radar,
+.app.is-postcard .zone-tag,
+.app.is-postcard .bot-tag,
+.app.is-postcard .sky-clock,
+.app.is-postcard .photo-hide,
+.app.is-postcard .zzz,
+.app.is-postcard .toast {
   opacity: 0 !important;
   pointer-events: none !important;
   transition: opacity 0.3s ease;
@@ -1656,4 +1795,231 @@ button.chip:focus-visible,
   display: inline-block;
   margin-left: 6px;
   vertical-align: 1px;
+}
+
+/* ---------- Narrow phones: the HUD buttons wrap to two rows ---------- */
+
+@media (max-width: 430px) {
+  .hud-buttons {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    max-width: calc(var(--chip-h) * 3 + 12px);
+    gap: 6px;
+  }
+}
+
+/* ---------- Postcard mode ---------- */
+
+.postcard {
+  position: fixed;
+  inset: 0;
+  z-index: 96;
+  animation: fade-in 0.4s ease;
+  font-family: var(--font);
+}
+
+/* cream card border and a warm golden-hour wash over the frozen island */
+.postcard-frame {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 45%, rgba(255, 190, 90, 0) 45%, rgba(90, 45, 0, 0.32) 100%), linear-gradient(180deg, rgba(255, 170, 70, 0.16), rgba(255, 120, 60, 0.12));
+  box-shadow: inset 0 0 0 12px #fbf3e0, inset 0 0 0 18px rgba(160, 110, 50, 0.45), inset 0 0 0 19px #fbf3e0;
+}
+
+.postcard-title {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(var(--safe-top) + 26px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+  animation: postcard-drop 0.7s cubic-bezier(0.2, 0.9, 0.3, 1.25);
+}
+
+.postcard-greet {
+  font-family: 'Snell Roundhand', 'Brush Script MT', 'Segoe Script', Georgia, cursive;
+  font-style: italic;
+  font-weight: 700;
+  font-size: clamp(26px, 6vw, 44px);
+  color: #fff6dc;
+  -webkit-text-stroke: 5px #1f2430;
+  paint-order: stroke fill;
+  transform: rotate(-4deg);
+  margin-bottom: -6px;
+}
+
+.postcard-big {
+  position: relative;
+  font-family: 'Arial Black', 'Helvetica Neue', Impact, system-ui, sans-serif;
+  font-weight: 900;
+  font-size: clamp(46px, 14vw, 120px);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  color: transparent;
+  background: linear-gradient(180deg, #ffe98a 0%, #ffb02e 48%, #ff04a0 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-stroke: clamp(3px, 0.9vw, 7px) #1f2430;
+  filter: drop-shadow(5px 6px 0 #19469d) drop-shadow(0 6px 16px rgba(0, 0, 0, 0.35));
+}
+
+.postcard-stamp {
+  position: absolute;
+  right: calc(var(--safe-right) + 32px);
+  bottom: calc(var(--safe-bottom) + 96px);
+  width: 84px;
+  height: 102px;
+  padding: 7px;
+  background: #fffaf0;
+  pointer-events: none;
+  transform: rotate(4deg);
+  /* perforated edge: holes along the rim, the art (content box) stays solid */
+  -webkit-mask: linear-gradient(#000 0 0) content-box, radial-gradient(circle 3.5px at 4.5px 4.5px, transparent 98%, #000) -4.5px -4.5px / 9px 9px;
+  mask: linear-gradient(#000 0 0) content-box, radial-gradient(circle 3.5px at 4.5px 4.5px, transparent 98%, #000) -4.5px -4.5px / 9px 9px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
+}
+
+.postcard-stamp-art {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0 5px;
+  background: linear-gradient(180deg, #ff8a3d 0%, #ff04a0 55%, #19469d 100%);
+  color: #ffffff;
+  overflow: hidden;
+}
+
+.postcard-stamp-byob {
+  font-family: 'Arial Black', Impact, system-ui, sans-serif;
+  font-size: 21px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+}
+
+.postcard-stamp-sun {
+  width: 34px;
+  height: 17px;
+  border-radius: 17px 17px 0 0;
+  background: #ffde69;
+}
+
+.postcard-stamp-sub {
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+.postcard-postmark {
+  position: absolute;
+  right: calc(var(--safe-right) + 106px);
+  bottom: calc(var(--safe-bottom) + 150px);
+  width: 98px;
+  height: 98px;
+  border-radius: 50%;
+  border: 2.5px solid rgba(255, 246, 225, 0.85);
+  box-shadow: inset 0 0 0 9px transparent, inset 0 0 0 10.5px rgba(255, 246, 225, 0.7), 0 0 6px rgba(0, 0, 0, 0.35);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  color: rgba(255, 246, 225, 0.92);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  transform: rotate(-12deg);
+  pointer-events: none;
+}
+
+.postcard-postmark strong {
+  font-size: 12.5px;
+  font-weight: 900;
+}
+
+.postcard-actions {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--safe-bottom) + 28px);
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+.postcard-btn {
+  min-height: var(--chip-h);
+  min-width: 112px;
+  padding: 0 22px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--cream);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  font: inherit;
+  font-size: 18px;
+  font-weight: 800;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.postcard-btn.is-primary {
+  background: var(--bb-blue);
+  border-color: var(--bb-blue);
+  color: #ffffff;
+}
+
+.postcard-btn:active {
+  transform: scale(0.96);
+}
+
+.postcard-btn:focus-visible {
+  outline: 3px solid var(--bb-yellow);
+  outline-offset: 2px;
+}
+
+.postcard-btn:disabled {
+  opacity: 0.7;
+}
+
+@keyframes postcard-drop {
+  from { opacity: 0; transform: translateY(-24px) scale(0.9); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .postcard,
+  .postcard-title { animation: none; }
+}
+
+/* Bot card: "Learn more" link to the bot in the BYOB store */
+.card-byob {
+  display: block;
+  margin-top: 10px;
+  padding: 11px 16px;
+  text-align: center;
+  border-radius: 5px;
+  border: 2px solid var(--bb-blue);
+  background: #fffaf0;
+  color: var(--bb-blue);
+  font-size: 17px;
+  font-weight: 800;
+  text-decoration: none;
+}
+.card-byob:active {
+  transform: scale(0.98);
+}
+.card-byob-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.75;
 }

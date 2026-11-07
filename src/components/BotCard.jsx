@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { teamLabel } from '../utils/paths.js';
+import { BOT_PITCH, byobBotUrl } from '../utils/byob.js';
 import { formatNumber, timeAgo } from '../utils/ticker.js';
 import { countdown, dayKeyPT, formatTimePT } from '../utils/time.js';
 
@@ -97,6 +98,12 @@ export default function BotCard({ bot, onClose, nextUp, minutesSaved }) {
           </a>
         ) : (
           <div className="card-nolink">{lastAction.linkHidden ? 'Link hidden' : 'No link yet'}</div>
+        )}
+        {bot.id !== 'claude' && (
+          <a className="card-byob" href={byobBotUrl(bot)} target="_blank" rel="noopener noreferrer">
+            Learn more about {bot.name} in the BYOB store
+            {BOT_PITCH[bot.id] && <span className="card-byob-sub">Saves {BOT_PITCH[bot.id].saves}</span>}
+          </a>
         )}
       </div>
     </div>

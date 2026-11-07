@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { FLO, terrainY } from '../../utils/paths.js';
-import { Beam, Box, Cone, Cyl, Fringe, GLOW_GEO, Lantern, M, TowerChair, glowMaterial, std, useGlowMaterial } from './kit.jsx';
+import { Beam, Box, Cone, Cyl, Fringe, GLOW_GEO, Lantern, M, TowerChair, canvasTexture, glowMaterial, pointer, std, tap, useGlowMaterial } from './kit.jsx';
+import FloPool, { POOL, SD } from './FloPool.jsx';
 
 // Flo's overwater villa, Maldives style. A boardwalk with rope rails runs
 // out from the beach to a platform on stilts. On it: the villa (white walls,
@@ -10,6 +11,9 @@ import { Beam, Box, Cone, Cyl, Fringe, GLOW_GEO, Lantern, M, TowerChair, glowMat
 // looking west at the sunset, and a glass floor panel to watch the lagoon
 // below. Out back, a sun deck with a plunge pool, loungers and a ladder down
 // into the water. Warm windows and an underwater light glow at night.
+// Tap the glass floor: the camera looks straight down through it at the
+// coral garden and the fish. Crew bots drop by for a dip in the pool now
+// and then (FloPool.jsx).
 
 const P = FLO.platform;
 const B = FLO.boardwalk;
@@ -29,7 +33,8 @@ const WALL_H = 1.9;
 
 const VM = {
   glass: new THREE.MeshStandardMaterial({ color: '#d6f2fb', transparent: true, opacity: 0.38, roughness: 0.08, metalness: 0.1, emissive: '#ffc874', emissiveIntensity: 0, flatShading: true, depthWrite: false }),
-  floorGlass: new THREE.MeshStandardMaterial({ color: '#8fe3f2', transparent: true, opacity: 0.28, roughness: 0.05, metalness: 0.2, emissive: '#48d8e8', emissiveIntensity: 0, depthWrite: false }),
+  floorGlass: new THREE.MeshStandardMaterial({ color: '#9fe9f5', transparent: true, opacity: 0.2, roughness: 0.05, metalness: 0.1, emissive: '#48d8e8', emissiveIntensity: 0, depthWrite: false }),
+  glassEdge: new THREE.MeshBasicMaterial({ color: '#e9fdff', transparent: true, opacity: 0.28, depthWrite: false }),
   frame: std('#5a3d26'),
   steel: std('#c9d3d8', { roughness: 0.35, metalness: 0.4 }),
   sheet: std('#fbfaf5'),
@@ -38,11 +43,19 @@ const VM = {
   pool: new THREE.MeshStandardMaterial({ color: '#4fe0ea', emissive: '#30c9db', emissiveIntensity: 0.25, roughness: 0.1, transparent: true, opacity: 0.88, flatShading: true }),
   poolTile: std('#f4fbfb'),
   cushion: std('#8fd3c1'),
-  sand: std('#e9d7a4'),
+  // the lagoon under the glass (see UnderGlass)
+  sand: std('#b8d8c2'), // sand seen through a little water
   coralPink: std('#ff7aa8'),
   coralOrange: std('#ff9a4d'),
   coralPurple: std('#a27bff'),
+  coralYellow: std('#ffd23f'),
   star: std('#ff8a3d'),
+  pebble: std('#9aa3a8'),
+  shell: std('#ffe3ec'),
+  weed: std('#3fae6a'),
+  // Invisible, depth only: keeps the sea surface (which writes depth) from
+  // drawing over the view through the glass floor. See Platform.
+  seaMask: new THREE.MeshBasicMaterial({ colorWrite: false, transparent: true, depthWrite: true }),
   rope: std('#d9c79a'),
   leaf: std('#3f9b4f'),
 };
@@ -267,7 +280,7 @@ function House({ night }) {
 
 // Out back (east, in the house frame -z): a sun deck a step down, a plunge
 // pool, two loungers, a parasol and a ladder into the lagoon.
-const SD = { x0: -1.7, x1: 1.7, z0: -3.25, z1: -1.45, y: DY - 0.08 };
+// (SD and POOL live in FloPool.jsx, which walks visitors into the pool.)
 function SunDeck({ night }) {
   const poolGlow = useMemo(() => glowMaterial('#5ff0ff', 0), []);
   useEffect(() => {
@@ -276,7 +289,7 @@ function SunDeck({ night }) {
   }, [night, poolGlow]);
   useEffect(() => () => poolGlow.dispose(), [poolGlow]);
   const cz = (SD.z0 + SD.z1) / 2;
-  const pool = { x0: -1.45, x1: -0.15, z0: -2.95, z1: -1.75 };
+  const pool = POOL;
   const pcx = (pool.x0 + pool.x1) / 2;
   const pcz = (pool.z0 + pool.z1) / 2;
   const pw = pool.x1 - pool.x0;
@@ -290,7 +303,7 @@ function SunDeck({ night }) {
       <Box p={[(SD.x0 + pool.x0) / 2, SD.y - 0.06, pcz]} s={[pool.x0 - SD.x0, 0.12, pd]} m={M.plank} />
       <Box p={[(pool.x1 + SD.x1) / 2, SD.y - 0.06, pcz]} s={[SD.x1 - pool.x1, 0.12, pd]} m={M.plank} />
       {/* the plunge pool: white tile rim, glowing turquoise water */}
-      <Box p={[pcx, SD.y - 0.32, pcz]} s={[pw, 0.5, pd]} m={VM.poolTile} />
+      <Box p={[pcx, SD.y - 0.55, pcz]} s={[pw, 0.96, pd]} m={VM.poolTile} />
       <mesh position={[pcx, SD.y - 0.07, pcz]} material={VM.pool}>
         <boxGeometry args={[pw - 0.04, 0.02, pd - 0.04]} />
       </mesh>
@@ -314,10 +327,11 @@ function SunDeck({ night }) {
           return <Cyl key={`${x}${z}`} p={[x, (top + b) / 2, z]} rt={0.08} h={top - b} m={M.darkWood} />;
         })
       )}
-      {/* two loungers facing the sunrise, a parasol between them */}
-      <Lounger p={[0.45, SD.y, -2.2]} rotY={Math.PI} />
-      <Lounger p={[1.2, SD.y, -2.2]} rotY={Math.PI} />
-      <group position={[0.82, SD.y, -3.1]}>
+      {/* two loungers facing the sunrise, a parasol between them (set back
+          so there's a walkway past the villa's glass front to the pool) */}
+      <Lounger p={[0.6, SD.y, -2.6]} rotY={Math.PI} />
+      <Lounger p={[1.3, SD.y, -2.6]} rotY={Math.PI} />
+      <group position={[0.95, SD.y, -3.08]}>
         <Cyl p={[0, 0.85, 0]} rt={0.025} h={1.7} m={M.white} />
         <Cone p={[0, 1.72, 0]} rad={0.75} h={0.32} seg={8} m={M.thatch} />
         <Fringe p={[0, 1.56, 0]} halfX={0.75} halfZ={0.75} drop={0.1} round />
@@ -338,37 +352,163 @@ function SunDeck({ night }) {
   );
 }
 
-// Coral, starfish and a soft light on the lagoon floor under the glass.
+// The lagoon under the glass floor: a sandy patch with coral, sea grass,
+// starfish and shells, a little school of reef fish circling in the shade,
+// and caustic light rippling over the sand. A depth-only mask just under
+// the glass (renderOrder SEA_MASK_ORDER, after the caustics, before the sea
+// surface at 1) stops the tinted sea from drawing there, so the view down
+// through the glass is crystal clear, like a Maldives lagoon.
+const UNDER_ORDER = 0.2;
+const SEA_MASK_ORDER = 0.5;
+const UNDER_Y = -0.37;
+const GLASS_FISH = 9;
+const GLASS_FISH_GEO = (() => {
+  const v = [0, 0, 0.13, 0, 0.055, 0, 0.032, 0, 0, 0, -0.045, 0, -0.032, 0, 0, 0, 0, -0.1, 0, 0.065, -0.18, 0, -0.065, -0.18];
+  const idx = [0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 1, 5, 2, 1, 5, 3, 2, 5, 4, 3, 5, 1, 4, 5, 6, 7, 5, 7, 6];
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
+  const shade = [1, 1.05, 1, 1.25, 1, 0.8, 0.7, 0.7];
+  g.setAttribute('color', new THREE.Float32BufferAttribute(shade.flatMap((k) => [k, k, k]), 3));
+  g.setIndex(idx);
+  const flat = g.toNonIndexed();
+  flat.computeVertexNormals();
+  g.dispose();
+  return flat;
+})();
+const GLASS_FISH_COLORS = ['#ffd23f', '#ff6fa8', '#3ec9ff', '#ff8a3d', '#b26bff', '#ffd23f', '#3fe0b0', '#ff8a3d', '#3ec9ff'];
+// per fish: orbit radius (x, z), speed (signed), depth below the surface, phase, size
+const FISH_ORBITS = Array.from({ length: GLASS_FISH }, (_, i) => ({
+  rx: 0.35 + (i % 4) * 0.17,
+  rz: 0.22 + (i % 3) * 0.13,
+  sp: (0.32 + (i % 5) * 0.05) * (i % 3 === 2 ? -1 : 1),
+  y: -0.11 - (i % 3) * 0.065,
+  ph: i * 2.1,
+  s: 1.1 + (i % 3) * 0.2,
+}));
+
+function causticTexture() {
+  const tex = canvasTexture(128, 128, (ctx, w, h) => {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2.2;
+    ctx.shadowColor = '#ffffff';
+    ctx.shadowBlur = 4;
+    // a wobbly cell net (jittered grid, tiles seamlessly)
+    const n = 5;
+    const jit = (i, j) => {
+      const s = Math.sin((((i % n) + n) % n) * 12.9898 + (((j % n) + n) % n) * 78.233) * 43758.5453;
+      return s - Math.floor(s);
+    };
+    const pt = (i, j) => [((i + 0.2 + jit(i, j) * 0.6) / n) * w, ((j + 0.2 + jit(j + 7, i + 3) * 0.6) / n) * h];
+    for (let i = -1; i <= n; i++) {
+      for (let j = -1; j <= n; j++) {
+        const [x, y] = pt(i, j);
+        for (const [di, dj] of [[1, 0], [0, 1]]) {
+          const [x2, y2] = pt(i + di, j + dj);
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.quadraticCurveTo((x + x2) / 2 + (y2 - y) * 0.2, (y + y2) / 2 - (x2 - x) * 0.2, x2, y2);
+          ctx.stroke();
+        }
+      }
+    }
+  });
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(2, 2);
+  return tex;
+}
+
 function UnderGlass({ night, animate }) {
+  const root = useRef();
   const light = useRef();
+  const fish = useRef();
   const glow = useMemo(() => glowMaterial('#6ff3ff', 0), []);
   const floorGlow = useMemo(() => glowMaterial('#7cf6ff', 0), []);
-  useEffect(() => () => (glow.dispose(), floorGlow.dispose()), [glow, floorGlow]);
+  const caustic = useMemo(() => {
+    const a = causticTexture();
+    const b = a.clone();
+    b.needsUpdate = true;
+    b.repeat.set(1.6, 1.6);
+    const mk = (map) => new THREE.MeshBasicMaterial({ map, color: '#9ff6ff', transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
+    return { a, b, ma: mk(a), mb: mk(b) };
+  }, []);
+  const fishMat = useMemo(() => new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.5, emissive: '#1a3a40', emissiveIntensity: 0.3 }), []);
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+  useEffect(
+    () => () => {
+      glow.dispose();
+      floorGlow.dispose();
+      caustic.a.dispose();
+      caustic.b.dispose();
+      caustic.ma.dispose();
+      caustic.mb.dispose();
+      fishMat.dispose();
+    },
+    [glow, floorGlow, caustic, fishMat]
+  );
   useEffect(() => {
-    VM.floorGlass.emissiveIntensity = 0.08 + night * 1.3;
-  }, [night]);
+    VM.floorGlass.emissiveIntensity = 0.04 + night * 1.1;
+    VM.floorGlass.opacity = 0.2 + night * 0.08;
+    fishMat.emissiveIntensity = 0.3 + night * 0.9; // lit by the lagoon light
+  }, [night, fishMat]);
+  // the additive layers draw before the sea mask (see above)
+  useLayoutEffect(() => {
+    root.current?.traverse((o) => {
+      if (o.isMesh) o.renderOrder = UNDER_ORDER;
+    });
+    const m = fish.current;
+    if (!m) return;
+    GLASS_FISH_COLORS.forEach((c, i) => m.setColorAt(i, new THREE.Color(c)));
+    if (m.instanceColor) m.instanceColor.needsUpdate = true;
+  }, []);
+  // The coral garden sits on a raised bank just above the static far-ocean
+  // disc (Water.jsx, y -0.4), which would hide anything deeper. Its sand
+  // patch stays inside the platform's footprint so it never shows on the
+  // open water.
+  const fy = UNDER_Y;
   useFrame((state) => {
     const t = animate ? state.clock.elapsedTime : 0;
     const k = 1 + Math.sin(t * 0.8) * 0.08;
     glow.opacity = (0.06 + night * 0.26) * k;
     floorGlow.opacity = (0.05 + night * 0.3) * k;
     if (light.current) light.current.scale.set(1.3 * k, 0.55, 0.95 * k);
+    caustic.ma.opacity = 0.13 + night * 0.25;
+    caustic.mb.opacity = 0.09 + night * 0.2;
+    caustic.a.offset.set(t * 0.021, t * 0.013);
+    caustic.b.offset.set(-t * 0.017, t * 0.019);
+    const m = fish.current;
+    if (!m) return;
+    FISH_ORBITS.forEach((o, i) => {
+      const a = o.ph + t * o.sp;
+      const wob = Math.sin(t * 0.7 + i) * 0.06;
+      dummy.position.set(Math.cos(a) * (o.rx + wob), o.y - fy + Math.sin(t * 1.3 + i) * 0.03, Math.sin(a) * (o.rz + wob));
+      // facing along the orbit
+      dummy.rotation.set(0, Math.atan2(-Math.sin(a) * o.rx * Math.sign(o.sp), Math.cos(a) * o.rz * Math.sign(o.sp)) + Math.sin(t * 8 + i) * 0.12, 0);
+      dummy.scale.setScalar(o.s);
+      dummy.updateMatrix();
+      m.setMatrixAt(i, dummy.matrix);
+    });
+    m.instanceMatrix.needsUpdate = true;
   });
-  const fy = floorY(G.x, G.z);
   const corals = [
     [-0.6, -0.2, VM.coralPink, 0.22],
     [0.55, 0.3, VM.coralOrange, 0.18],
     [-0.1, 0.45, VM.coralPurple, 0.16],
     [0.75, -0.4, VM.coralPink, 0.14],
     [-0.85, 0.35, VM.coralOrange, 0.12],
+    [0.95, 0.42, VM.coralYellow, 0.15],
+    [-0.95, -0.5, VM.coralPurple, 0.13],
+    [0.25, -0.55, VM.coralYellow, 0.12],
   ];
   return (
-    <group position={[G.x, fy, G.z]}>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.04, 0]} material={VM.sand}>
-        <circleGeometry args={[1.5, 10]} />
+    <group ref={root} position={[G.x, fy, G.z]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.0, 0]} scale={[1.35, 1.0, 1]} material={VM.sand}>
+        <circleGeometry args={[1, 12]} />
       </mesh>
       {corals.map(([x, z, m, s], i) => (
-        <group key={i} position={[x, 0.04, z]} scale={s / 0.18}>
+        <group key={i} position={[x, 0.0, z]} scale={(s / 0.18) * 0.8} rotation={[0, i * 1.3, 0]}>
           <Cyl p={[0, 0.12, 0]} rt={0.03} rb={0.05} h={0.24} m={m} />
           <Cyl p={[0.06, 0.2, 0]} rt={0.025} h={0.18} m={m} r={[0, 0, -0.6]} />
           <Cyl p={[-0.06, 0.22, 0.02]} rt={0.025} h={0.18} m={m} r={[0.3, 0, 0.6]} />
@@ -377,17 +517,35 @@ function UnderGlass({ night, animate }) {
           </mesh>
         </group>
       ))}
-      <mesh geometry={STAR_GEO} material={VM.star} position={[0.15, 0.06, -0.35]} rotation={[0, 0.4, 0]} />
-      <mesh geometry={STAR_GEO} material={VM.coralPurple} position={[-0.45, 0.06, 0.05]} rotation={[0, 1.3, 0]} scale={0.8} />
+      {/* sea grass */}
+      {[[-0.3, 0.6], [0.45, -0.2], [-0.7, 0.1], [0.1, 0.7], [0.6, 0.65]].map(([x, z], i) => (
+        <Cone key={`w${i}`} p={[x, 0.16, z]} rad={0.035} h={0.3} seg={4} m={VM.weed} r={[Math.sin(i) * 0.25, 0, Math.cos(i) * 0.25]} />
+      ))}
+      <mesh geometry={STAR_GEO} material={VM.star} position={[0.15, 0.02, -0.35]} rotation={[0, 0.4, 0]} />
+      <mesh geometry={STAR_GEO} material={VM.coralPurple} position={[-0.45, 0.02, 0.05]} rotation={[0, 1.3, 0]} scale={0.8} />
+      <mesh geometry={STAR_GEO} material={VM.coralYellow} position={[0.7, 0.02, 0.05]} rotation={[0, 2.2, 0]} scale={0.7} />
       {[[0.3, 0.1], [-0.3, -0.45], [0.9, 0.05]].map(([x, z], i) => (
-        <mesh key={i} position={[x, 0.07, z]} material={M.stone} scale={[0.14, 0.07, 0.11]}>
+        <mesh key={i} position={[x, 0.03, z]} material={VM.pebble} scale={[0.14, 0.07, 0.11]}>
           <dodecahedronGeometry args={[1, 0]} />
         </mesh>
       ))}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.08, 0]} material={floorGlow}>
-        <circleGeometry args={[1.2, 18]} />
+      {[[-0.15, -0.15], [0.45, 0.55], [-0.6, 0.55]].map(([x, z], i) => (
+        <mesh key={`sh${i}`} position={[x, 0.02, z]} rotation={[0, i * 2, 0]} material={VM.shell} scale={[0.07, 0.035, 0.06]}>
+          <icosahedronGeometry args={[1, 0]} />
+        </mesh>
+      ))}
+      {/* caustic light dancing on the sand */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.012, 0]} scale={[1.3, 0.95, 1]} material={caustic.ma}>
+        <circleGeometry args={[1, 18]} />
       </mesh>
-      <mesh ref={light} geometry={GLOW_GEO} material={glow} position={[0, 0.45, 0]} />
+      <mesh rotation={[-Math.PI / 2, 0, 0.3]} position={[0, 0.015, 0]} scale={[1.15, 0.85, 1]} material={caustic.mb}>
+        <circleGeometry args={[1, 18]} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.018, 0]} scale={[1.2, 0.85, 1]} material={floorGlow}>
+        <circleGeometry args={[1, 18]} />
+      </mesh>
+      <instancedMesh ref={fish} args={[GLASS_FISH_GEO, fishMat, GLASS_FISH]} frustumCulled={false} />
+      <mesh ref={light} geometry={GLOW_GEO} material={glow} position={[0, 0.2, 0]} />
     </group>
   );
 }
@@ -452,7 +610,11 @@ function Boardwalk({ night }) {
   );
 }
 
-function Platform({ night, animate }) {
+// Tap the glass floor: look straight down through it at the lagoon.
+export const GLASS_SHOT = { target: [G.x - 0.15, -0.15, G.z], dist: 3.5, polar: 0.15, theta: -Math.PI / 2, hold: 12000 };
+
+function Platform({ night, animate, onShot }) {
+  const onGlass = useMemo(() => tap(() => onShot?.(GLASS_SHOT)), [onShot]);
   const stilts = [];
   for (const x of [P.x0 + 0.15, 8.55, 10.2, 11.2, P.x1 - 0.15]) for (const z of [P.z0 + 0.15, P.z1 - 0.15]) stilts.push([x, z]);
   stilts.push([P.x0 + 0.15, -18.2], [11.2, -18.2], [P.x1 - 0.15, -18.2]);
@@ -486,10 +648,16 @@ function Platform({ night, animate }) {
       {stilts.map(([x, z], i) => (
         <Stilt key={i} x={x} z={z} />
       ))}
-      {/* the glass floor: a dark frame and tinted glass you can see the lagoon through */}
-      <mesh position={[G.x, DY - 0.05, G.z]} material={VM.floorGlass} renderOrder={5}>
+      {/* the glass floor: a dark frame and clear glass you can see the lagoon
+          through (tap it to look straight down), with two faint sheen streaks */}
+      <mesh position={[G.x, DY - 0.05, G.z]} material={VM.floorGlass} renderOrder={5} onClick={onGlass} {...pointer}>
         <boxGeometry args={[G.hx * 2, 0.04, G.hz * 2]} />
       </mesh>
+      {[[-0.35, 0.09], [0.15, 0.05]].map(([dx, w], i) => (
+        <mesh key={`sh${i}`} position={[G.x + dx, DY - 0.028, G.z]} rotation={[-Math.PI / 2, 0, 0.7]} material={VM.glassEdge} renderOrder={6}>
+          <planeGeometry args={[w, G.hz * 2.2]} />
+        </mesh>
+      ))}
       {[
         [G.x, GZ0, G.hx * 2 + 0.12, 0.06],
         [G.x, GZ1, G.hx * 2 + 0.12, 0.06],
@@ -501,6 +669,9 @@ function Platform({ night, animate }) {
       ))}
       <Box p={[G.x, DY - 0.03, G.z]} s={[0.04, 0.02, G.hz * 2]} m={VM.frame} />
       <UnderGlass night={night} animate={animate} />
+      <mesh position={[G.x, DY - 0.15, G.z]} rotation={[-Math.PI / 2, 0, 0]} material={VM.seaMask} renderOrder={SEA_MASK_ORDER} raycast={() => null}>
+        <planeGeometry args={[G.hx * 2, G.hz * 2]} />
+      </mesh>
       {night > 0.15 && <GlassGlow night={night} />}
       {/* rail */}
       {railPosts.map(([x, z], i) => (
@@ -522,17 +693,18 @@ function Platform({ night, animate }) {
       {/* planters at the corners */}
       <Planter p={[P.x0 + 0.35, DY, P.z0 + 0.35]} />
       <Planter p={[P.x0 + 0.35, DY, P.z1 - 0.35]} colors={['#ff8a3d', '#ffd23f', '#ffffff']} />
-      <Planter p={[10.45, DY, P.z1 - 0.3]} colors={['#f25cff', '#ff5d8f', '#ffd23f']} />
+      <Planter p={[P.x1 - 0.35, DY, P.z0 + 0.32]} colors={['#f25cff', '#ff5d8f', '#ffd23f']} />
       <Lantern p={[P.x0 + 0.06, DY + 0.68, -18.2]} night={night} />
     </group>
   );
 }
 
-export default function FloVilla({ night, animate }) {
+export default function FloVilla({ night, animate, bedtime = false, onShot }) {
   return (
     <group>
       <Boardwalk night={night} />
-      <Platform night={night} animate={animate} />
+      <Platform night={night} animate={animate} onShot={onShot} />
+      <FloPool animate={animate} bedtime={bedtime} night={night} />
       <House night={night} />
     </group>
   );

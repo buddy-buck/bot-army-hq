@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { SITES, groundY } from '../../utils/paths.js';
@@ -6,7 +6,8 @@ import MiniBot from '../MiniBot.jsx';
 import { Beam, Box, Cyl, Lantern, M, Roof, std } from './kit.jsx';
 
 // Lifeguard watchtower on the south beach: white stilts, red rails and roof,
-// a ladder at the back, a rescue buoy and the red-and-yellow lifeguard flag.
+// a ladder at the back, a rescue buoy and an American flag that ripples in
+// the breeze.
 // By day a red lifeguard bot sits up top and slowly scans the water through
 // binoculars. At night the tower is empty and a small lamp glows.
 
@@ -15,8 +16,48 @@ const YELLOW = std('#ffd23f');
 const WHITE = std('#ffffff');
 const DARK = std('#2b2a33');
 const LENS = std('#5b8fd6', { roughness: 0.2 });
-const FLAG_RED = std('#e0393e', { side: THREE.DoubleSide });
-const FLAG_YELLOW = std('#ffd23f', { side: THREE.DoubleSide });
+
+// The American flag: a canvas texture (13 stripes, blue canton with 50 white
+// star dots) on a strip of a plane that ripples in the breeze. The ripple
+// moves the plane's vertices in place (no allocations per frame).
+const FLAG_W = 0.62;
+const FLAG_H = 0.33;
+const FLAG_SEG = 10;
+function usFlagTexture() {
+  const c = document.createElement('canvas');
+  c.width = 380;
+  c.height = 200;
+  const x = c.getContext('2d');
+  const w = c.width;
+  const h = c.height;
+  const sh = h / 13;
+  for (let i = 0; i < 13; i++) {
+    x.fillStyle = i % 2 ? '#ffffff' : '#c8202f';
+    x.fillRect(0, Math.round(i * sh), w, Math.ceil(sh) + 1);
+  }
+  const cw = w * 0.4;
+  const ch = sh * 7;
+  x.fillStyle = '#1f2f6b';
+  x.fillRect(0, 0, cw, ch);
+  // 50 stars: 9 rows alternating 6 and 5
+  x.fillStyle = '#ffffff';
+  for (let r = 0; r < 9; r++) {
+    const n = r % 2 ? 5 : 6;
+    for (let k = 0; k < n; k++) {
+      const sx = ((k * 2 + (r % 2 ? 2 : 1)) / 12) * cw;
+      const sy = ((r + 1) / 10) * ch;
+      x.beginPath();
+      x.arc(sx, sy, 3.6, 0, Math.PI * 2);
+      x.fill();
+    }
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}
+let flagMat = null;
+const getFlagMat = () => (flagMat ??= std('#ffffff', { map: usFlagTexture(), side: THREE.DoubleSide, flatShading: false, roughness: 0.9 }));
 const BUOY_GEO = new THREE.TorusGeometry(0.17, 0.06, 6, 12);
 const BAND_GEO = new THREE.TorusGeometry(0.17, 0.064, 6, 12, 0.35);
 
@@ -33,10 +74,22 @@ export default function Watchtower({ ctx }) {
   const parts = useRef({});
   const bino = useRef();
   const flag = useRef();
+  const flagGeo = useMemo(() => new THREE.PlaneGeometry(FLAG_W, FLAG_H, FLAG_SEG, 1).translate(FLAG_W / 2, 0, 0), []);
+  useEffect(() => () => flagGeo.dispose(), [flagGeo]);
 
   useFrame((state) => {
     const t = animate ? state.clock.elapsedTime : 0;
-    if (flag.current) flag.current.rotation.y = Math.sin(t * 2.1) * 0.22 + Math.sin(t * 3.3) * 0.06;
+    if (flag.current) {
+      flag.current.rotation.y = Math.sin(t * 2.1) * 0.16 + Math.sin(t * 3.3) * 0.05;
+      // ripple: a wave travels from the pole to the fly end, bigger toward the end
+      const pos = flagGeo.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const u = pos.getX(i) / FLAG_W;
+        pos.setZ(i, u * (Math.sin(u * 7 - t * 6.5) * 0.045 + Math.sin(u * 3.5 - t * 3.1) * 0.025));
+      }
+      pos.needsUpdate = true;
+      if (animate) flagGeo.computeVertexNormals();
+    }
     const p = parts.current;
     if (empty || !p.pose) return;
     // Seated, leaning forward a touch, elbows up with the binoculars.
@@ -126,16 +179,14 @@ export default function Watchtower({ ctx }) {
       </group>
       {/* rescue tube leaning on a stilt */}
       <Box p={[-HALF - 0.12, 0.5, HALF + 0.05]} s={[0.12, 0.85, 0.1]} r={[0, 0, 0.12]} m={RED} />
-      {/* lifeguard flag: red over yellow */}
+      {/* the American flag, flying from a pole on the back corner */}
       <group position={[-HALF, DECK_Y + 1.58, -HALF]}>
-        <Cyl p={[0, 0.45, 0]} rt={0.02} h={0.9} m={WHITE} />
-        <group ref={flag} position={[0, 0.72, 0]}>
-          <mesh position={[0.25, 0.08, 0]} material={FLAG_RED}>
-            <boxGeometry args={[0.5, 0.16, 0.015]} />
-          </mesh>
-          <mesh position={[0.25, -0.08, 0]} material={FLAG_YELLOW}>
-            <boxGeometry args={[0.5, 0.16, 0.015]} />
-          </mesh>
+        <Cyl p={[0, 0.5, 0]} rt={0.02} h={1.0} m={WHITE} />
+        <mesh position={[0, 1.02, 0]} material={YELLOW}>
+          <sphereGeometry args={[0.035, 8, 6]} />
+        </mesh>
+        <group ref={flag} position={[0.02, 0.8, 0]}>
+          <mesh geometry={flagGeo} material={getFlagMat()} />
         </group>
       </group>
       {empty ? (

@@ -5,6 +5,7 @@ import { brandTexture } from '../components/Island.jsx';
 import { DOCK, groundY } from '../utils/paths.js';
 import { dayKeyPT } from '../utils/time.js';
 import { readStore, writeStore } from './director.js';
+import { BOT_PITCH, BYOB_STORE, byobBotUrl } from '../utils/byob.js';
 
 // Small things to find and tap. Easter eggs, not clutter.
 //   Message in a bottle: Chief's welcome on a first visit, bobbing in the
@@ -246,32 +247,43 @@ export const NASTY_LINES = [
   'Found it! Inside: one sock, two seashells and a whole lot of good vibes.',
 ];
 
-// The real treasure: useful tips for working with a bot team and this HQ.
-// [the tip, one line of why or how]
-export const BOT_TIPS = [
-  ['Give every bot one clear job and one clear output.', "A bot that knows exactly what \"done\" looks like finishes faster and needs fewer redos."],
-  ['Handoffs work best with a named next step.', 'Say who picks it up, what they do with it, and by when.'],
-  ['Log minutes saved right when a task finishes.', 'Small wins add up, and fresh numbers are honest numbers.'],
-  ['Show the bot an example of great.', 'One good sample teaches more than a page of rules.'],
-  ['Give bots the context they cannot guess.', "Names, dates, tone, audience. If you'd tell a new hire, tell the bot."],
-  ['When a bot gets it wrong, fix the instructions, not just the output.', 'Then every future run gets better for free.'],
-  ['Keep a person in the loop for anything public.', 'Bots draft, people approve. Posts, emails and offers get a final look.'],
-  ['Run a new task by hand a few times before you hand it off.', "You'll know what good looks like, and so will the bot."],
-  ['Batch similar work together.', 'Ten captions in one run beat ten separate asks.'],
-  ['Save the prompts that work.', 'A reusable template beats retyping the same instructions every week.'],
-  ['Ask every bot for a short summary when it finishes.', 'Two or three lines make the feed easy to scan.'],
-  ['Name bots after what they do.', 'A good name is a job description you never have to look up.'],
-  ['Idle is fine.', "A bot chillin' with a mai tai is ready for the next job, not wasted."],
-  ['Retire bots that never earn their minutes.', 'Fold the job into another bot, or let it go.'],
-  ['Schedule the routine stuff.', 'Daily and weekly runs show up in "Next up" so nothing sneaks up on you.'],
-  ['Tap a zone tag to fly there.', 'Every work zone has a tag. Tap one for a closer look at that crew.'],
-  ['Find a bot with the people button.', 'It flies the camera straight to any bot on the team.'],
-  ['Tap any bot to see what it is up to.', 'Its card shows the last thing it did and a link to the work.'],
-  ['Open the dock office for the scoreboard.', "Tap Buddy's little houseboat at Launch's Pier to see minutes saved."],
-  ['Glowing packages are real handoffs.', "When a bot carries one across the island, that's work moving from one bot to the next."],
-  ['Try the photo booth on the beach.', 'Tap the camera on the tripod and the whole team waves.'],
-  ['Double-tap the ground near a zone to fly to it.', 'Double-tap open water to zoom back out.'],
+// The real treasure: tips that promote BYOB (Boss Your Own Bots). Every
+// other tip spotlights one bot from the team: what it does, how much time it
+// gives back, and a link to that bot in the BYOB store. Signed "BYOB".
+// General tips: [the tip, one line of why or how]
+const GENERAL_TIPS = [
+  ['Give every bot one clear job and one clear output.', 'Every BYOB bot ships with exactly that: one job, done well, every time.'],
+  ['Start with the task you dread most.', 'The first BYOB bot you hire should take the chore you keep pushing to tomorrow.'],
+  ['Log minutes saved right when a task finishes.', 'BYOB bots count their own minutes, so you can watch the score climb.'],
+  ['Bots draft, people approve.', 'BYOB bots hand you finished drafts. You keep the final say on anything public.'],
+  ['Schedule the routine stuff.', 'Daily and weekly BYOB runs show up in "Next up", so nothing sneaks up on you.'],
+  ['Hire a team, not a gadget.', 'BYOB bots hand work to each other, like the glowing packages you see crossing the island.'],
+  ['Small, steady wins beat one big rush.', 'Ten minutes a day per bot is 60 hours a year. Times a whole crew.'],
+  ['Name bots after what they do.', 'A good name is a job description you never have to look up. BYOB already named them for you.'],
+  ['Idle is fine.', "A BYOB bot chillin' with a mai tai is ready for the next job, not wasted."],
+  ['Boss your own bots.', 'You set the goals, the crew does the busywork. That is the whole idea behind BYOB.'],
 ];
+
+// Bots to spotlight, in order. Copy comes from BOT_PITCH (utils/byob.js).
+const SPOTLIGHT = ['nudge', 'caption', 'board', 'download', 'scoop', 'echo', 'recon', 'tracy', 'poster', 'chief', 'desk', 'brobot', 'spin', 'flo'];
+const titleCase = (id) => id.split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join('-');
+
+// Built tips: { tip, why, bot?, href? }. General and bot tips alternate.
+export const BOT_TIPS = (() => {
+  const out = [];
+  const n = Math.max(GENERAL_TIPS.length, SPOTLIGHT.length);
+  for (let i = 0; i < n; i++) {
+    const g = GENERAL_TIPS[i % GENERAL_TIPS.length];
+    out.push({ tip: g[0], why: g[1] });
+    const id = SPOTLIGHT[i % SPOTLIGHT.length];
+    const p = BOT_PITCH[id];
+    if (p) {
+      const name = titleCase(id);
+      out.push({ tip: `Meet ${name}: it ${p.does}.`, why: `That saves ${p.saves}. ${name} is ready to work for you too.`, bot: name, href: byobBotUrl(id) });
+    }
+  }
+  return out;
+})();
 
 export function dayOfYear(key = dayKeyPT()) {
   const [y, m, d] = key.split('-').map(Number);
@@ -283,12 +295,12 @@ export function dayOfYear(key = dayKeyPT()) {
 // campfire circle (checked with siteDistance and the zone list).
 export const CHEST_SPOTS = [
   { x: 5.5, z: 7.5, rotY: 0.4 },
-  { x: -12.5, z: -7.5, rotY: -0.6 },
+  { x: -14.2, z: -0.4, rotY: -0.6 },
   { x: 16.0, z: 6.0, rotY: -0.9 },
   { x: -3.5, z: 4.5, rotY: 0.2 },
   { x: 1.0, z: -6.0, rotY: 2.8 },
-  { x: 13.0, z: -1.5, rotY: -0.3 },
-  { x: -11.0, z: -12.0, rotY: 2.6 },
+  { x: 13.0, z: -6.2, rotY: -0.3 },
+  { x: 4.8, z: -8.2, rotY: 2.6 },
   { x: -12.5, z: 6.0, rotY: -1.2 },
 ];
 
@@ -466,8 +478,13 @@ export function TreasureChest({ onOpen, animate = true }) {
           openAt.current = performance.now() / 1000;
           taps.current += 1;
           const i = (day * 5 + taps.current - 1) % BOT_TIPS.length;
-          const [tip, why] = BOT_TIPS[i];
-          onOpen?.({ title: 'Treasure: bot tip', body: [tip, why, `Tip ${i + 1} of ${BOT_TIPS.length}. Tap again for another. The chest moves every day.`], from: 'Nasty' });
+          const t = BOT_TIPS[i];
+          onOpen?.({
+            title: t.bot ? `Treasure: meet ${t.bot}` : 'Treasure: BYOB tip',
+            body: [t.tip, t.why, `Tip ${i + 1} of ${BOT_TIPS.length}. Tap again for another. The chest moves every day.`],
+            from: 'BYOB',
+            links: [t.href ? { href: t.href, text: `Get ${t.bot} in the BYOB store` } : { href: BYOB_STORE, text: 'Visit the BYOB store' }],
+          });
         })}
         {...pointer}
       />

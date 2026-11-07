@@ -4,9 +4,10 @@ import * as THREE from 'three';
 import { testOn } from '../../wild/director.js';
 import { world } from '../state.js';
 
-// Close-up checking camera: ?test=camtug, camtour, camsail or camjet makes
+// Close-up checking camera: ?test=camtug, camtour, camsail, camjet,
+// camjetboat (Launch's jet boat) or camrival (the gold race boat) makes
 // the camera ride alongside that boat (it overrides the orbit each frame).
-const CAMS = { camtug: 'tug', camtour: 'tour', camsail: 'sail-a', camjet: 'jetski' };
+const CAMS = { camtug: 'tug', camtour: 'tour', camsail: 'sail-a', camjet: 'jetski', camjetboat: 'jetboat', camrival: 'racer2' };
 export const boatCamId = () => {
   for (const [k, id] of Object.entries(CAMS)) if (testOn(k) && !testOn('all')) return id;
   return null;

@@ -3,6 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { heightAtNdc } from '../world/sky/view.js';
 import { skyFx } from '../world/sky/fx.js';
+import { cloudMaterial, cloudUniforms, setCloudUniforms } from '../world/sky/cloudLook.js';
 
 // Dynamic sky: gradient dome, stars at night, drifting low-poly clouds, and
 // the scene's lights and fog, all from Duvall time. The sun and moon live in
@@ -284,6 +285,7 @@ function BuckConstellation({ visible, animate, onTap }) {
 // like little bots (round head, antenna and bulb, a body, stubby arms; one
 // waves). Tops take sky.cloud; undersides are cooler by day and pick up the
 // sunrise/sunset glow, and the side facing the sun gets a warm rim.
+// (The look is shared with the BYOB cloud letters: world/sky/cloudLook.js.)
 
 // Cumulus: [x, y, z, sx, sy, sz] puffs in cloud space.
 const CUMULUS = [
@@ -328,41 +330,6 @@ const CLOUD_DEFS = [
   { a: 5.0, r: 106, y: 39, s: 2.1, kind: 'bot', wave: true },
   { a: 5.55, r: 100, y: 37, s: 3.2, kind: 'c' },
 ];
-
-const cloudVertex = /* glsl */ `
-  varying vec3 vN;
-  varying vec3 vTint;
-  void main() {
-    mat4 m = modelMatrix * instanceMatrix;
-    vN = normalize(mat3(m) * normal);
-    #ifdef USE_INSTANCING_COLOR
-      vTint = instanceColor;
-    #else
-      vTint = vec3(1.0);
-    #endif
-    gl_Position = projectionMatrix * viewMatrix * m * vec4(position, 1.0);
-  }
-`;
-const cloudFragment = /* glsl */ `
-  uniform vec3 uTop;
-  uniform vec3 uUnder;
-  uniform vec3 uRim;
-  uniform vec3 uSunDir;
-  uniform vec3 uHaze;
-  varying vec3 vN;
-  varying vec3 vTint;
-  void main() {
-    vec3 n = normalize(vN);
-    float up = n.y * 0.5 + 0.5;
-    vec3 col = mix(uUnder, uTop, smoothstep(0.15, 0.85, up));
-    float facing = max(dot(n, normalize(uSunDir)), 0.0);
-    col += uRim * pow(facing, 2.0) * 0.35;
-    col *= vTint;
-    col = mix(col, uHaze, 0.12);
-    gl_FragColor = vec4(col, 1.0);
-    #include <colorspace_fragment>
-  }
-`;
 
 const _m = new THREE.Matrix4();
 const _m2 = new THREE.Matrix4();
@@ -424,17 +391,8 @@ function Clouds({ sky, animate }) {
   const { camera } = useThree();
   const { items, wavers, lows } = useMemo(buildClouds, []);
   const geometry = useMemo(() => new THREE.IcosahedronGeometry(1, 1), []);
-  const uniforms = useMemo(
-    () => ({
-      uTop: { value: new THREE.Color() },
-      uUnder: { value: new THREE.Color() },
-      uRim: { value: new THREE.Color() },
-      uSunDir: { value: new THREE.Vector3(0, 1, 0) },
-      uHaze: { value: new THREE.Color() },
-    }),
-    []
-  );
-  const material = useMemo(() => new THREE.ShaderMaterial({ uniforms, vertexShader: cloudVertex, fragmentShader: cloudFragment, fog: false }), [uniforms]);
+  const uniforms = useMemo(cloudUniforms, []);
+  const material = useMemo(() => cloudMaterial(uniforms), [uniforms]);
   useEffect(() => () => [geometry, material].forEach((x) => x.dispose()), [geometry, material]);
 
   useEffect(() => {
@@ -451,13 +409,7 @@ function Clouds({ sky, animate }) {
   // Palette: tops are the cloud color; undersides a cooler shade that warms
   // with the sunrise/sunset glow; the sun side gets a warm rim.
   useEffect(() => {
-    const k = sky.glowK || 0;
-    uniforms.uTop.value.set(sky.cloud);
-    uniforms.uUnder.value.set(sky.cloud).multiplyScalar(sky.isNight ? 0.72 : 0.8).lerp(_c.set('#b8c8e8'), sky.isNight ? 0 : 0.12 * (1 - k));
-    uniforms.uUnder.value.lerp(_c.set(sky.glow || sky.cloud), k * 0.7);
-    uniforms.uRim.value.set(sky.sunUp ? sky.sun : '#7080b0').multiplyScalar(sky.sunUp ? 0.6 + 0.6 * k : 0.25);
-    uniforms.uSunDir.value.fromArray(sky.sunUp ? sky.sunDir : sky.moonDir);
-    uniforms.uHaze.value.set(sky.horizon);
+    setCloudUniforms(uniforms, sky);
   }, [sky, uniforms]);
 
   useFrame((state, dt) => {
@@ -474,7 +426,9 @@ function Clouds({ sky, animate }) {
       _w2.copy(_w).applyAxisAngle(UP, g.rotation.y);
       const wantY = Math.min(14, Math.max(4, heightAtNdc(camera, _w2.x, _w2.z, L.def.ndc, L.def.y) - 0.8 * L.def.s));
       const hd = (_w2.x - camera.position.x) * _fwd.x + (_w2.z - camera.position.z) * _fwd.z;
-      const wantK = THREE.MathUtils.smoothstep(hd, 40, 54);
+      let wantK = THREE.MathUtils.smoothstep(hd, 40, 54);
+      // Make room for the BYOB cloud letters (SkyShow): it "becomes" them.
+      if (skyFx.byob > 0) wantK *= 1 - skyFx.byob * (1 - THREE.MathUtils.smoothstep(Math.hypot(_w2.x - skyFx.byobX, _w2.z - skyFx.byobZ), 11, 19));
       const ease = !animate || L.y === null ? 1 : Math.min(1, dt * 0.5);
       const y = L.y === null ? wantY : L.y + (wantY - L.y) * ease;
       const k = L.k === null ? wantK : L.k + (wantK - L.k) * ease;
