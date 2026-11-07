@@ -559,4 +559,8 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
   );
 }
 
+// Shared with the ambient crew (src/world/MiniBot.jsx) so every bot on the
+// island looks like family.
+export { GEO as BOT_GEO, MAT as BOT_MAT, Drink };
+
 export default memo(Bot);

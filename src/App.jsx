@@ -17,7 +17,7 @@ import UI, { IslandNote, LoadingNotice, RecentHandoffs, Toast } from './componen
 import { botFx, fxNow, LabelDirector, labelState } from './components/labels.js';
 import useData, { HAS_LIVE, headlineMinutes, initialMode, saveMode } from './hooks/useData.js';
 import useSunPosition from './hooks/useSunPosition.js';
-import { DECKS, DOCK, ISLAND, LANAI, ZONES, botHash, groundY, islandWobble, layoutBots, nearestZone } from './utils/paths.js';
+import { DECKS, DOCK, ISLAND, LANAI, SITES, ZONES, botHash, groundY, islandWobble, layoutBots, nearestZone } from './utils/paths.js';
 import { formatNumber } from './utils/ticker.js';
 import { applySafeMode, isSafeMode } from './utils/safe.js';
 import ClaudeCommute, { claudeZoneFor, visitSlot } from './wild/ClaudeCommute.jsx';
@@ -58,6 +58,12 @@ function useTabHidden() {
 
 // Sea life is decoration, so it loads after the island in its own small chunk.
 const SeaLife = lazy(() => import('./components/SeaLife.jsx'));
+// The Bot Island HQ extras load the same way, each in its own chunk.
+const Landmarks = lazy(() => import('./world/Landmarks.jsx'));
+const IslandLife = lazy(() => import('./world/IslandLife.jsx'));
+const Boats = lazy(() => import('./world/Boats.jsx'));
+const SkyShow = lazy(() => import('./world/SkyShow.jsx'));
+const Antics = lazy(() => import('./world/Antics.jsx'));
 
 // Device hints for battery and GPU budget.
 const IS_TOUCH = typeof navigator !== 'undefined' && (navigator.maxTouchPoints > 1 || /iPad|iPhone|Android/.test(navigator.userAgent));
@@ -260,6 +266,7 @@ const FIT_POINTS = (() => {
   pts.push(new THREE.Vector3(LANAI.x1, 3.0, LANAI.z1 - 0.8)); // lanai umbrella
   pts.push(new THREE.Vector3(DOCK.x0, 1.4, DOCK.z1)); // end of the pier
   pts.push(new THREE.Vector3(0, 8.6, 0)); // tower flag
+  pts.push(new THREE.Vector3(SITES.lighthouse.x, SITES.lighthouse.height + 0.6, SITES.lighthouse.z)); // lighthouse lamp
   return pts;
 })();
 
@@ -762,7 +769,12 @@ export default function App() {
 
   // Easter eggs.
   const openBottle = useCallback(() => setNote({ id: Date.now(), title: CHIEF_WELCOME.title, body: CHIEF_WELCOME.body, from: CHIEF_WELCOME.from }), []);
-  const openChest = useCallback((line) => setNote({ id: Date.now(), title: "Nasty's treasure", body: [line], from: 'Nasty' }), []);
+  // Notes can be a plain line or { title, body: [lines], from }.
+  const openChest = useCallback(
+    (n) => setNote(typeof n === 'string' ? { id: Date.now(), title: "Nasty's treasure", body: [n], from: 'Nasty' } : { id: Date.now(), title: n.title, body: n.body, from: n.from }),
+    []
+  );
+  const showToast = useCallback((text) => setToast({ id: Date.now(), text }), []);
   const closeNote = useCallback(() => setNote(null), []);
   const openOffice = useCallback(() => setScoreOpen(true), []);
 
@@ -824,6 +836,12 @@ export default function App() {
 
   const throttled = idle && !reduced && !hidden;
 
+  // Everything the Bot Island HQ extras need to know about the scene.
+  const worldCtx = useMemo(
+    () => ({ sky, animate: !reduced, reduced, lowPower: LOW_POWER, bots, sceneBots, layout, bedtime, onNote: openChest, onToast: showToast }),
+    [sky, reduced, bots, sceneBots, layout, bedtime, openChest, showToast]
+  );
+
   return (
     <div className={`app phase-${sky.phase}${reduced ? ' is-reduced' : ''}${kiosk ? ' is-kiosk' : ''}${photo === 'shoot' ? ' is-photo' : ''}`} style={{ '--hud-top': `${Math.round(insets.top)}px` }}>
       <div className="scene">
@@ -842,6 +860,17 @@ export default function App() {
             {!reduced && (
               <Suspense fallback={null}>
                 <SeaLife sky={sky} lowPower={LOW_POWER} />
+              </Suspense>
+            )}
+            <Suspense fallback={null}>
+              <Landmarks ctx={worldCtx} />
+              <IslandLife ctx={worldCtx} />
+            </Suspense>
+            {!reduced && (
+              <Suspense fallback={null}>
+                <Boats ctx={worldCtx} />
+                <SkyShow ctx={worldCtx} />
+                <Antics ctx={worldCtx} />
               </Suspense>
             )}
             {sceneBots.map((b) =>
