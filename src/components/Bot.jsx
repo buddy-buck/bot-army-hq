@@ -3,8 +3,11 @@ import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { couriers, receivedPulses } from './Handoff.jsx';
-import { botFx, fxNow, labelState } from './labels.js';
+import { antics, botFx, fxNow, labelState } from './labels.js';
 import { botHash, groundY } from '../utils/paths.js';
+import { aimArm } from '../world/antics/rig.js';
+import { applyAntic, makePoseOut, resetPoseOut } from '../world/antics/botPose.js';
+import { PROP_GEO, PROP_MAT } from '../world/antics/props.js';
 
 // One bot: a small rounded robot in its team color. Status always comes from
 // data.json:
@@ -14,6 +17,10 @@ import { botHash, groundY } from '../utils/paths.js';
 //   sleeping : in a hammock with zzz's
 // When the status changes, the bot puts its drink down and walks to its new
 // spot. Nasty always has a coconut. Claude wears a lei and holds a mai tai.
+//
+// Two little arms (same as the crew's MiniBot) hang at rest, hold the drink
+// or the tablet, wave in the photo booth and act out antics: high-fives,
+// trips, push-ups, selfies and fishing (src/world/Antics.jsx directs them).
 
 export const BOT_SCALE = 1.35;
 const DRINK_SCALE = 1.6; // big, easy-to-see drinks
@@ -31,6 +38,9 @@ const GEO = {
   foot: new THREE.SphereGeometry(0.065, 6, 5),
   arm: new THREE.CapsuleGeometry(0.035, 0.24, 2, 6),
   hand: new THREE.SphereGeometry(0.055, 6, 5),
+  // jointed arm, hanging down from the shoulder (matches MiniBot)
+  limb: new THREE.CapsuleGeometry(0.035, 0.22, 2, 6).translate(0, -0.15, 0),
+  palm: new THREE.SphereGeometry(0.05, 6, 5),
   shadow: new THREE.CircleGeometry(0.32, 16).rotateX(-Math.PI / 2),
   ring: new THREE.RingGeometry(0.36, 0.46, 32).rotateX(-Math.PI / 2),
   hit: new THREE.CylinderGeometry(0.42, 0.42, 1.2, 8),
@@ -169,6 +179,11 @@ function Lei() {
 
 const easeSpin = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 
+// Arm spots at rest (pose space).
+const REST = { lx: -0.23, ly: 0.2, lz: 0.02, rx: 0.23, ry: 0.2, rz: 0.02 };
+const PO = makePoseOut(); // scratch for antic poses, shared (bots update one at a time)
+const tipV = new THREE.Vector3();
+
 function hashPhase(id) {
   return ((botHash(id) % 1000) / 1000) * Math.PI * 2;
 }
@@ -193,7 +208,15 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
   const handDrink = useRef();
   const restDrink = useRef();
   const tabletRef = useRef();
-  const handRef = useRef();
+  const arms = { L: useRef(), R: useRef() };
+  const limbs = { L: useRef(), R: useRef() };
+  const hands = { L: useRef(), R: useRef() };
+  const aim = useRef(null); // smoothed arm targets
+  const peaceRef = useRef();
+  const phoneRef = useRef();
+  const flashRef = useRef();
+  const rodRef = useRef();
+  const rodTipRef = useRef();
   const zzzRef = useRef();
   const pulseStart = useRef(null);
   const cur = useRef(null);
@@ -248,12 +271,22 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
       g.rotation.y = home.rotY;
     }
     const pos = cur.current;
+    const fx = fxNow();
+
+    // Antics: a high-five, a trip, push-ups, a selfie, fishing. Only while
+    // chillin' (or a courier's quick high-five), and never mid-delivery.
+    let an = antics.get(bot.id);
+    if (an && (!animate || fx >= an.end || (c ? !an.courier : mode !== 'chill' && !an.courier))) {
+      antics.delete(bot.id);
+      an = undefined;
+    }
+    const goal = an && !c ? an.goal : null;
+    const target = goal || home;
 
     // Cheers: two chillin' bots standing together clink drinks now and then.
     // Both bots read the same wall clock, so they raise their glasses together.
-    const fx = fxNow();
     let clinkK = -1;
-    if (clink && animate && mode === 'chill' && !c) {
+    if (clink && animate && mode === 'chill' && !c && !an) {
       const k = (fx + clink.seed * CLINK_PERIOD) % CLINK_PERIOD;
       if (k < CLINK_LEN) clinkK = k / CLINK_LEN;
     }
@@ -264,28 +297,30 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
       pos.set(c.x, c.y, c.z);
       curRaised.current = false;
       g.rotation.y = lerpAngle(g.rotation.y, c.heading, Math.min(1, dt * 8));
-      walking = !c.ride; // riding in a boat: sit still
+      walking = !c.ride && !(an && an.courier); // riding in a boat: sit still
     } else {
-      const dx = home.x - pos.x;
-      const dz = home.z - pos.z;
+      const dx = target.x - pos.x;
+      const dz = target.z - pos.z;
       const d = Math.hypot(dx, dz);
       const jump = !!home.raised !== curRaised.current; // up to a tower or lookout: no stairs, just pop over
       if (!animate || jump || d < 0.04 || d > 30) {
-        pos.set(home.x, home.y, home.z);
+        pos.set(target.x, target.y, target.z);
         curRaised.current = !!home.raised;
-        const faceTo = clinkK >= 0 ? Math.atan2(clink.x - pos.x, clink.z - pos.z) : home.rotY;
-        g.rotation.y = animate && !jump ? lerpAngle(g.rotation.y, faceTo, Math.min(1, dt * 4)) : home.rotY;
+        let faceTo = clinkK >= 0 ? Math.atan2(clink.x - pos.x, clink.z - pos.z) : home.rotY;
+        if (an) faceTo = an.face ? Math.atan2(an.face.x - pos.x, an.face.z - pos.z) : an.faceY ?? home.rotY;
+        g.rotation.y = animate && !jump ? lerpAngle(g.rotation.y, faceTo, Math.min(1, dt * (an ? 7 : 4))) : home.rotY;
       } else {
         const step = Math.min(d, WALK_SPEED * dt);
         pos.x += (dx / d) * step;
         pos.z += (dz / d) * step;
         const left = d - step;
-        pos.y = left < 0.6 ? THREE.MathUtils.lerp(home.y, groundY(pos.x, pos.z), left / 0.6) : groundY(pos.x, pos.z);
+        pos.y = left < 0.6 ? THREE.MathUtils.lerp(target.y, groundY(pos.x, pos.z), left / 0.6) : groundY(pos.x, pos.z);
         g.rotation.y = lerpAngle(g.rotation.y, Math.atan2(dx, dz), Math.min(1, dt * 8));
         walking = true;
       }
     }
     g.position.copy(pos);
+    if (c && an && an.courier) g.rotation.y = lerpAngle(g.rotation.y, Math.atan2(an.face.x - pos.x, an.face.z - pos.z), Math.min(1, dt * 8));
 
     const lying = !walking && mode === 'hammock';
     const lounging = !walking && mode === 'lounge';
@@ -298,30 +333,45 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
     p.position.set(0, 0, 0);
     p.scale.set(1, 1, 1);
     h.rotation.set(0, 0, 0);
-    feet[0].current.position.z = 0;
-    feet[1].current.position.z = 0;
     const eyeScale = (lying || seated) && sleeping ? 0.18 : 1;
-    eyes[0].current.scale.y = eyeScale;
-    eyes[1].current.scale.y = eyeScale;
+    resetPoseOut(PO);
+
+    // Arm targets for this frame (pose space), before any antic.
+    let lx = REST.lx;
+    let ly = REST.ly;
+    let lz = REST.lz;
+    let rx = REST.rx;
+    let ry = REST.ry;
+    let rz = REST.rz;
 
     let sip = 0;
+    let swing = 0;
     if (walking) {
       const w = clock * 9;
       lift = Math.abs(Math.sin(w)) * 0.06;
       p.rotation.z = Math.sin(w) * 0.07;
-      feet[0].current.position.z = Math.sin(w) * 0.09;
-      feet[1].current.position.z = -Math.sin(w) * 0.09;
+      swing = Math.sin(w) * 0.09;
+      lz += Math.sin(w) * 0.12; // arms swing with the stride
+      rz -= Math.sin(w) * 0.12;
     } else if (lounging) {
       p.rotation.x = -1.0;
       p.position.set(0, 0.34, 0.35);
       h.rotation.y = Math.sin(t * 0.3) * 0.35;
       h.rotation.x = 0.35;
+      lx = -0.2; // hands resting on the tummy
+      ly = 0.32;
+      lz = 0.16;
+      rx = 0.2;
+      ry = 0.32;
+      rz = 0.16;
     } else if (seated) {
       // sitting back in a chair, feet forward, mai tai in hand
       p.rotation.x = -0.18;
       p.position.set(0, 0.2, 0.04);
-      feet[0].current.position.z = 0.12;
-      feet[1].current.position.z = 0.12;
+      PO.footZ = 0.12;
+      lx = -0.2; // left hand on the lap
+      ly = 0.26;
+      lz = 0.18;
       if (sleeping) {
         h.rotation.x = 0.35;
         h.rotation.z = 0.15;
@@ -340,10 +390,25 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
       } else {
         h.rotation.x = -0.35 + Math.sin(t * 0.4) * 0.15; // idle: looking around from the hammock
       }
+      lx = -0.18; // arms folded on the tummy
+      ly = 0.3;
+      lz = 0.15;
+      rx = 0.18;
+      ry = 0.3;
+      rz = 0.15;
     } else if (working) {
       lift = Math.abs(Math.sin(t * 3)) * 0.015;
       h.rotation.x = 0.18 + Math.sin(t * 5) * 0.07;
       h.rotation.y = Math.sin(t * 0.7) * 0.12;
+      // both hands on the tablet, tapping away
+      const tapL = Math.max(0, Math.sin(t * 7)) * 0.03;
+      const tapR = Math.max(0, Math.sin(t * 7 + 2)) * 0.03;
+      lx = -0.13;
+      ly = 0.43 + tapL;
+      lz = 0.2;
+      rx = 0.13;
+      ry = 0.43 + tapR;
+      rz = 0.2;
     } else {
       // chillin': slow sway, a sip every few seconds
       lift = (Math.sin(t * 1.5) + 1) * 0.008;
@@ -378,6 +443,17 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
           lift += Math.sin(Math.PI * k) * 0.36;
           p.rotation.y = easeSpin(k) * Math.PI * 2;
           h.rotation.x = -0.3 * Math.sin(Math.PI * k);
+          if (!lying && !lounging) {
+            // arms up!
+            const up = Math.sin(Math.PI * k);
+            lx = THREE.MathUtils.lerp(lx, -0.32, up);
+            ly = THREE.MathUtils.lerp(ly, 0.9, up);
+            lz = THREE.MathUtils.lerp(lz, 0.06, up);
+            if (!working) {
+              rx = THREE.MathUtils.lerp(rx, 0.32, up);
+              ry = THREE.MathUtils.lerp(ry, 0.9, up);
+            }
+          }
         } else if (k >= 1) botFx.cheer.delete(bot.id);
       }
     }
@@ -394,29 +470,106 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
         }
       } else if (k >= 1) botFx.wave.delete(bot.id);
     }
-    if (handRef.current) {
-      const show = waveK >= 0 && !lying && !lounging;
-      handRef.current.visible = show;
-      if (show) handRef.current.rotation.z = 0.5 + (animate ? Math.sin(waveK * Math.PI * 10) * 0.45 : 0);
+    if (waveK >= 0 && !lying && !lounging) {
+      const up = Math.min(1, waveK * 6, (1 - waveK) * 6);
+      lx = THREE.MathUtils.lerp(lx, -0.34 - (animate ? Math.sin(waveK * Math.PI * 10) * 0.12 : 0), up);
+      ly = THREE.MathUtils.lerp(ly, 0.92, up);
+      lz = THREE.MathUtils.lerp(lz, 0.1, up);
     }
+
+    // Antic pose, once the bot has reached its spot.
+    const anticOn = !!an && !walking && !lying && !lounging && !seated;
+    if (anticOn) applyAntic(an, fx - an.start, p, h, PO, t);
+    lift += PO.lift;
     p.position.y += lift;
+    feet[0].current.position.set(-0.08, PO.footY, PO.footZ + swing);
+    feet[1].current.position.set(0.08, PO.footY, PO.footZ - swing);
+    eyes[0].current.scale.y = eyeScale * PO.eyeL;
+    eyes[1].current.scale.y = eyeScale * PO.eyeR;
 
     // Drink: in hand while standing or walking, resting on the bot when lying back.
-    if (handDrink.current) {
-      handDrink.current.visible = !lying && !lounging;
-      if (clinkK >= 0) {
+    const hd = handDrink.current;
+    let drinkInHand = !!hd && !lying && !lounging;
+    if (hd) {
+      hd.rotation.set(0, 0, 0);
+      if (PO.drink === 'pose') {
+        hd.position.copy(PO.drinkPos);
+        hd.rotation.x = PO.drinkRotX;
+      } else if (clinkK >= 0) {
         // raise the glass out front, tap at the middle of the move
         const up = Math.sin(Math.PI * clinkK);
         const tap = clinkK > 0.42 && clinkK < 0.58 ? Math.sin(((clinkK - 0.42) / 0.16) * Math.PI) * 0.05 : 0;
-        handDrink.current.position.set(0.18 - up * 0.1, 0.3 + up * 0.32, 0.1 + up * 0.22 + tap);
-        handDrink.current.rotation.z = up * 0.15;
+        hd.position.set(0.18 - up * 0.1, 0.3 + up * 0.32, 0.1 + up * 0.22 + tap);
+        hd.rotation.z = up * 0.15;
         h.rotation.x = -up * 0.15;
       } else {
-        handDrink.current.position.set(0.25 - sip * 0.1, 0.3 + sip * 0.32, 0.1 + sip * 0.1);
-        handDrink.current.rotation.z = sip * 0.5;
+        hd.position.set(0.25 - sip * 0.1, 0.3 + sip * 0.32, 0.1 + sip * 0.1);
+        hd.rotation.z = sip * 0.5;
+      }
+      if (PO.drink === 'ground') drinkInHand = false;
+      hd.visible = drinkInHand;
+      if (drinkInHand && !PO.hasR) {
+        // right hand around the glass
+        rx = hd.position.x - 0.075;
+        ry = hd.position.y + 0.09;
+        rz = hd.position.z;
       }
     }
-    if (restDrink.current) restDrink.current.visible = lying || lounging;
+    if (restDrink.current) {
+      const ground = PO.drink === 'ground';
+      restDrink.current.visible = lying || lounging || (ground && !!drinkType);
+      if (ground) restDrink.current.position.copy(PO.drinkPos);
+      else restDrink.current.position.set(restPos[0], restPos[1], restPos[2]);
+    }
+    if (PO.hasL) {
+      lx = PO.L.x;
+      ly = PO.L.y;
+      lz = PO.L.z;
+    }
+    if (PO.hasR) {
+      rx = PO.R.x;
+      ry = PO.R.y;
+      rz = PO.R.z;
+    }
+
+    // Arms: ease toward this frame's targets.
+    const A = aim.current || (aim.current = { l: new THREE.Vector3(lx, ly, lz), r: new THREE.Vector3(rx, ry, rz) });
+    const ak = animate ? 1 - Math.exp(-dt * (anticOn ? 26 : 14)) : 1;
+    A.l.x += (lx - A.l.x) * ak;
+    A.l.y += (ly - A.l.y) * ak;
+    A.l.z += (lz - A.l.z) * ak;
+    A.r.x += (rx - A.r.x) * ak;
+    A.r.y += (ry - A.r.y) * ak;
+    A.r.z += (rz - A.r.z) * ak;
+    if (arms.L.current) aimArm(arms.L.current, limbs.L.current, hands.L.current, A.l.x, A.l.y, A.l.z, anticOn ? 0.52 : 0.44);
+    if (arms.R.current) aimArm(arms.R.current, limbs.R.current, hands.R.current, A.r.x, A.r.y, A.r.z, anticOn ? 0.52 : 0.44);
+
+    // Antic props: peace sign, phone and flash, fishing rod.
+    if (peaceRef.current) peaceRef.current.visible = PO.peace;
+    if (phoneRef.current) {
+      phoneRef.current.visible = PO.phone;
+      if (PO.phone) {
+        phoneRef.current.position.set(A.l.x + 0.01, A.l.y + 0.05, A.l.z + 0.04);
+        if (flashRef.current) {
+          flashRef.current.visible = PO.flash > 0;
+          flashRef.current.scale.setScalar(0.4 + PO.flash * 2.2);
+        }
+      }
+    }
+    if (rodRef.current) {
+      rodRef.current.visible = PO.rod;
+      if (PO.rod) {
+        rodRef.current.rotation.x = 1.0 - PO.rodLift * 0.55;
+        if (an && rodTipRef.current) {
+          rodTipRef.current.getWorldPosition(tipV);
+          const tip = an.tip || (an.tip = { x: 0, y: 0, z: 0 });
+          tip.x = tipV.x;
+          tip.y = tipV.y;
+          tip.z = tipV.z;
+        }
+      }
+    }
+
     if (tabletRef.current) tabletRef.current.visible = working;
     if (lanternRef.current) {
       lanternRef.current.parent.visible = working && isNight && !walking;
@@ -484,10 +637,35 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
           <mesh ref={feet[1]} geometry={GEO.foot} material={MAT.foot} position={[0.08, 0.06, 0]} />
           <mesh geometry={GEO.body} material={bodyMat} position={[0, 0.38, 0]} />
           {isClaude && <Lei />}
-          {/* waving arm, only shown in the photo booth */}
-          <group ref={handRef} position={[-0.17, 0.48, 0.04]} visible={false}>
-            <mesh geometry={GEO.arm} material={bodyMat} position={[0, 0.16, 0]} />
-            <mesh geometry={GEO.hand} material={MAT.face} position={[0, 0.34, 0]} />
+          {/* arms: shoulder pivots, aimed every frame */}
+          <group ref={arms.L} position={[-0.19, 0.5, 0]}>
+            <mesh ref={limbs.L} geometry={GEO.limb} material={bodyMat} />
+            <group ref={hands.L} position={[0, -0.31, 0]}>
+              <mesh geometry={GEO.palm} material={MAT.face} />
+              <group ref={peaceRef} visible={false}>
+                <mesh geometry={PROP_GEO.peace} material={MAT.face} rotation={[0, 0, 0.32]} />
+                <mesh geometry={PROP_GEO.peace} material={MAT.face} rotation={[0, 0, -0.32]} />
+              </group>
+            </group>
+          </group>
+          <group ref={arms.R} position={[0.19, 0.5, 0]}>
+            <mesh ref={limbs.R} geometry={GEO.limb} material={bodyMat} />
+            <group ref={hands.R} position={[0, -0.31, 0]}>
+              <mesh geometry={GEO.palm} material={MAT.face} />
+            </group>
+          </group>
+          {/* selfie phone: screen toward the bot, flash on the back */}
+          <group ref={phoneRef} visible={false} rotation={[0.38, 0.25, 0]}>
+            <mesh geometry={PROP_GEO.phone} material={PROP_MAT.phoneCase} />
+            <mesh geometry={PROP_GEO.phoneScreen} material={PROP_MAT.screen} />
+            <mesh geometry={PROP_GEO.lens} material={PROP_MAT.lens} />
+            <mesh ref={flashRef} geometry={PROP_GEO.flash} material={PROP_MAT.flash} position={[0.025, 0.055, 0.03]} visible={false} />
+          </group>
+          {/* fishing rod, held in both hands */}
+          <group ref={rodRef} position={[0.01, 0.4, 0.27]} visible={false}>
+            <mesh geometry={PROP_GEO.rod} material={PROP_MAT.rod} />
+            <mesh geometry={PROP_GEO.reel} material={PROP_MAT.reel} />
+            <object3D ref={rodTipRef} position={[0, 1.3, 0]} />
           </group>
           <group ref={head} position={[0, 0.74, 0]}>
             <mesh geometry={GEO.head} material={MAT.face} position={[0, 0.04, 0]} />

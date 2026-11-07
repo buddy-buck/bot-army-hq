@@ -169,6 +169,19 @@ function FrameThrottle({ fps }) {
   return null;
 }
 
+// Lazy extras arrive after the first frame. With on-demand rendering
+// (reduced motion, idle) nothing would draw them until the next input, so ask
+// for a couple of fresh frames when they mount.
+function RenderOnMount() {
+  const invalidate = useThree((st) => st.invalidate);
+  useEffect(() => {
+    invalidate();
+    const id = setTimeout(() => invalidate(), 120);
+    return () => clearTimeout(id);
+  }, [invalidate]);
+  return null;
+}
+
 // "+18 min" chips that float up from the bot that earned the minutes.
 function MinuteFloats({ floats }) {
   return floats.map((f) => (
@@ -267,7 +280,7 @@ const FIT_POINTS = (() => {
   pts.push(new THREE.Vector3(LANAI.x1, 3.0, LANAI.z1 - 0.8)); // lanai umbrella
   pts.push(new THREE.Vector3(DOCK.x0, 1.4, DOCK.z1)); // end of the pier
   pts.push(new THREE.Vector3(0, 8.6, 0)); // tower flag
-  pts.push(new THREE.Vector3(SITES.lighthouse.x, SITES.lighthouse.height + 0.6, SITES.lighthouse.z)); // lighthouse lamp
+  pts.push(new THREE.Vector3(SITES.lighthouse.x, SITES.lighthouse.height + 1.2, SITES.lighthouse.z)); // lighthouse vane
   return pts;
 })();
 
@@ -430,9 +443,10 @@ function CameraRig({ fly, reduced, holdRotate, insets, controlsRef, layout, kios
         target = new THREE.Vector3(p.x, p.y + 0.9, p.z);
         dist = reduced ? 11 : 8.5;
       } else {
-        const z = ZONES[fly.zone];
+        // Zones, or a landmark's tag (lighthouse, visitor center, airstrip).
+        const z = ZONES[fly.zone] || SITES[fly.zone];
         if (!z) return;
-        target = new THREE.Vector3(z.x, z.focusY ?? groundY(z.x, z.z) + 0.6, z.z);
+        target = new THREE.Vector3(z.x, z.focusY ?? groundY(z.x, z.z) + (ZONES[fly.zone] ? 0.6 : 1.5), z.z);
         dist = reduced ? 14 : 13;
       }
       pol = reduced ? polar : 0.95;
@@ -440,7 +454,7 @@ function CameraRig({ fly, reduced, holdRotate, insets, controlsRef, layout, kios
       s.offsetTarget = (table.want * size.height) / 2;
     }
     // Zones: look in from the seaward side, so the tower never blocks the view.
-    const zone = !fly.bot && ZONES[fly.zone];
+    const zone = !fly.bot && (ZONES[fly.zone] || SITES[fly.zone]);
     const outward = zone && Math.hypot(zone.x, zone.z) > 3 ? Math.atan2(zone.x, zone.z) : current.theta;
     const endPos = target.clone().add(new THREE.Vector3().setFromSphericalCoords(dist, pol, reduced ? theta0 : outward));
     s.anim = { start: performance.now(), fromPos: camera.position.clone(), fromTarget: c.target.clone(), toPos: endPos, toTarget: target, fromOffset: s.offsetY };
@@ -862,17 +876,20 @@ export default function App() {
             {!reduced && (
               <Suspense fallback={null}>
                 <SeaLife sky={sky} lowPower={LOW_POWER} />
+                <RenderOnMount />
               </Suspense>
             )}
             <Suspense fallback={null}>
               <Landmarks ctx={worldCtx} />
               <IslandLife ctx={worldCtx} />
+              <RenderOnMount />
             </Suspense>
             {!reduced && (
               <Suspense fallback={null}>
                 <Boats ctx={worldCtx} />
                 <SkyShow ctx={worldCtx} />
                 <Antics ctx={worldCtx} />
+                <RenderOnMount />
               </Suspense>
             )}
             {sceneBots.map((b) =>
@@ -896,7 +913,7 @@ export default function App() {
             {bedtime && <Campfire layout={layout} bots={sceneBots} animate={!reduced} />}
             <Weather weather={weather} />
             {!reduced && <Flyover />}
-            {!reduced && <Surfer color={bots.find((b) => b.id === 'echo')?.color} />}
+            {!reduced && <Surfer color={bots.find((b) => b.id === 'echo')?.color} sky={sky} />}
             <Bottle onOpen={openBottle} animate={!reduced} />
             <TreasureChest onOpen={openChest} animate={!reduced} />
             <DockOffice onOpen={openOffice} night={sky.stars} animate={!reduced} />

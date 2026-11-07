@@ -29,6 +29,19 @@ export const labelState = {
 export const botFx = { cheer: new Map(), sipHop: new Map(), wave: new Map() };
 export const fxNow = () => performance.now() / 1000;
 
+// Bot antics (src/world/Antics.jsx), keyed by bot id. The antics director
+// writes an entry; Bot.jsx reads it every frame and acts it out, then drops
+// it once it's over. Times are fxNow() seconds.
+//   { kind, start, end, goal?: { x, y, z }, face?: { x, z }, faceY?, ...extra }
+//   kind  : 'highfive' | 'trip' | 'help' | 'pushups' | 'selfie' | 'fish'
+//   start : when the move itself begins (the bot walks to `goal` before that)
+//   end   : when the bot lets go and strolls back home
+//   goal  : where to stand meanwhile (null = stay put)
+//   face  : a point to turn toward; faceY: a heading instead
+// Only chillin' bots get antics, except a quick high-five between a courier
+// and the bot it just handed a package to (arms only, nobody moves).
+export const antics = new Map();
+
 const v = new THREE.Vector3();
 
 export function LabelDirector({ controls }) {

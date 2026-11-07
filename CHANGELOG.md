@@ -1,5 +1,20 @@
 # Changelog
 
+## Bot Island HQ
+
+The island grew (rx 15.6 to 18.5, rz 11.4 to 16) into a full resort. The Real Estate Lanai and Launch's Pier moved out to the new shoreline; every new landmark has a reserved spot in `src/utils/sites.js`, and palms, flowers, rocks and hammocks keep clear of them.
+
+1. **Water.** Surf rolls up the beach and slides back; foam and ripples around stilts, rocks and moored boats; tap the water for a ripple. Night bioluminescence with glowing trails behind boats. V-shaped wakes behind every boat. Tropical fish schools that scatter from boats (one swims under Flo's glass floor), sea turtles, dolphin pairs.
+2. **Boats.** Echo's surfboard became a jet ski with spray. Two sailboats that really tack, a glass-bottom tour boat with tourists, and a tugboat that delivers PROMPTS crates to Launch's Pier.
+3. **Sky.** Hot air balloons, a pelican V, shooting stars and meteor showers, fireworks (9 PM, rare nights, and every round thousand minutes saved), bot-shaped clouds, rare northern lights, rainbows after passing showers, and richer sunrise and sunset palettes with a new sky dome.
+4. **Buildings.** Lighthouse with a sweeping beam and a foghorn on tap, a "Welcome to Bot Island HQ" arch at the pier, a lifeguard watchtower, an airstrip with a plane that takes off and lands, a helipad and helicopter on Chief's Tower, and a Visitor Center with a live bot counter.
+5. **Flo's overwater bungalow**, Maldives style, with a boardwalk, plunge pool and a glass floor over the lagoon.
+6. **Island life.** Tiki bar with bots on stools, food truck with a line, napping bot in a hammock, volleyball, DJ booth with music notes and a dance floor, waiters with trays. Campfire bots now sit on logs, spread out.
+7. **Bot personality.** Team bots have arms. Chillin' bots high-five, trip and help each other up, do push-ups and take selfies; crew bots arm-wrestle, fish off the pier and build sandcastles.
+8. **Easter eggs.** The treasure chest glows gold and hands out useful bot tips. Bottles drift back in with new notes. Rare whale breach, rare UFO at night, lighthouse foghorn.
+
+Also: `?test=` switches for every extra (see the README), shared slots so rare moments never pile up, and a fix so on-demand rendering (reduced motion, idle) draws the extras as soon as they load.
+
 ## Island Wild Ideas
 
 1. **Claude's commute.** When the status turns working, Claude walks from the tower to the zone the work is about (pier for builds, cabana for content, lanai for real estate) and back up when idle. (A first version used a speedboat; Claude now lives in the tower, so it walks.)

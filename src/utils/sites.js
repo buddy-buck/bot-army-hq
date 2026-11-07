@@ -14,8 +14,8 @@ export const SITES = {
   // Buildings
   lighthouse: { x: 12.7, z: -9.5, r: 1.7, height: 6.4 }, // north-east point, on rocks
   watchtower: { x: 7.6, z: 12.4, r: 1.3 }, // lifeguard-style tower on the south beach
-  runway: { x: -0.6, z: -12.7, hx: 6.4, hz: 1.05, rotY: 0 }, // airstrip along the north shore, runs east-west
-  visitor: { x: -13.4, z: 9.2, r: 2.1, rotY: -0.9 }, // Visitor Center near the head of Launch's Pier
+  runway: { x: -0.6, z: -13.15, hx: 6.4, hz: 1.6, rotY: 0 }, // airstrip along the north shore, runs east-west (strip at z -12.55, apron and hangar on its north side)
+  visitor: { x: -13.4, z: 9.2, r: 2.1, rotY: 0.25 }, // Visitor Center near the head of Launch's Pier
   // Island life
   tikibar: { x: 12.4, z: 9.8, r: 2.4 },
   foodtruck: { x: -4.6, z: 12.0, r: 2.4 }, // the line forms toward the east (+x)

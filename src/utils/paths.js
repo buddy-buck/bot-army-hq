@@ -251,28 +251,36 @@ const SLOT_RULES = {
 
 // Night campfire on open ground on the south-west side of the island.
 export const CAMPFIRE = { x: -7.8, z: 6.2 };
+export const CAMPFIRE_SEAT_H = 0.4; // log and stump tops, above the sand
 
-// Seats around the campfire, inner ring first. Each spot is on land, clear
-// of palms, decks and zone stations, and faces the fire.
+// Seats around the campfire (a log or a stump each), inner ring first.
+// Rings are roomy (about a meter between seats) and staggered so the back
+// rows look between the front ones. Each spot is on land, clear of palms,
+// decks, zone stations and landmarks (SITES), and faces the fire.
+// seat: 'stump' | 'log' (Campfire.jsx draws it; bots sit with mode 'seat').
 let campfireSpotCache = null;
 export function campfireSpots() {
   if (campfireSpotCache) return campfireSpotCache;
   const out = [];
-  for (const r of [1.85, 2.55, 3.25]) {
-    const n = Math.floor((2 * Math.PI * r) / 0.62);
+  [2.15, 3.2, 4.25].forEach((r, ring) => {
+    const n = Math.floor((2 * Math.PI * r) / 1.08);
+    const step = (Math.PI * 2) / n;
     for (let i = 0; i < n; i++) {
-      const a = (i / n) * Math.PI * 2 + r;
-      const x = CAMPFIRE.x + Math.cos(a) * r;
-      const z = CAMPFIRE.z + Math.sin(a) * r;
-      if (islandE(x, z) > 0.86) continue;
-      if (PALMS.some((p) => Math.hypot(p.x - x, p.z - z) < 0.65)) continue;
+      const a = i * step + ring * step * 0.5 + 0.3;
+      const rr = r + ((i * 7 + ring * 3) % 5 - 2) * 0.025; // a little uneven, like real seats
+      const x = CAMPFIRE.x + Math.cos(a) * rr;
+      const z = CAMPFIRE.z + Math.sin(a) * rr;
+      if (islandE(x, z) > 0.84) continue;
+      if (PALMS.some((p) => Math.hypot(p.x - x, p.z - z) < 0.85)) continue;
       if (Object.values(ZONES).some((zz) => Math.hypot(zz.x - x, zz.z - z) < 2.2)) continue;
-      if (DECKS.some((d) => x > d.x0 - 0.5 && x < d.x1 + 0.5 && z > d.z0 - 0.5 && z < d.z1 + 0.5)) continue;
+      if (DECKS.some((d) => x > d.x0 - 0.6 && x < d.x1 + 0.6 && z > d.z0 - 0.6 && z < d.z1 + 0.6)) continue;
+      if (siteDistance(x, z) < 0.6) continue;
+      const rotY = Math.atan2(CAMPFIRE.x - x, CAMPFIRE.z - z);
       // Front of the circle (toward the default camera) first, so a small group sits where it's easy to see.
-      out.push({ x, z, r, rotY: Math.atan2(CAMPFIRE.x - x, CAMPFIRE.z - z), front: z - CAMPFIRE.z });
+      out.push({ x, z, r, ring, rotY, seat: (i + ring) % 3 === 1 ? 'stump' : 'log', front: z - CAMPFIRE.z });
     }
-  }
-  campfireSpotCache = out.sort((p, q) => p.r - q.r || q.front - p.front);
+  });
+  campfireSpotCache = out.sort((p, q) => p.ring - q.ring || q.front - p.front);
   return campfireSpotCache;
 }
 
