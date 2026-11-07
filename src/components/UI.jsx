@@ -218,6 +218,17 @@ export function KioskButton({ on, onClick }) {
   );
 }
 
+export function PostcardButton({ onClick }) {
+  return (
+    <button type="button" className="chip icon-chip" onClick={onClick} aria-label="Postcard" title="Postcard">
+      <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+        <path d="M4 8.5h3l1.6-2.5h6.8L17 8.5h3a1 1 0 0 1 1 1V18a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5a1 1 0 0 1 1-1z" stroke="#1f2430" strokeWidth="2" fill="none" strokeLinejoin="round" />
+        <circle cx="12" cy="13.5" r="3.4" stroke="#1f2430" strokeWidth="2" fill="none" />
+      </svg>
+    </button>
+  );
+}
+
 export function Toast({ message }) {
   if (!message) return null;
   return (
@@ -246,6 +257,17 @@ export function IslandNote({ note, onClose }) {
         <p key={i}>{p}</p>
       ))}
       {note.from && <div className="island-note-from">{note.from}</div>}
+      {note.links?.length > 0 && (
+        <div className="island-note-links">
+          {note.links
+            .filter((l) => l && /^https?:\/\//i.test(l.href || ''))
+            .map((l, i) => (
+              <a key={i} className="card-open island-note-link" href={l.href} target="_blank" rel="noopener noreferrer">
+                {l.text || l.href}
+              </a>
+            ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -287,7 +309,7 @@ export function LoadingNotice({ error }) {
   );
 }
 
-export default function UI({ isExample, error, mode, hasLive, fellBack, onMode, onRecenter, onRoster, rosterOpen, kiosk, onKiosk }) {
+export default function UI({ isExample, error, mode, hasLive, fellBack, onMode, onRecenter, onRoster, rosterOpen, kiosk, onKiosk, onPostcard }) {
   return (
     <div className={`hud-row${kiosk ? ' is-kiosk' : ''}`}>
       <div className="hud-left">
@@ -297,6 +319,7 @@ export default function UI({ isExample, error, mode, hasLive, fellBack, onMode, 
         {!kiosk && <RosterButton onClick={onRoster} open={rosterOpen} />}
         {!kiosk && <SoundToggle />}
         {!kiosk && <RecenterButton onClick={onRecenter} />}
+        {!kiosk && onPostcard && <PostcardButton onClick={onPostcard} />}
         <KioskButton on={kiosk} onClick={onKiosk} />
       </div>
     </div>

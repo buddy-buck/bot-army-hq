@@ -28,6 +28,8 @@ const CLINK_PERIOD = 26; // seconds between cheers for a pair of chillin' bots
 const CLINK_LEN = 2.4;
 const WALK_SPEED = 1.3; // units per second
 export const WAVE_SECONDS = 2.4;
+export const CHEER_SECONDS = 1.5; // "+X min" jump: crouch, leap with a full spin, land, settle
+export const TALK_SECONDS = 5.5; // campfire story gestures
 
 const GEO = {
   body: new THREE.CapsuleGeometry(0.17, 0.2, 3, 8),
@@ -67,6 +69,43 @@ const GEO = {
   leiRing: new THREE.TorusGeometry(0.155, 0.022, 5, 18).rotateX(Math.PI / 2),
   flower: new THREE.IcosahedronGeometry(0.042, 0),
 };
+
+// Bot of the Day: a small low-poly gold crown (band, five points, gems) and a
+// soft gold glow on the ground. Shared by whoever wears it today.
+const CROWN = (() => {
+  const band = new THREE.CylinderGeometry(0.135, 0.125, 0.075, 10, 1, true);
+  const point = new THREE.ConeGeometry(0.04, 0.1, 4);
+  const gem = new THREE.OctahedronGeometry(0.024, 0);
+  const tip = new THREE.IcosahedronGeometry(0.018, 0);
+  return { band, point, gem, tip };
+})();
+const CROWN_POINTS = Array.from({ length: 5 }, (_, i) => {
+  const a = (i / 5) * Math.PI * 2;
+  return [Math.sin(a) * 0.125, 0.075, Math.cos(a) * 0.125];
+});
+const CROWN_MAT = {
+  gold: new THREE.MeshStandardMaterial({ color: '#ffcc33', emissive: '#ff9d00', emissiveIntensity: 0.45, metalness: 0.55, roughness: 0.3, flatShading: true, side: THREE.DoubleSide }),
+  ruby: new THREE.MeshStandardMaterial({ color: '#ff2d6f', emissive: '#ff2d6f', emissiveIntensity: 0.5, flatShading: true }),
+  glow: new THREE.MeshBasicMaterial({ color: '#ffd45a', transparent: true, opacity: 0.32, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }),
+  halo: new THREE.MeshBasicMaterial({ color: '#ffe9a0', transparent: true, opacity: 0.12, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }),
+};
+const CROWN_GLOW = new THREE.RingGeometry(0.3, 0.62, 28).rotateX(-Math.PI / 2);
+const CROWN_HALO = new THREE.CircleGeometry(0.62, 28).rotateX(-Math.PI / 2);
+
+function Crown() {
+  return (
+    <group position={[0, 0.215, 0]} rotation={[0.08, 0, -0.1]}>
+      <mesh geometry={CROWN.band} material={CROWN_MAT.gold} />
+      {CROWN_POINTS.map((p, i) => (
+        <group key={i} position={p}>
+          <mesh geometry={CROWN.point} material={CROWN_MAT.gold} />
+          <mesh geometry={CROWN.tip} material={CROWN_MAT.gold} position={[0, 0.055, 0]} />
+        </group>
+      ))}
+      <mesh geometry={CROWN.gem} material={CROWN_MAT.ruby} position={[0, 0, 0.132]} />
+    </group>
+  );
+}
 
 GEO.hammock = (() => {
   const seg = 12;
@@ -195,7 +234,7 @@ function lerpAngle(a, b, t) {
   return a + d * t;
 }
 
-function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, animate = true, clink = null }) {
+function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, animate = true, clink = null, crowned = false }) {
   const outer = useRef();
   const pose = useRef();
   const head = useRef();
@@ -218,6 +257,7 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
   const rodRef = useRef();
   const rodTipRef = useRef();
   const zzzRef = useRef();
+  const crownGlow = useRef();
   const pulseStart = useRef(null);
   const cur = useRef(null);
   const curRaised = useRef(false);
@@ -438,23 +478,58 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
       }
       const ch = botFx.cheer.get(bot.id);
       if (ch !== undefined) {
-        const k = (fx - ch) / 1.3;
-        if (k >= 0 && k < 1) {
-          lift += Math.sin(Math.PI * k) * 0.36;
-          p.rotation.y = easeSpin(k) * Math.PI * 2;
-          h.rotation.x = -0.3 * Math.sin(Math.PI * k);
+        const k = (fx - ch) / CHEER_SECONDS;
+        if (k >= 0 && k < 1 && !(sleeping && (lying || seated))) {
+          // Big "+X min" jump: crouch (squash), leap with a full 360 spin
+          // (stretch on the way up), land (squash), settle. Lying or lounging
+          // bots do a smaller bounce, seated ones hop off the seat and back.
+          const big = !lying && !lounging;
+          const hop = seated ? 0.55 : big ? 1 : 0.35;
+          let sq = 0; // + = stretch, - = squash
+          if (k < 0.16) {
+            sq = -Math.sin((k / 0.16) * Math.PI * 0.5) * 0.28;
+          } else if (k < 0.78) {
+            const a = (k - 0.16) / 0.62;
+            lift += Math.sin(Math.PI * a) * 0.95 * hop;
+            sq = (1 - a) * 0.3 * Math.cos(a * Math.PI * 0.5) - (a > 0.85 ? (a - 0.85) * 0.6 : 0);
+            if (big || seated) p.rotation.y += easeSpin(a) * Math.PI * 2;
+          } else {
+            const a = (k - 0.78) / 0.22;
+            sq = -Math.sin(Math.min(1, a * 1.6) * Math.PI) * 0.24 * (1 - a * 0.5);
+          }
+          sq *= big ? 1 : 0.5;
+          p.scale.x *= 1 - sq * 0.5;
+          p.scale.z *= 1 - sq * 0.5;
+          p.scale.y *= 1 + sq;
+          const up = k < 0.1 ? 0 : Math.sin(Math.PI * Math.min(1, (k - 0.1) / 0.8));
+          h.rotation.x = -0.35 * up;
           if (!lying && !lounging) {
             // arms up!
-            const up = Math.sin(Math.PI * k);
             lx = THREE.MathUtils.lerp(lx, -0.32, up);
-            ly = THREE.MathUtils.lerp(ly, 0.9, up);
+            ly = THREE.MathUtils.lerp(ly, 0.92, up);
             lz = THREE.MathUtils.lerp(lz, 0.06, up);
-            if (!working) {
+            if (!working || seated) {
               rx = THREE.MathUtils.lerp(rx, 0.32, up);
-              ry = THREE.MathUtils.lerp(ry, 0.9, up);
+              ry = THREE.MathUtils.lerp(ry, 0.92, up);
+              rz = THREE.MathUtils.lerp(rz, 0.06, up);
             }
           }
-        } else if (k >= 1) botFx.cheer.delete(bot.id);
+        } else if (k >= 1 || k < 0) botFx.cheer.delete(bot.id);
+      }
+      // Campfire story: telling it with one hand, a nod now and then.
+      const tk = botFx.talk.get(bot.id);
+      if (tk !== undefined) {
+        const k = (fx - tk) / TALK_SECONDS;
+        if (k >= 0 && k < 1 && !sleeping && !lying) {
+          const on = Math.min(1, k * 8, (1 - k) * 8);
+          const g = Math.sin(fx * 5.2 + phase);
+          rx = THREE.MathUtils.lerp(rx, 0.28 + g * 0.05, on);
+          ry = THREE.MathUtils.lerp(ry, 0.62 + Math.max(0, Math.sin(fx * 3.1)) * 0.12, on);
+          rz = THREE.MathUtils.lerp(rz, 0.26 + g * 0.06, on);
+          h.rotation.x += Math.sin(fx * 4.3) * 0.08 * on;
+          h.rotation.z += Math.sin(fx * 1.7) * 0.06 * on;
+          lift += Math.abs(Math.sin(fx * 2.6)) * 0.015 * on;
+        } else if (k >= 1 || k < 0) botFx.talk.delete(bot.id);
       }
     }
     // Photo booth: wave at the camera with a little bounce.
@@ -580,6 +655,12 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
       if (zzzRef.current.style.display !== show) zzzRef.current.style.display = show;
     }
 
+    // Bot of the Day: the gold glow breathes.
+    if (crownGlow.current && animate) {
+      const b = 1 + Math.sin(clock * 1.8 + phase) * 0.08;
+      crownGlow.current.scale.set(b, 1, b);
+    }
+
     // Selection / spotlight ring
     if (ringRef.current) {
       const on = selected || spotlight;
@@ -631,6 +712,12 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
         <mesh geometry={GEO.shadow} material={MAT.shadow} position={[0, 0.025, 0]} />
         <mesh ref={ringRef} geometry={GEO.ring} material={ringMat} position={[0, 0.04, 0]} visible={selected || spotlight} />
         <mesh ref={pulseRef} geometry={GEO.ring} material={pulseMat} position={[0, 0.05, 0]} visible={false} />
+        {crowned && (
+          <group ref={crownGlow} position={[0, 0.035, mode === 'lounge' ? 0.3 : 0]}>
+            <mesh geometry={CROWN_HALO} material={CROWN_MAT.halo} />
+            <mesh geometry={CROWN_GLOW} material={CROWN_MAT.glow} />
+          </group>
+        )}
 
         <group ref={pose}>
           <mesh ref={feet[0]} geometry={GEO.foot} material={MAT.foot} position={[-0.08, 0.06, 0]} />
@@ -673,6 +760,7 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
             <mesh ref={eyes[1]} geometry={GEO.eye} material={MAT.eye} position={[0.07, 0.06, 0.165]} />
             <mesh geometry={GEO.antenna} material={MAT.foot} position={[0, 0.29, 0]} />
             <mesh geometry={GEO.bulb} material={bulbMat} position={[0, 0.38, 0]} />
+            {crowned && <Crown />}
           </group>
           <group ref={tabletRef} position={[0, 0.44, 0.22]} rotation={[-0.6, 0, 0]} visible={working}>
             <mesh geometry={GEO.tablet} material={MAT.tablet} />

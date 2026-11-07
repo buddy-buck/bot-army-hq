@@ -47,3 +47,42 @@ export function onScreen(camera, x, y, z, mx = 0.8, my = 0.8) {
   const v = toScreen(camera, x, y, z);
   return v.z < 1 && Math.abs(v.x) < mx && Math.abs(v.y) < my;
 }
+
+// --- Taps on rare creatures ------------------------------------------------------
+
+// App.jsx turns these into the usual toast and note card.
+export function islandToast(text) {
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('island:toast', { detail: { text } }));
+}
+export function islandNote(title, body, from) {
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('island:note', { detail: { title, body, from } }));
+}
+
+// Pointer-cursor hover for a tap target.
+export const hoverPointer = {
+  onPointerOver: (e) => {
+    e.stopPropagation();
+    document.body.style.cursor = 'pointer';
+  },
+  onPointerOut: () => {
+    document.body.style.cursor = '';
+  },
+};
+
+// A tap that isn't the end of a drag.
+export const tapOnly = (fn) => (e) => {
+  if (e.delta > 8) return;
+  e.stopPropagation();
+  fn();
+};
+
+// Invisible tap targets: never drawn, but still hit by the pointer ray.
+export const HIT_MAT = new THREE.MeshBasicMaterial({ visible: false });
+// Raycasting ignores `visible`, so a hidden creature has to switch its tap
+// target off or it would swallow taps meant for whatever is behind it.
+const NO_RAY = () => {};
+export function setHittable(mesh, on) {
+  if (!mesh) return;
+  const want = on ? THREE.Mesh.prototype.raycast : NO_RAY;
+  if (mesh.raycast !== want) mesh.raycast = want; // r3f sends pointer-out on the next move
+}

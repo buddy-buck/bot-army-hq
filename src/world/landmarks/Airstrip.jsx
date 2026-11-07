@@ -1,24 +1,53 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { groundY } from '../../utils/paths.js';
+import { SITES, groundY } from '../../utils/paths.js';
 import { aliveClock, claimTravel, releaseTravel, testOn } from '../../wild/director.js';
 import { Beam, Box, Cone, Cyl, GLOW_GEO, M, canvasTexture, duskFactor, glowMaterial, std } from './kit.jsx';
 
-// Bot Air: a little airstrip along the north shore (see SITES.runway). An
-// asphalt strip with runway 09 at the west end and 27 at the east end, edge
-// lights, an apron with a hangar and a tiny control tower, and a windsock.
-// The island-hopper parks on the apron and every few minutes taxis out,
-// takes off to the west, flies off over the sea, and later comes back to
-// land eastbound and taxi in. ?test=plane2 runs it every few seconds.
+// Bot Air: a short island landing strip inland on the east-middle of the
+// island, between Chief's Tower and the Real Estate Lanai (SITES.runway).
+// Everything is laid out in the footprint's own frame (lx along the strip,
+// east +; lz across it, south +) and follows the site if it moves or turns.
+// The strip runs along the south half (runway 09 at the west end with a
+// turning pad, 27 at the east end), with edge lights; the north half holds
+// the windsock, the apron, the hangar and the little control tower.
+// The island-hopper parks on the apron nose-south. Every few minutes it
+// taxis out, back-tracks to the turning pad, swings round, and takes off
+// eastbound, climbing hard over the palms on the east shore before banking
+// north over the sea and away. Later it comes back round from the south-east
+// over the sea, flies a steep short-field approach over the shore palms
+// (staying well north of the lanai), lands westbound, and taxis in.
+// ?test=plane2 runs the whole cycle every few seconds.
 
-const RW = { x0: -6.6, x1: 5.4, z: -12.55, w: 1.1, y: 0.46 };
-const APRON = { x0: -1.1, x1: 2.7, z0: -14.55, z1: -13.35, y: 0.45 };
-const LINK = { x: 0.35, w: 0.7 }; // taxiway from the apron down to the strip
-const PARK = { x: LINK.x, z: -14.0, heading: 0 }; // nose south, toward the strip
-const HANGAR = { x0: 2.8, x1: 4.4, z: -13.95, r: 0.72 };
-const HUT = { x: -1.75, z: -13.95 };
-const SOCK = { x: -4.5, z: -11.6 };
+const S = SITES.runway;
+const ROT = S.rotY || 0;
+const COS = Math.cos(ROT);
+const SIN = Math.sin(ROT);
+// footprint frame -> world (same as a group at [S.x, 0, S.z] rotated ROT about y)
+const W = (lx, y, lz) => [S.x + lx * COS + lz * SIN, y, S.z - lx * SIN + lz * COS];
+
+// Flat top a little above the highest ground anywhere in the footprint, so no
+// grass bump ever pokes through the asphalt.
+const BASE = (() => {
+  let m = 0;
+  for (let i = 0; i <= 48; i++) {
+    for (let j = 0; j <= 14; j++) {
+      const [x, , z] = W(-S.hx + (2 * S.hx * i) / 48, 0, -S.hz + (2 * S.hz * j) / 14);
+      m = Math.max(m, groundY(x, z));
+    }
+  }
+  return m;
+})();
+
+const RW = { x0: -S.hx + 0.15, x1: S.hx - 0.15, z: S.hz - 0.63, w: 0.9, y: BASE + 0.05 };
+const APRON = { x0: -S.hx + 1.0, x1: -0.35, z0: -S.hz + 0.05, z1: -0.02, y: RW.y - 0.01 };
+const LINK = { x: -S.hx + 2.1, w: 0.7 }; // taxiway from the apron down to the strip
+const PARK = { x: LINK.x, z: -0.6, heading: 0 }; // nose south, toward the strip
+const TURN = { x: RW.x0 + 0.6, r: 0.62 }; // turning pad at the west end (runway 09)
+const HANGAR = { x0: APRON.x1, x1: APRON.x1 + 1.6, z: -0.72, r: 0.6 };
+const HUT = { x: HANGAR.x1 + 1.15, z: -0.75 }; // east of the hangar, looking down the strip
+const SOCK = { x: -S.hx + 0.5, z: -0.85 }; // by the turning pad, where pilots check it before takeoff
 
 const MAT = {
   asphalt: std('#4b5058', { roughness: 0.95 }),
@@ -85,9 +114,7 @@ function lightList() {
   for (const dz of [-0.4, -0.2, 0, 0.2, 0.4]) {
     out.push([RW.x0 - 0.06, RW.z + dz, 1], [RW.x1 + 0.06, RW.z + dz, 1]);
   }
-  for (const z of [RW.z - half - 0.15, APRON.z1 + 0.02]) {
-    out.push([LINK.x - LINK.w / 2 - 0.06, z, 2], [LINK.x + LINK.w / 2 + 0.06, z, 2]);
-  }
+  out.push([LINK.x - LINK.w / 2 - 0.06, APRON.z1 + 0.02, 2], [LINK.x + LINK.w / 2 + 0.06, APRON.z1 + 0.02, 2]);
   for (const [x, z] of [[APRON.x0, APRON.z0], [APRON.x1, APRON.z0], [APRON.x0, APRON.z1], [APRON.x1, APRON.z1]]) out.push([x, z, 2]);
   return out;
 }
@@ -137,7 +164,7 @@ function Runway({ night }) {
     fill(yellowRef.current, paint.yellow);
     const c = new THREE.Color();
     lights.forEach(([x, z, k], i) => {
-      const y = (x >= APRON.x0 - 0.1 && x <= APRON.x1 + 0.1 && z <= APRON.z1 + 0.1 ? APRON.y : RW.y) + 0.05;
+      const y = (z <= APRON.z1 + 0.1 ? APRON.y : RW.y) + 0.05;
       d.position.set(x, y, z);
       d.scale.setScalar(1);
       d.updateMatrix();
@@ -163,20 +190,23 @@ function Runway({ night }) {
   const linkZ1 = RW.z - RW.w / 2;
   return (
     <group>
-      {/* slab down to the sand so the terrain never pokes through */}
+      {/* slab down to the ground so the terrain never pokes through */}
       <Box p={[cx, RW.y / 2 - 0.006, RW.z]} s={[len + 0.3, RW.y - 0.012, RW.w + 0.3]} m={MAT.shoulder} />
       <Box p={[cx, RW.y / 2, RW.z]} s={[len, RW.y, RW.w]} m={MAT.asphalt} />
       <Box p={[ax, APRON.y / 2, az]} s={[APRON.x1 - APRON.x0, APRON.y, APRON.z1 - APRON.z0]} m={MAT.concrete} />
       <Box p={[LINK.x, (RW.y - 0.005) / 2, (linkZ0 + linkZ1) / 2]} s={[LINK.w, RW.y - 0.005, linkZ1 - linkZ0 + 0.02]} m={MAT.asphalt} />
+      {/* turning pad at the west end, where the plane swings round to take off */}
+      <Cyl p={[TURN.x, (RW.y - 0.004) / 2, RW.z]} rt={TURN.r + 0.12} h={RW.y - 0.016} seg={14} m={MAT.shoulder} />
+      <Cyl p={[TURN.x, (RW.y - 0.004) / 2, RW.z]} rt={TURN.r} h={RW.y - 0.004} seg={14} m={MAT.asphalt} />
       <instancedMesh ref={whiteRef} args={[BOX, MAT.paint, paint.white.length]} />
       <instancedMesh ref={yellowRef} args={[BOX, MAT.taxi, paint.yellow.length]} />
       {/* runway numbers: 09 reads for planes landing eastbound, 27 westbound */}
-      <group position={[RW.x0 + 1.0, RW.y + 0.004, RW.z]} rotation={[0, -Math.PI / 2, 0]}>
+      <group position={[RW.x0 + 1.3, RW.y + 0.004, RW.z]} rotation={[0, -Math.PI / 2, 0]}>
         <mesh rotation={[-Math.PI / 2, 0, 0]} material={numMats[0]}>
           <planeGeometry args={[0.7, 0.7]} />
         </mesh>
       </group>
-      <group position={[RW.x1 - 1.0, RW.y + 0.004, RW.z]} rotation={[0, Math.PI / 2, 0]}>
+      <group position={[RW.x1 - 1.1, RW.y + 0.004, RW.z]} rotation={[0, Math.PI / 2, 0]}>
         <mesh rotation={[-Math.PI / 2, 0, 0]} material={numMats[1]}>
           <planeGeometry args={[0.7, 0.7]} />
         </mesh>
@@ -184,12 +214,12 @@ function Runway({ night }) {
       <instancedMesh ref={bulbRef} args={[LIGHT_GEO, bulbMat, lights.length]} />
       <instancedMesh ref={haloRef} args={[GLOW_GEO, haloMat, lights.length]} visible={night > 0.05} />
       {/* wheel chocks and a fuel drum by the hangar, a few cones on the apron */}
-      <group position={[2.35, APRON.y, -14.3]}>
+      <group position={[HANGAR.x0 - 0.45, APRON.y, HANGAR.z - 0.42]}>
         <Cyl p={[0, 0.17, 0]} rt={0.12} h={0.34} seg={8} m={MAT.red} />
         <Cyl p={[0, 0.345, 0]} rt={0.125} h={0.02} seg={8} m={M.white} />
         <Cyl p={[0.24, 0.13, 0.05]} rt={0.1} h={0.26} seg={8} m={M.bbBlue} />
       </group>
-      {[[-0.85, -13.5], [-0.85, -14.4], [2.5, -13.55]].map(([x, z], i) => (
+      {[[APRON.x0 + 0.25, APRON.z1 - 0.15], [APRON.x0 + 0.25, APRON.z0 + 0.15], [APRON.x1 - 0.2, APRON.z1 - 0.2]].map(([x, z], i) => (
         <group key={i} position={[x, APRON.y, z]}>
           <Cone p={[0, 0.1, 0]} rad={0.06} h={0.2} seg={6} m={MAT.orange} />
           <Cyl p={[0, 0.1, 0]} rt={0.045} h={0.03} seg={6} m={M.white} />
@@ -336,7 +366,8 @@ function Windsock({ animate }) {
   const turn = useRef();
   const segs = useRef([]);
   const clock = useMemo(() => aliveClock(), []);
-  const g = groundY(SOCK.x, SOCK.z);
+  const [wx, , wz] = W(SOCK.x, 0, SOCK.z);
+  const g = groundY(wx, wz);
   const pose = (t) => {
     const dir = 0.7 + Math.sin(t * 0.045) * 0.6 + Math.sin(t * 0.13 + 1) * 0.15;
     const wind = 0.55 + Math.sin(t * 0.07 + 1) * 0.3 + Math.sin(t * 0.9) * 0.08;
@@ -405,31 +436,55 @@ function buildRoute(list) {
   return { segs: list, dur: t };
 }
 
+// Routes are written in the footprint frame (lx, world y, lz) and turned
+// into world points. Heights are absolute: the climb-out and the approach
+// clear the palms on the east shore (tops ~3.5 around x 16-17.5) and stay
+// north of the lanai deck (z > -1) while low.
 const GY = RW.y;
+const C = RW.z; // strip centerline
+const LIFT = TURN.x + 2.35; // liftoff point, eastbound
+const PARK_W = W(PARK.x, APRON.y, PARK.z);
+const PARK_H = PARK.heading + ROT;
+const TURN_W = W(TURN.x, GY, C);
 const OUT = buildRoute([
-  { hold: true, at: [PARK.x, APRON.y, PARK.z], dur: 2.5, prop: [0, 0.35] }, // engine start
-  { pts: [[PARK.x, APRON.y, PARK.z], [PARK.x, APRON.y + 0.002, -13.55], [0.33, GY - 0.002, -13.05], [0.1, GY, -12.66], [-0.35, GY, -12.55], [-0.8, GY, RW.z]], v0: 0.2, v1: 0.55, prop: [0.35, 0.4] },
-  { hold: true, at: [-0.8, GY, RW.z], dur: 2.2, prop: [0.4, 1] }, // run-up
-  { pts: [[-0.8, GY, RW.z], [-4.4, GY, RW.z]], v0: 0.2, v1: 2.6, prop: [1, 1], pitch: [0, 0.12] },
+  { hold: true, at: PARK_W, dur: 2.5, prop: [0, 0.35] }, // engine start
   {
-    pts: [[-4.4, GY, RW.z], [-5.6, 0.6, -12.6], [-7.0, 1.1, -13.05], [-8.6, 1.75, -14.1], [-10.4, 2.45, -15.7], [-12.6, 3.3, -18.2], [-14.6, 4.3, -21.6], [-16.2, 5.4, -26], [-17.6, 6.7, -32], [-18.8, 8.2, -39]],
-    v0: 2.6, v1: 3.8, air: true, prop: [1, 1], pitch: [0.1, 0.04],
+    pts: [PARK_W, W(LINK.x, APRON.y + 0.002, -0.1), W(LINK.x - 0.02, GY, C - 0.37), W(LINK.x - 0.25, GY, C - 0.07), W(LINK.x - 0.6, GY, C), TURN_W],
+    v0: 0.2, v1: 0.5, prop: [0.35, 0.4],
   },
-  { pts: [[-18.8, 8.2, -39], [-19.3, 9.8, -54]], v0: 3.8, v1: 4.2, air: true, prop: [1, 1], pitch: [0.04, 0.04], scale: [1, 0.12] },
+  { turn: true, at: TURN_W, h0: -Math.PI / 2 + ROT, h1: (-3 * Math.PI) / 2 + ROT, dur: 3.2, prop: [0.4, 0.45] }, // swing round on the pad
+  { hold: true, at: TURN_W, dur: 2.2, prop: [0.45, 1] }, // run-up
+  { pts: [TURN_W, W(LIFT, GY, C)], v0: 0.2, v1: 2.4, prop: [1, 1], pitch: [0, 0.12] },
+  {
+    pts: [
+      W(LIFT, GY, C), W(-0.4, 0.78, C), W(1.0, 1.4, C), W(2.4, 2.05, C), W(3.6, 2.62, C), W(4.7, 3.25, C), W(5.7, 3.82, C),
+      W(6.7, 4.08, C - 0.05), W(7.8, 4.32, C - 0.15), W(9.2, 4.6, 0.3), W(10.6, 5.05, -0.6), W(12.0, 5.6, -2.2), W(13.1, 6.3, -4.8), W(13.7, 7.2, -8.5), W(13.8, 8.2, -13),
+    ],
+    v0: 2.4, v1: 3.8, air: true, prop: [1, 1], pitch: [0.12, 0.04],
+  },
+  { pts: [W(13.8, 8.2, -13), W(13.5, 9.8, -28)], v0: 3.8, v1: 4.2, air: true, prop: [1, 1], pitch: [0.04, 0.04], scale: [1, 0.12] },
 ]);
 const IN = buildRoute([
-  { pts: [[-41, 10.5, -46], [-34, 8.6, -33]], v0: 4.2, v1: 4.0, air: true, prop: [0.8, 0.8], pitch: [0.08, 0.1], scale: [0.12, 1] },
-  { pts: [[-34, 8.6, -33], [-29, 6.8, -27.5], [-23, 4.8, -23.2], [-17.6, 3.2, -19.8], [-13.6, 2.2, -17.0], [-11.2, 1.62, -15.8], [-9.2, 1.2, -14.3], [-7.5, 0.86, -12.85], [-6.6, 0.7, RW.z]], v0: 4.0, v1: 2.6, air: true, prop: [0.75, 0.6], pitch: [0.1, 0.12] },
-  { pts: [[-6.6, 0.7, RW.z], [-6.0, 0.56, RW.z], [-5.4, 0.48, RW.z], [-4.8, GY, RW.z]], v0: 2.6, v1: 2.3, air: true, prop: [0.55, 0.45], pitch: [0.1, 0.22] },
-  { pts: [[-4.8, GY, RW.z], [-0.5, GY, RW.z]], v0: 2.3, v1: 0.45, touch: true, prop: [0.45, 0.4], pitch: [0.16, 0] },
-  { pts: [[-0.5, GY, RW.z], [-0.05, GY, -12.6], [0.3, GY - 0.002, -12.95], [LINK.x, APRON.y + 0.005, -13.4], [0.37, APRON.y, -13.75], [PARK.x, APRON.y, PARK.z]], v0: 0.45, v1: 0.15, prop: [0.4, 0.35] },
-  { turn: true, at: [PARK.x, APRON.y, PARK.z], h0: Math.PI, h1: Math.PI * 2, dur: 4, prop: [0.35, 0.3] }, // swing round
-  { hold: true, at: [PARK.x, APRON.y, PARK.z], dur: 2.5, prop: [0.3, 0] }, // engine off
+  { pts: [W(40, 10.5, 28), W(26, 8.4, 16)], v0: 4.2, v1: 4.0, air: true, prop: [0.8, 0.8], pitch: [0.08, 0.1], scale: [0.12, 1] },
+  {
+    // round from the south-east over the sea onto a long final, then a steep
+    // short-field descent once past the shore palms (nose kept near level)
+    pts: [W(26, 8.4, 16), W(19, 6.4, 6.0), W(14.5, 5.0, 1.6), W(11.5, 4.45, 0.78), W(9.0, 4.1, C), W(7.2, 4.05, C), W(5.7, 3.8, C), W(4.7, 3.28, C), W(3.4, 2.42, C), W(2.0, 1.45, C), W(1.0, 0.86, C)],
+    v0: 4.0, v1: 2.3, air: true, prop: [0.75, 0.5], pitch: [0.1, 0.1], climbK: 0.3,
+  },
+  { pts: [W(1.0, 0.86, C), W(0.3, 0.56, C), W(-0.3, GY, C)], v0: 2.3, v1: 2.1, air: true, prop: [0.5, 0.45], pitch: [0.1, 0.22], climbK: 0.3 }, // flare
+  { pts: [W(-0.3, GY, C), W(LINK.x + 0.6, GY, C)], v0: 2.1, v1: 0.45, touch: true, prop: [0.45, 0.4], pitch: [0.16, 0] },
+  {
+    pts: [W(LINK.x + 0.6, GY, C), W(LINK.x + 0.3, GY, C - 0.05), W(LINK.x + 0.02, GY, C - 0.37), W(LINK.x, APRON.y + 0.005, -0.1), PARK_W],
+    v0: 0.45, v1: 0.15, prop: [0.4, 0.35],
+  },
+  { turn: true, at: PARK_W, h0: Math.PI + ROT, h1: Math.PI * 2 + ROT, dur: 4, prop: [0.35, 0.3] }, // swing round
+  { hold: true, at: PARK_W, dur: 2.5, prop: [0.3, 0] }, // engine off
 ]);
 
 const lerp = (a, b, t) => a + (b - a) * t;
 const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
-const PLANE_SCALE = 1.15;
+const PLANE_SCALE = 1.0; // a touch smaller than before, to suit the shorter strip
 
 // Where the plane is on a route at time t. Writes into `out`, no allocations.
 function sampleRoute(route, t, out) {
@@ -466,6 +521,7 @@ function sampleRoute(route, t, out) {
   out.air = !!s.air;
   out.prop = s.prop ? lerp(s.prop[0], s.prop[1], k) : 0;
   out.pitch = s.pitch ? lerp(s.pitch[0], s.pitch[1], k) : 0;
+  out.climbK = s.climbK ?? 0.7;
   out.scale = s.scale ? lerp(s.scale[0], s.scale[1], k) : 1;
   out.touch = !!s.touch;
   return out;
@@ -569,12 +625,12 @@ function Plane({ ctx, night }) {
       nextAt: test ? 3 : 70 + Math.random() * 110,
       start: 0,
       lastSeg: -1,
-      heading: PARK.heading,
+      heading: PARK_H,
       pitch: 0,
       bank: 0,
       prop: 0,
       propA: 0,
-      s: { pos: new THREE.Vector3(), tan: new THREE.Vector3(), tmp: new THREE.Vector3(), heading: 0, climb: 0 },
+      s: { pos: new THREE.Vector3(), tan: new THREE.Vector3(), tmp: new THREE.Vector3(), heading: 0, climb: 0, climbK: 0.7 },
       puffs: Array.from({ length: PUFFS }, () => ({ age: 9, x: 0, y: 0, z: 0, vx: 0, vz: 0 })),
       puffNext: 0,
     }),
@@ -590,7 +646,7 @@ function Plane({ ctx, night }) {
   };
 
   useLayoutEffect(() => {
-    if (root.current) place(PARK.x, APRON.y, PARK.z, PARK.heading, 0, 0, 1);
+    if (root.current) place(PARK_W[0], PARK_W[1], PARK_W[2], PARK_H, 0, 0, 1);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const spawnPuffs = (x, y, z, heading) => {
@@ -645,7 +701,7 @@ function Plane({ ctx, night }) {
       const rate = wrap(st.heading - prevHeading) / Math.max(dt, 1e-3);
       const bankWant = s.air ? Math.max(-0.65, Math.min(0.65, -rate * 1.1)) : 0;
       st.bank += (bankWant - st.bank) * Math.min(1, dt * 2.5);
-      const pitchWant = (s.air ? s.climb * 0.7 : 0) + s.pitch;
+      const pitchWant = (s.air ? s.climb * s.climbK : 0) + s.pitch;
       st.pitch += (pitchWant - st.pitch) * Math.min(1, dt * 3);
       st.prop += (s.prop - st.prop) * Math.min(1, dt * 2);
       if (s.touch && st.lastSeg !== s.seg) spawnPuffs(s.pos.x, s.pos.y, s.pos.z, st.heading);
@@ -671,8 +727,8 @@ function Plane({ ctx, night }) {
           st.nextAt = t + (test ? 5 : 40 + Math.random() * 40);
         } else {
           st.phase = 'parked';
-          st.heading = PARK.heading;
-          place(PARK.x, APRON.y, PARK.z, PARK.heading, 0, 0, 1);
+          st.heading = PARK_H;
+          place(PARK_W[0], PARK_W[1], PARK_W[2], PARK_H, 0, 0, 1);
           st.nextAt = t + (test ? 4 : 150 + Math.random() * 110);
         }
       }
@@ -725,10 +781,12 @@ export default function Airstrip({ ctx }) {
   const night = duskFactor(ctx.sky);
   return (
     <group>
-      <Runway night={night} />
-      <Hangar night={night} />
-      <ControlHut night={night} animate={ctx.animate} />
-      <Windsock animate={ctx.animate} />
+      <group position={[S.x, 0, S.z]} rotation={[0, ROT, 0]}>
+        <Runway night={night} />
+        <Hangar night={night} />
+        <ControlHut night={night} animate={ctx.animate} />
+        <Windsock animate={ctx.animate} />
+      </group>
       <Plane ctx={ctx} night={night} />
     </group>
   );

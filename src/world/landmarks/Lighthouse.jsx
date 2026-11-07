@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { SITES, terrainY } from '../../utils/paths.js';
+import { SITES, ZONES, terrainY } from '../../utils/paths.js';
 import { audioCtx } from '../state.js';
+import { aliveClock, testOn } from '../../wild/director.js';
 import { Box, Cyl, SoftGlow, duskFactor, pointer, spriteGlowMaterial, std, tap } from './kit.jsx';
 
 // The lighthouse on the north-east point: a white tower with red bands on a
@@ -10,6 +11,10 @@ import { Box, Cyl, SoftGlow, duskFactor, pointer, spriteGlowMaterial, std, tap }
 // a red cap. From golden hour on, a beam sweeps slowly over the sea.
 // Easter egg: tap it for the foghorn (sound rings roll out from the lamp and
 // the beam flashes).
+// On top: a weather vane (compass arms N/E/S/W and a little bot riding the
+// arrow) that points into the breeze. It swings smoothly with the gusts and
+// now and then a big gust whirls it round two or three times
+// (every 35 to 90 s; ?test=vane makes it every ~8 s).
 
 const S = SITES.lighthouse;
 export const LAMP_Y = S.height - 0.15; // lamp center
@@ -74,12 +79,18 @@ const ROCK_GEO = new THREE.DodecahedronGeometry(1, 0);
 const noRay = () => null;
 
 // Rocks piled around the foot, down into the water.
+const LOOKOUT = ZONES.lookout; // the next-door neighbor
+const TO_LOOKOUT = Math.atan2(LOOKOUT.z - S.z, LOOKOUT.x - S.x);
 const ROCK_LIST = (() => {
   const out = [];
   const n = 13;
   for (let i = 0; i < n; i++) {
     const a = (i / n) * Math.PI * 2 + Math.sin(i * 7.3) * 0.2;
-    const r = 1.05 + (i % 3) * 0.32;
+    let r = 1.05 + (i % 3) * 0.32;
+    // keep the side facing the Research Lookout tidy: big outer rocks there
+    // pull in close, so the two neighbors don't crowd each other
+    const off = Math.abs(Math.atan2(Math.sin(a - TO_LOOKOUT), Math.cos(a - TO_LOOKOUT)));
+    if (off < 0.6) r = Math.min(r, 1.1);
     const x = Math.cos(a) * r;
     const z = Math.sin(a) * r;
     const g = Math.max(terrainY(S.x + x, S.z + z), -0.55);
@@ -161,6 +172,147 @@ function playFoghorn() {
     o.start(t0);
     o.stop(t0 + 2.7);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Weather vane
+
+// The breeze comes from the north-west, the same wind the sailboats beat
+// into (Sailboat.jsx UPWIND). The arrow points where the wind comes FROM.
+const UPWIND = 3.6;
+const VANE_BASE = UPWIND - Math.PI / 2; // rotation.y that aims local +x upwind
+const VANE_Y = LAMP_Y + 1.1; // compass arms height
+const TAU = Math.PI * 2;
+const wrap = (a) => a - TAU * Math.floor((a + Math.PI) / TAU);
+const rand = (n) => {
+  const s = Math.sin(n * 91.7 + 13.1) * 43758.5453;
+  return s - Math.floor(s);
+};
+
+function letterMaterial(ch) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const x = c.getContext('2d');
+  x.font = '900 52px "Arial Black", Arial, sans-serif';
+  x.textAlign = 'center';
+  x.textBaseline = 'middle';
+  x.lineWidth = 8;
+  x.strokeStyle = 'rgba(255,255,255,0.9)';
+  x.strokeText(ch, 32, 35);
+  x.fillStyle = '#2f3236';
+  x.fillText(ch, 32, 35);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return new THREE.SpriteMaterial({ map: t, alphaTest: 0.35, fog: false });
+}
+
+// A little bot cut out of sheet iron, riding the arrow.
+function botSilhouette() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const x = c.getContext('2d');
+  x.fillStyle = '#ffffff';
+  x.beginPath();
+  x.roundRect(40, 14, 52, 40, 12); // head
+  x.roundRect(46, 58, 40, 40, 8); // body
+  x.rect(62, 0, 6, 16); // antenna
+  x.arc(65, 4, 7, 0, TAU);
+  x.rect(30, 62, 18, 8); // arm, waving forward
+  x.rect(24, 50, 8, 20);
+  x.rect(84, 64, 22, 8); // arm, back
+  x.rect(50, 96, 10, 22); // legs
+  x.rect(72, 96, 10, 22);
+  x.fill();
+  // eyes and a smile punched through
+  x.globalCompositeOperation = 'destination-out';
+  x.beginPath();
+  x.arc(56, 32, 5, 0, TAU);
+  x.arc(76, 32, 5, 0, TAU);
+  x.fill();
+  x.fillRect(58, 42, 16, 4);
+  const t = new THREE.CanvasTexture(c);
+  return new THREE.MeshStandardMaterial({ color: '#2f3236', alphaMap: t, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.5, metalness: 0.3 });
+}
+
+const VM = {};
+function vaneMats() {
+  if (!VM.N) {
+    for (const ch of ['N', 'E', 'S', 'W']) VM[ch] = letterMaterial(ch);
+    VM.bot = botSilhouette();
+    VM.gold = std('#c9a24a', { roughness: 0.35, metalness: 0.5 });
+    VM.fin = std('#c62a32', { roughness: 0.6, side: THREE.DoubleSide });
+  }
+  return VM;
+}
+const LETTERS = [
+  ['N', 0, -1],
+  ['E', 1, 0],
+  ['S', 0, 1],
+  ['W', -1, 0],
+];
+const ARROW_HEAD = new THREE.ConeGeometry(0.06, 0.16, 4).rotateZ(-Math.PI / 2);
+const TAIL_GEO = (() => {
+  const sh = new THREE.Shape();
+  sh.moveTo(0, 0);
+  sh.lineTo(-0.2, 0.13);
+  sh.lineTo(-0.24, 0.13);
+  sh.lineTo(-0.2, 0);
+  sh.lineTo(-0.24, -0.08);
+  sh.lineTo(-0.2, -0.08);
+  sh.closePath();
+  return new THREE.ShapeGeometry(sh);
+})();
+
+function WeatherVane({ animate }) {
+  const mats = vaneMats();
+  const vane = useRef();
+  const st = useMemo(() => ({ a: VANE_BASE, w: 0, spin: 0, nextSpin: testOn('vane') ? 4 : 35 + rand(1) * 40, n: 1, clock: aliveClock() }), []);
+  useFrame((_, delta) => {
+    if (!animate || !vane.current) return;
+    const dt = Math.min(delta, 0.05);
+    const t = st.clock.tick(delta);
+    // the wind wanders: slow drift plus quicker gusty wobbles
+    const gust = 0.5 + 0.5 * Math.sin(t * 0.21 + 1.3) * Math.sin(t * 0.13);
+    const want = VANE_BASE + Math.sin(t * 0.05) * 0.45 + Math.sin(t * 0.17 + 2) * 0.22 + (Math.sin(t * 1.3) * 0.6 + Math.sin(t * 2.9 + 1) * 0.4) * 0.14 * gust;
+    if (st.spin > 0) {
+      // a big gust: free-wheel with little friction, then settle back
+      st.spin -= dt;
+      st.w -= st.w * 0.55 * dt;
+    } else {
+      st.w += (wrap(want - st.a) * 7 - st.w * 2.6) * dt; // springy, a touch of overshoot
+      if (t > st.nextSpin) {
+        st.n += 1;
+        st.spin = 1.6 + rand(st.n) * 0.9;
+        st.w = (rand(st.n + 0.5) > 0.35 ? 1 : -1) * (11 + rand(st.n + 0.3) * 5);
+        st.nextSpin = t + (testOn('vane') ? 8 : 35 + rand(st.n + 0.7) * 55);
+      }
+    }
+    st.a = wrap(st.a + st.w * dt);
+    vane.current.rotation.y = st.a;
+  });
+  return (
+    <group position={[0, VANE_Y, 0]} scale={1.4}>
+      {/* fixed compass arms with the letters */}
+      <Box p={[0, 0, 0]} s={[0.56, 0.018, 0.018]} m={LM.iron} />
+      <Box p={[0, 0, 0]} s={[0.018, 0.018, 0.56]} m={LM.iron} />
+      {LETTERS.map(([ch, dx, dz]) => (
+        <sprite key={ch} position={[dx * 0.36, 0.02, dz * 0.36]} scale={[0.17, 0.17, 0.17]} material={mats[ch]} raycast={noRay} />
+      ))}
+      <Cyl p={[0, 0.12, 0]} rt={0.012} h={0.5} m={LM.iron} />
+      {/* the turning part: arrow, tail fin and the bot */}
+      <group ref={vane} position={[0, 0.3, 0]} rotation={[0, st.a, 0]}>
+        <mesh position={[0, 0, 0]} material={mats.gold}>
+          <sphereGeometry args={[0.03, 6, 4]} />
+        </mesh>
+        <Box p={[0.02, 0, 0]} s={[0.5, 0.016, 0.016]} m={LM.iron} />
+        <mesh geometry={ARROW_HEAD} position={[0.3, 0, 0]} material={mats.gold} />
+        <mesh geometry={TAIL_GEO} position={[-0.04, 0, 0]} material={mats.fin} />
+        <mesh position={[-0.02, 0.1, 0]} material={mats.bot}>
+          <planeGeometry args={[0.18, 0.18]} />
+        </mesh>
+      </group>
+    </group>
+  );
 }
 
 export default function Lighthouse({ ctx }) {
@@ -292,7 +444,7 @@ export default function Lighthouse({ ctx }) {
           <octahedronGeometry args={[0.17, 0]} />
         </mesh>
         <Cyl p={[0, LAMP_Y - 0.2, 0]} rt={0.08} rb={0.12} h={0.18} seg={8} m={LM.iron} />
-        {/* red cap, ball and a little weather vane */}
+        {/* red cap, ball and the weather vane */}
         <Cyl p={[0, LAMP_Y + 0.44, 0]} rt={0.5} h={0.06} seg={12} m={LM.redCap} />
         <mesh position={[0, LAMP_Y + 0.68, 0]} material={LM.redCap}>
           <coneGeometry args={[0.5, 0.46, 12]} />
@@ -300,8 +452,7 @@ export default function Lighthouse({ ctx }) {
         <mesh position={[0, LAMP_Y + 0.95, 0]} material={LM.iron}>
           <sphereGeometry args={[0.07, 8, 6]} />
         </mesh>
-        <Cyl p={[0, LAMP_Y + 1.1, 0]} rt={0.012} h={0.3} m={LM.iron} />
-        <Box p={[0.08, LAMP_Y + 1.18, 0]} s={[0.22, 0.07, 0.01]} m={LM.iron} />
+        <WeatherVane animate={animate} />
         {/* easy tap target around the whole tower */}
         <mesh position={[0, (LAMP_Y + 1) / 2, 0]} material={LM.hit}>
           <cylinderGeometry args={[1.0, 1.1, LAMP_Y + 1, 8]} />

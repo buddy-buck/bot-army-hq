@@ -4,18 +4,23 @@ import * as THREE from 'three';
 import MiniBot, { CREW_COLORS } from '../MiniBot.jsx';
 import { BOT_SCALE } from '../../components/Bot.jsx';
 import { SITES, groundY } from '../../utils/paths.js';
+import { testOn } from '../../wild/director.js';
 import { Box, Cyl, LM, SIT_DROP, StringLights, canvasTexture, glowMat, lerpAngle, makePath, resetBot, sitPose, smooth, std, usePoseOnce, walkPose } from './common.jsx';
 
-// Byte Bites: a retro food truck on the south beach (tacos and shave ice).
-// A little line shuffles up to the serving window, the cook hands over the
+// Byte Bites: a big retro food truck on the south beach (Buck Tacos and
+// shave ice). A little line shuffles up to the serving window (the front bot
+// hops up on a wooden step to reach the counter), the cook hands over the
 // food, and the lucky bot takes it to the picnic table to eat. When it's
 // done it strolls around behind the truck and joins the back of the line
-// again (it's that good). At bedtime the shutter comes down.
+// again (it's that good). Now and then someone walks off with a giant
+// Rainbow Shave Ice held up high. Tap the menu board (or the rooftop sign)
+// for the full menu. At bedtime the shutter comes down.
 //
 // Layout (world): the truck runs east-west, serving window on the south
-// side facing the default camera; the line forms toward the east; the
-// picnic table sits south-west of the truck. Everything stays inside the
-// foodtruck site, clear of the sandcastle and the DJ booth.
+// side facing the default camera; the line forms toward the east (clear of
+// the lifeguard tower and the Networking Tiki Hut); the picnic table sits
+// beside the truck to the west (long side north-south) so it never hides
+// the truck from the default camera, clear of the sandcastle.
 
 const SITE = SITES.foodtruck;
 const S = BOT_SCALE;
@@ -23,66 +28,93 @@ const SERVE = 6; // seconds between orders
 const EAT = 8; // seconds at the table
 const SIT_TIME = 0.7;
 const SPEED = 0.85;
+// One order in RAINBOW_ODDS is a Rainbow Shave Ice (?test=shaveice: every
+// third order).
+const RAINBOW_ODDS = 24;
+const RAINBOW_TEST = testOn('shaveice');
+const mix = (n) => {
+  let h = Math.imul(n ^ 0x9e3779b9, 0x85ebca6b);
+  h ^= h >>> 13;
+  h = Math.imul(h, 0xc2b2ae35);
+  return (h ^ (h >>> 16)) >>> 0;
+};
+const isRainbow = (n) => (RAINBOW_TEST ? n % 3 === 2 : n > 2 && mix(n) % RAINBOW_ODDS === 5);
+// What order number n is: 0 Buck Taco, 1 shave ice, 2 Rainbow Shave Ice.
+const orderType = (n) => (isRainbow(n) ? 2 : n % 2);
 
-// Truck frame: long axis along x, window on the south (+z) side.
-const TRUCK = { x: SITE.x + 0.1, z: SITE.z - 1.0 }; // (-4.5, 11.0)
+// Truck frame: long axis along x, window on the south (+z) side. Everything
+// in Truck() is drawn in truck units and scaled up by TS.
+const TS = 1.45;
+const TRUCK = { x: SITE.x - 0.3, z: SITE.z - 0.7 }; // (-3.9, 10.9)
 const BODY = { x0: -1.1, x1: 0.55, z: 0.5, y0: 0.22, y1: 1.5 };
 const WIN = { x0: -0.3, x1: 0.5, y0: 0.86, y1: 1.32 }; // serving window (local)
-const WIN_X = TRUCK.x + (WIN.x0 + WIN.x1) / 2;
+const WIN_X = TRUCK.x + ((WIN.x0 + WIN.x1) / 2) * TS;
 const truckG = (() => {
   let g = 0;
-  for (const [dx, dz] of [[-1.1, -0.5], [1.2, -0.5], [-1.1, 0.5], [1.2, 0.5], [0, 0]]) g = Math.max(g, groundY(TRUCK.x + dx, TRUCK.z + dz));
+  for (const [dx, dz] of [[-1.15, -0.55], [1.5, -0.55], [-1.15, 0.55], [1.5, 0.55], [0, 0]]) g = Math.max(g, groundY(TRUCK.x + dx * TS, TRUCK.z + dz * TS));
   return g;
 })();
 
-// Picnic table (long axis along x), benches north and south of it.
-const TABLE = { x: -5.85, z: 12.75 };
+// Picnic table beside the truck (west), long axis north-south, benches on
+// its east and west sides.
+const TABLE = { x: SITE.x - 3.55, z: SITE.z - 1.0 }; // (-7.15, 10.6)
 const BENCH_DZ = 0.55;
 const BENCH_H = 0.36;
 const tableG = (() => {
   let g = 0;
-  for (const [dx, dz] of [[-0.75, -0.65], [0.75, -0.65], [-0.75, 0.65], [0.75, 0.65]]) g = Math.max(g, groundY(TABLE.x + dx, TABLE.z + dz));
+  for (const [dx, dz] of [[-0.65, -0.75], [0.65, -0.75], [-0.65, 0.75], [0.65, 0.75]]) g = Math.max(g, groundY(TABLE.x + dx, TABLE.z + dz));
   return g;
 })();
 const SEAT_Y = tableG + BENCH_H - SIT_DROP * S;
 
-// The line: front of the line at the window, curving east; the last spot
-// is a waiting spot by the join point if the line ever gets long.
-const SLOTS = [
-  [WIN_X + 0.22, 12.15], // a little east of center so the cook shows
-  [-3.5, 12.45],
-  [-2.9, 12.55],
-  [-2.35, 12.35],
-  [-2.05, 11.9],
-  [-2.25, 11.3],
-];
-const JOIN = [-2.25, 11.25];
+// The front customer stands on a little wooden step to reach the counter.
+const STEP = { x: WIN_X + 0.42, z: TRUCK.z + 1.4, h: 0.15 };
+const stepLift = (x, z) => {
+  const d = Math.max(Math.abs(x - STEP.x) - 0.12, Math.abs(z - STEP.z) - 0.08, 0);
+  return STEP.h * (1 - smooth(d / 0.3));
+};
 
-// Seats: 0 north-west, 1 north-east, 2 south-west, 3 south-east. Each seat
-// is reached from its own end of the bench so nobody walks through anyone.
-const NZ = TABLE.z - BENCH_DZ;
-const SZ = TABLE.z + BENCH_DZ;
-const WX = TABLE.x - 1.0;
-const EX = TABLE.x + 1.0;
-const SEATS = [
-  { x: TABLE.x - 0.32, z: NZ, rotY: 0, stand: [WX, NZ] },
-  { x: TABLE.x + 0.32, z: NZ, rotY: 0, stand: [EX, NZ] },
-  { x: TABLE.x - 0.32, z: SZ, rotY: Math.PI, stand: [WX, SZ] },
-  { x: TABLE.x + 0.32, z: SZ, rotY: Math.PI, stand: [EX, SZ] },
+// The line: front of the line at the window, running east and curling
+// north at the end; the last spot is a waiting spot by the join point if the
+// line ever gets long.
+const SLOTS = [
+  [STEP.x, STEP.z], // east of center so the cook shows from the default camera
+  [-2.8, 12.5],
+  [-2.15, 12.58],
+  [-1.5, 12.48],
+  [-0.95, 12.15],
+  [-0.75, 11.6],
 ];
-const GAP_Z = 11.82; // walkway between the truck and the table
-const BACK = [[-6.05, 11.0], [-5.5, 10.15], [-3.4, 10.15], [-2.6, 10.6], JOIN];
+const JOIN = [-0.75, 11.55];
+
+// Seats: 0 west-north, 1 east-north, 2 west-south, 3 east-south. Each seat
+// is reached from its own end of the bench so nobody walks through anyone.
+const WB = TABLE.x - BENCH_DZ; // west bench (faces east)
+const EB = TABLE.x + BENCH_DZ; // east bench (faces west)
+const NZ = TABLE.z - 0.32;
+const SZ = TABLE.z + 0.32;
+const N_END = TABLE.z - 1.0;
+const S_END = TABLE.z + 1.0;
+const SEATS = [
+  { x: WB, z: NZ, rotY: Math.PI / 2, stand: [WB, N_END] },
+  { x: EB, z: NZ, rotY: -Math.PI / 2, stand: [EB, N_END] },
+  { x: WB, z: SZ, rotY: Math.PI / 2, stand: [WB, S_END] },
+  { x: EB, z: SZ, rotY: -Math.PI / 2, stand: [EB, S_END] },
+];
+const LANE = -5.95; // walkway between the truck's west end and the table
+const SW = [-5.3, 12.35]; // round the truck's south-west corner
+const BACK = [[-5.6, 9.3], [-3.0, 9.3], [-1.2, 9.55], [-0.55, 10.5], JOIN];
 const TO_SEAT = [
-  makePath([SLOTS[0], [-4.75, GAP_Z], [-6.8, GAP_Z], SEATS[0].stand]),
-  makePath([SLOTS[0], SEATS[1].stand]),
-  makePath([SLOTS[0], [-4.75, GAP_Z], [-6.95, 11.9], SEATS[2].stand]),
-  makePath([SLOTS[0], [-4.4, 12.75], SEATS[3].stand]),
+  makePath([SLOTS[0], SW, [LANE, 11.75], [LANE, 9.95], [-6.4, 9.3], [WB, 9.3], SEATS[0].stand]),
+  makePath([SLOTS[0], SW, [LANE, 11.75], [LANE, 9.95], SEATS[1].stand]),
+  makePath([SLOTS[0], SW, [TABLE.x, 12.2], SEATS[2].stand]),
+  makePath([SLOTS[0], SW, SEATS[3].stand]),
 ];
 const LEAVE = [
-  makePath([SEATS[0].stand, [-6.45, 11.7], ...BACK]),
-  makePath([SEATS[1].stand, [-4.95, GAP_Z], [-6.2, 11.75], ...BACK]),
-  makePath([SEATS[2].stand, [-7.0, 12.75], [-6.6, 11.75], ...BACK]),
-  makePath([SEATS[3].stand, [-5.0, 13.7], [-6.7, 13.7], [-7.05, 12.9], [-6.6, 11.75], ...BACK]),
+  makePath([SEATS[0].stand, [WB + 0.5, 9.2], ...BACK]),
+  makePath([SEATS[1].stand, [EB + 0.4, 9.3], ...BACK]),
+  makePath([SEATS[2].stand, [WB - 0.5, 11.0], [WB - 0.5, 9.9], [WB + 0.3, 9.15], ...BACK]),
+  makePath([SEATS[3].stand, [LANE, 11.2], [LANE, 9.75], ...BACK]),
 ];
 
 // ---------------------------------------------------------------------------
@@ -113,6 +145,8 @@ const TM = {
   icePink: std('#ff7ab8'),
   iceBlue: std('#5fb8ff'),
   iceYellow: std('#ffe066'),
+  rainbow: ['#ff4d4d', '#ff9a3d', '#ffe14d', '#5fd16b', '#4aa8ff', '#9b7bff'].map((c) => std(c, { emissive: c, emissiveIntensity: 0.12 })),
+  step: std('#b98a5a'),
   spatula: std('#b9c2c8', { roughness: 0.4, metalness: 0.5 }),
   steam: new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.45, depthWrite: false }),
   lantern: std('#ffd9a0', { emissive: '#ffb066', emissiveIntensity: 1.6 }),
@@ -143,12 +177,24 @@ function makeFood(type) {
     add(FOOD_GEO.bit, TM.tomato, -0.03, 0.1, 0.01);
     add(FOOD_GEO.bit, TM.tomato, 0.035, 0.1, -0.01);
     add(FOOD_GEO.bit, TM.cup, 0.0, 0.1, 0.015, 0.8);
-  } else {
+  } else if (type === 'shave') {
     add(FOOD_GEO.cup, TM.cup, 0, 0, 0);
     add(FOOD_GEO.ice, TM.icePink, 0, 0.13, 0);
     add(FOOD_GEO.ice, TM.iceBlue, 0.02, 0.17, 0.01, 0.65);
     add(FOOD_GEO.ice, TM.iceYellow, -0.025, 0.16, -0.01, 0.55);
     const sp = add(FOOD_GEO.spoon, TM.spatula, 0.03, 0.2, 0);
+    sp.rotation.z = -0.4;
+  } else {
+    // Rainbow Shave Ice: a tall paper cone with a scoop of every color
+    add(FOOD_GEO.cup, TM.cup, 0, 0, 0, 1.25);
+    const R = TM.rainbow;
+    add(FOOD_GEO.ice, R[0], -0.03, 0.15, 0.0, 0.8);
+    add(FOOD_GEO.ice, R[1], 0.03, 0.15, 0.01, 0.8);
+    add(FOOD_GEO.ice, R[2], 0.0, 0.16, -0.035, 0.75);
+    add(FOOD_GEO.ice, R[3], -0.015, 0.21, 0.015, 0.75);
+    add(FOOD_GEO.ice, R[4], 0.025, 0.215, -0.01, 0.7);
+    add(FOOD_GEO.ice, R[5], 0.0, 0.26, 0.0, 0.62);
+    const sp = add(FOOD_GEO.spoon, TM.spatula, 0.04, 0.27, 0);
     sp.rotation.z = -0.4;
   }
   g.position.set(0, 0.0, 0.06);
@@ -170,7 +216,7 @@ function makeSpatula() {
 }
 
 const SIGN_TEX = () =>
-  canvasTexture('byte-bites-sign', 512, 128, (g, w, h) => {
+  canvasTexture('byte-bites-sign-2', 512, 128, (g, w, h) => {
     g.fillStyle = '#2fbfb0';
     g.fillRect(0, 0, w, h);
     g.strokeStyle = '#fff1d6';
@@ -186,11 +232,11 @@ const SIGN_TEX = () =>
     g.fillText('BYTE BITES', w / 2, h / 2 - 8);
     g.font = 'bold 22px "Trebuchet MS", Arial, sans-serif';
     g.fillStyle = '#fff1d6';
-    g.fillText('TACOS  ·  SHAVE ICE', w / 2, h - 22);
+    g.fillText('BUCK TACOS  ·  SHAVE ICE', w / 2, h - 22);
   });
 
 const MENU_TEX = () =>
-  canvasTexture('byte-bites-menu', 256, 208, (g, w, h) => {
+  canvasTexture('byte-bites-menu-2', 256, 208, (g, w, h) => {
     g.fillStyle = '#2f3b35';
     g.fillRect(0, 0, w, h);
     g.strokeStyle = '#c99a52';
@@ -202,7 +248,7 @@ const MENU_TEX = () =>
     g.textAlign = 'center';
     g.fillText('MENU', w / 2, 34);
     g.font = '21px "Trebuchet MS", Arial, sans-serif';
-    const rows = [['Byte taco', '3'], ['Fish taco', '4'], ['Shave ice', '2'], ['Chips & salsa', '2'], ['Coconut', '3']];
+    const rows = [['Byte Taco', '3'], ['Buck Taco', '4'], ['Shave Ice', '2'], ['Chips & salsa', '2'], ['Coconut', '3']];
     rows.forEach(([a, b], i) => {
       const y = 72 + i * 27;
       g.textAlign = 'left';
@@ -212,6 +258,26 @@ const MENU_TEX = () =>
       g.fillStyle = '#fff6e0';
       g.fillText(b, w - 22, y);
     });
+  });
+
+// "Order up!" pops over the window when a Buck Taco or a Rainbow goes out.
+const ORDER_TEX = (text, color) =>
+  canvasTexture(`byte-bites-order-${text}`, 256, 80, (g, w, h) => {
+    g.fillStyle = '#fff6e0';
+    g.strokeStyle = color;
+    g.lineWidth = 7;
+    g.beginPath();
+    g.roundRect ? g.roundRect(6, 6, w - 12, h - 12, 18) : g.rect(6, 6, w - 12, h - 12);
+    g.fill();
+    g.stroke();
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillStyle = '#3b3430';
+    g.font = 'bold 15px "Trebuchet MS", Arial, sans-serif';
+    g.fillText('ORDER UP!', w / 2, 24);
+    g.fillStyle = color;
+    g.font = 'bold 28px "Arial Rounded MT Bold", "Trebuchet MS", Arial, sans-serif';
+    g.fillText(text, w / 2, 52);
   });
 
 const CLOSED_TEX = () =>
@@ -249,9 +315,9 @@ function useSignMaterial(makeTex, night, base, boost) {
 // ---------------------------------------------------------------------------
 
 function Wheel({ lx, lz }) {
-  const wx = TRUCK.x + lx;
-  const wz = TRUCK.z + lz;
-  const y = groundY(wx, wz) - truckG + 0.17;
+  const wx = TRUCK.x + lx * TS;
+  const wz = TRUCK.z + lz * TS;
+  const y = (groundY(wx, wz) - truckG) / TS + 0.17;
   return (
     <group position={[lx, y, lz]}>
       <Cyl p={[0, 0, 0]} rt={0.17} h={0.12} m={TM.tire} seg={10} r={[Math.PI / 2, 0, 0]} />
@@ -260,14 +326,14 @@ function Wheel({ lx, lz }) {
   );
 }
 
-function Truck({ night, bedtime, cook, signMat, menuMat, closedMat, steam, headMat }) {
+function Truck({ night, bedtime, cook, signMat, menuMat, closedMat, steam, headMat, lanternGlow, onMenu }) {
   const { x0, x1, z: hz, y0, y1 } = BODY;
   const midX = (x0 + x1) / 2;
   const len = x1 - x0;
   const stripeY = 0.62;
   const open = !bedtime;
   return (
-    <group position={[TRUCK.x, truckG, TRUCK.z]}>
+    <group position={[TRUCK.x, truckG, TRUCK.z]} scale={TS}>
       {/* soft shadow under the truck */}
       <mesh position={[0.05, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]} material={LM.shadow}>
         <planeGeometry args={[2.5, 1.2]} />
@@ -305,10 +371,11 @@ function Truck({ night, bedtime, cook, signMat, menuMat, closedMat, steam, headM
       {/* napkins and a hot sauce on the counter */}
       <Box p={[WIN.x1 - 0.08, WIN.y0 + 0.04, hz + 0.12]} s={[0.08, 0.07, 0.06]} m={LM.white} />
       <Cyl p={[WIN.x0 + 0.1, WIN.y0 + 0.06, hz + 0.13]} rt={0.02} h={0.1} m={TM.hotSauce} />
-      {/* menu board on the south wall, west of the window */}
-      <mesh position={[(x0 + WIN.x0) / 2, 1.06, hz + 0.006]} material={menuMat}>
+      {/* menu board on the south wall, west of the window (tap for the menu) */}
+      <mesh position={[(x0 + WIN.x0) / 2, 1.06, hz + 0.012]} material={menuMat} onClick={onMenu} {...POINTER}>
         <planeGeometry args={[0.6, 0.49]} />
       </mesh>
+      <Box p={[(x0 + WIN.x0) / 2, 1.06, hz + 0.002]} s={[0.66, 0.55, 0.01]} m={LM.darkWood} />
       {/* cab at the east end: hood, windshield, headlights, bumpers */}
       <Box p={[x1 + 0.27, 0.62, 0]} s={[0.54, 0.8, hz * 2]} m={TM.mint} />
       <Box p={[x1 + 0.27, 0.22 + 0.17, 0]} s={[0.56, 0.3, hz * 2 + 0.02]} m={TM.coral} />
@@ -325,7 +392,7 @@ function Truck({ night, bedtime, cook, signMat, menuMat, closedMat, steam, headM
       <Box p={[x1 + 0.9, 0.27, 0]} s={[0.05, 0.07, hz * 2 + 0.04]} m={LM.chrome} />
       <Box p={[x0 - 0.03, 0.27, 0]} s={[0.05, 0.07, hz * 2 + 0.04]} m={LM.chrome} />
       {/* rooftop sign, a giant taco on the cab, and the vent */}
-      <group position={[midX + 0.05, y1 + 0.42, 0.05]}>
+      <group position={[midX + 0.05, y1 + 0.42, 0.05]} onClick={onMenu} {...POINTER}>
         <Box p={[0, 0, -0.03]} s={[1.32, 0.36, 0.04]} m={TM.cream} />
         <mesh position={[0, 0, -0.005]} material={signMat}>
           <planeGeometry args={[1.28, 0.32]} />
@@ -374,10 +441,31 @@ function Truck({ night, bedtime, cook, signMat, menuMat, closedMat, steam, headM
           <planeGeometry args={[0.42, 0.16]} />
         </mesh>
       </group>
+      {/* lantern on a bracket at the truck's south-west corner */}
+      <group position={[x0 - 0.04, 1.22, hz - 0.12]}>
+        <Box p={[-0.08, 0, 0]} s={[0.16, 0.025, 0.025]} m={LM.darkWood} />
+        <mesh position={[-0.15, -0.1, 0]} material={TM.lantern}>
+          <icosahedronGeometry args={[0.055, 0]} />
+        </mesh>
+        <mesh position={[-0.15, -0.1, 0]} material={lanternGlow}>
+          <sphereGeometry args={[0.22, 10, 8]} />
+        </mesh>
+      </group>
       {cook}
     </group>
   );
 }
+
+// Tap targets: pointer cursor on hover.
+const POINTER = {
+  onPointerOver: (e) => {
+    e.stopPropagation();
+    document.body.style.cursor = 'pointer';
+  },
+  onPointerOut: () => {
+    document.body.style.cursor = '';
+  },
+};
 
 // Thin pole from the wall up to the awning's front corner.
 function Beam2({ x, hz }) {
@@ -386,7 +474,7 @@ function Beam2({ x, hz }) {
 
 function PicnicTable() {
   return (
-    <group position={[TABLE.x, tableG, TABLE.z]}>
+    <group position={[TABLE.x, tableG, TABLE.z]} rotation={[0, Math.PI / 2, 0]}>
       <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]} material={LM.shadow}>
         <planeGeometry args={[1.6, 1.5]} />
       </mesh>
@@ -421,8 +509,8 @@ function PicnicTable() {
 // The crew
 // ---------------------------------------------------------------------------
 
-const COOK_POS = [(WIN.x0 + WIN.x1) / 2 + 0.05, BODY.y0 + 0.08, 0.1];
-const COOK_SCALE = 1.15;
+const COOK_POS = [(WIN.x0 + WIN.x1) / 2 + 0.05, BODY.y0 + 0.08, 0.1]; // truck units
+const COOK_SCALE = 1.05; // truck units (x TS in the world: a touch taller than the customers)
 
 function freshSim(n) {
   const bots = [];
@@ -488,7 +576,24 @@ function stepToward(b, tx, tz, dt) {
 
 const PT = { x: 0, y: 0, z: 0, heading: 0 };
 
-export default function FoodTruck({ animate = true, night = 0, bedtime = false, lowPower = false }) {
+// The full menu, for the note that opens when the menu board is tapped.
+function menuNote(bedtime, served) {
+  const body = [
+    'Byte Taco · 3 — crunchy shell, extra bits, zero bugs. Compiles on the first bite.',
+    'Buck Taco · 4 — the house special. Buck yeah.',
+    'Shave Ice · 2 — fluffy as a cloud, in rainbow flavors: Cherry Commit, Mango Merge, Lemon Lint, Kiwi Kernel, Blue Raspberry Build and Grape Git Push. Feeling lucky? Ask for the Rainbow: all six at once.',
+    'Chips & Salsa · 2 — salsa so fresh it passed code review.',
+    'Coconut · 3 — with a tiny umbrella. Opened by a bot, enjoyed by you.',
+  ];
+  body.push(
+    bedtime
+      ? "The kitchen's closed for the night. Back at sunrise!"
+      : `Orders up this shift: ${served}. The line moves fast, promise.`
+  );
+  return { title: 'Byte Bites Menu', body, from: 'The Byte Bites cook' };
+}
+
+export default function FoodTruck({ animate = true, night = 0, bedtime = false, lowPower = false, onNote }) {
   const n = lowPower ? 5 : 7;
   const parts = useMemo(() => Array.from({ length: n }, () => ({ current: {} })), [n]);
   const cookParts = useRef({});
@@ -497,10 +602,24 @@ export default function FoodTruck({ animate = true, night = 0, bedtime = false, 
   if (!sim.current || sim.current.bots.length !== n) sim.current = freshSim(n);
   const crew = useRef();
   const steam = [useRef(), useRef(), useRef()];
+  const orderPop = useRef();
 
-  // Food props live in the hands (two per bot: a taco and a shave ice).
-  const foods = useMemo(() => Array.from({ length: n }, () => [makeFood('taco'), makeFood('shave')]), [n]);
-  const cookFood = useMemo(() => [makeFood('taco'), makeFood('shave')], []);
+  // Tap the menu board (or the rooftop sign) for the full menu.
+  const live = useRef({ onNote, bedtime });
+  live.current = { onNote, bedtime };
+  const onMenu = useMemo(
+    () => (e) => {
+      if (e.delta > 8) return;
+      e.stopPropagation();
+      live.current.onNote?.(menuNote(live.current.bedtime, sim.current?.served ?? 0));
+    },
+    []
+  );
+
+  // Food props live in the hands (three per bot: a taco, a shave ice and the
+  // rare Rainbow Shave Ice).
+  const foods = useMemo(() => Array.from({ length: n }, () => [makeFood('taco'), makeFood('shave'), makeFood('rainbow')]), [n]);
+  const cookFood = useMemo(() => [makeFood('taco'), makeFood('shave'), makeFood('rainbow')], []);
   const spatula = useMemo(() => makeSpatula(), []);
   useEffect(() => {
     const added = [];
@@ -548,6 +667,10 @@ export default function FoodTruck({ animate = true, night = 0, bedtime = false, 
     lanternGlow.opacity = 0.3 * night;
   }, [lanternGlow, night]);
   useEffect(() => () => lanternGlow.dispose(), [lanternGlow]);
+  // "ORDER UP!" pop: one sprite, the texture swaps per order.
+  const popMat = useMemo(() => new THREE.SpriteMaterial({ map: ORDER_TEX('BUCK TACO!', '#e5533d'), transparent: true, depthWrite: false, opacity: 0 }), []);
+  const popTex = useMemo(() => [ORDER_TEX('BUCK TACO!', '#e5533d'), null, ORDER_TEX('RAINBOW ICE!', '#9b4dff')], []);
+  useEffect(() => () => popMat.dispose(), [popMat]);
 
   usePoseOnce(animate, bedtime, n);
 
@@ -570,6 +693,8 @@ export default function FoodTruck({ animate = true, night = 0, bedtime = false, 
     if (crew.current) crew.current.visible = !bedtime;
     const cp = cookParts.current;
     if (cp.root) cp.root.visible = !bedtime;
+    const pop = orderPop.current;
+    if (pop) pop.visible = false;
     if (bedtime) return;
 
     // --- simulation -------------------------------------------------------
@@ -606,7 +731,7 @@ export default function FoodTruck({ animate = true, night = 0, bedtime = false, 
         front.path = TO_SEAT[seat];
         front.s = 0;
         front.food = true;
-        front.foodType = S0.served % 2;
+        front.foodType = orderType(S0.served);
         S0.served += 1;
         S0.st = 0;
       } else {
@@ -671,15 +796,16 @@ export default function FoodTruck({ animate = true, night = 0, bedtime = false, 
     // --- poses ------------------------------------------------------------
     const handoff = frontReady && S0.st > SERVE - 1.6;
     const passed = frontReady && S0.st > SERVE - 0.55;
+    const nextType = orderType(S0.served);
     for (let i = 0; i < bots.length; i++) {
       const b = bots[i];
       const p = parts[i].current;
       if (!resetBot(p)) continue;
       b.rot = dt > 0 ? lerpAngle(b.rot, b.heading, Math.min(1, dt * 8)) : b.heading;
-      p.root.position.set(b.x, b.y, b.z);
+      const sitting = b.state === 'eat' || b.state === 'sitDown' || b.state === 'standUp';
+      p.root.position.set(b.x, b.y + (sitting ? 0 : stepLift(b.x, b.z)), b.z);
       p.root.rotation.y = b.rot;
       const tt = t + b.phase;
-      const sitting = b.state === 'eat' || b.state === 'sitDown' || b.state === 'standUp';
       let showFood = b.food;
       if (b.moving) {
         b.walk += dt * 9;
@@ -687,6 +813,13 @@ export default function FoodTruck({ animate = true, night = 0, bedtime = false, 
         if (b.food) {
           p.armR.rotation.x = -0.9;
           p.armL.rotation.x = Math.sin(b.walk) * 0.4;
+          if (b.foodType === 2) {
+            // Rainbow! Held up high like a trophy, with a little skip.
+            p.armR.rotation.x = -2.7;
+            p.armR.rotation.z = 0.15;
+            p.pose.position.y += Math.abs(Math.sin(b.walk)) * 0.05;
+            p.head.rotation.x = -0.25;
+          }
         }
       } else if (sitting) {
         sitPose(p, Math.sin(tt * 1.6) * 0.8);
@@ -710,31 +843,48 @@ export default function FoodTruck({ animate = true, night = 0, bedtime = false, 
         p.armL.rotation.z = -0.12;
         p.armR.rotation.z = 0.12;
         if (b === front && handoff) {
-          p.head.rotation.set(-0.2, 0, 0);
+          // up on the step, reaching for the counter
+          p.head.rotation.set(-0.35, 0, 0);
           const reach = smooth((S0.st - (SERVE - 1.6)) / 0.6);
-          p.armR.rotation.x = -1.35 * reach;
+          p.armR.rotation.x = -2.1 * reach;
+          p.pose.rotation.x = 0.1 * reach;
           p.pose.position.y += passed ? Math.abs(Math.sin((S0.st - SERVE + 0.55) * 9)) * 0.03 : 0;
           if (passed) {
             showFood = true;
-            b.foodType = S0.served % 2;
+            b.foodType = nextType;
           }
         }
       }
       const f = foods[i];
       const eaten = b.state === 'eat' ? 1 - (b.eatT / EAT) * 0.55 : 1;
-      f[0].visible = showFood && b.foodType === 0;
-      f[1].visible = showFood && b.foodType === 1;
-      f[0].scale.setScalar(1.35 * eaten);
-      f[1].scale.setScalar(1.35 * eaten);
+      for (let k = 0; k < 3; k++) {
+        f[k].visible = showFood && b.foodType === k;
+        f[k].scale.setScalar((k === 2 ? 1.6 : 1.35) * eaten);
+      }
+      f[2].rotation.x = -p.armR.rotation.x; // the Rainbow stays upright
     }
 
     // The cook: flipping on the griddle, then a hand out the window.
     if (resetBot(cp)) {
-      const nextType = S0.served % 2;
       const k = handoff ? smooth((S0.st - (SERVE - 1.6)) / 0.5) : 0;
-      cookFood[0].visible = handoff && !passed && nextType === 0;
-      cookFood[1].visible = handoff && !passed && nextType === 1;
+      for (let j = 0; j < 3; j++) cookFood[j].visible = handoff && !passed && nextType === j;
+      cookFood[2].scale.setScalar(1.6);
       p0(cp, t, k);
+      cookFood[2].rotation.x = -cp.armL.rotation.x;
+    }
+
+    // "ORDER UP!" over the window for Buck Tacos and Rainbows.
+    if (pop && handoff && popTex[nextType]) {
+      const u = (S0.st - (SERVE - 1.6)) / 1.6; // 0..1 over the handoff
+      if (popMat.map !== popTex[nextType]) {
+        popMat.map = popTex[nextType];
+        popMat.needsUpdate = true;
+      }
+      popMat.opacity = Math.min(1, u * 5, (1 - u) * 4 + 0.25);
+      pop.visible = true;
+      pop.position.y = POP.y + smooth(u) * 0.18;
+      const sc = 0.85 + 0.15 * smooth(u * 4);
+      pop.scale.set(0.95 * sc, 0.3 * sc, 1);
     }
   });
 
@@ -754,19 +904,14 @@ export default function FoodTruck({ animate = true, night = 0, bedtime = false, 
 
   return (
     <group>
-      <Truck night={night} bedtime={bedtime} cook={cook} signMat={signMat} menuMat={menuMat} closedMat={closedMat} steam={steam} headMat={headMat} />
+      <Truck night={night} bedtime={bedtime} cook={cook} signMat={signMat} menuMat={menuMat} closedMat={closedMat} steam={steam} headMat={headMat} lanternGlow={lanternGlow} onMenu={onMenu} />
       <PicnicTable />
-      {/* lantern on a post by the truck's west end */}
-      <group position={[TRUCK.x - 1.35, groundY(TRUCK.x - 1.35, TRUCK.z + 0.6), TRUCK.z + 0.6]}>
-        <Cyl p={[0, 0.55, 0]} rt={0.025} h={1.1} m={LM.darkWood} />
-        <Box p={[0.1, 1.08, 0]} s={[0.22, 0.03, 0.03]} m={LM.darkWood} />
-        <mesh position={[0.18, 0.95, 0]} material={TM.lantern}>
-          <icosahedronGeometry args={[0.07, 0]} />
-        </mesh>
-        <mesh position={[0.18, 0.95, 0]} material={lanternGlow}>
-          <sphereGeometry args={[0.28, 10, 8]} />
-        </mesh>
+      {/* wooden step in front of the window */}
+      <group position={[STEP.x, groundY(STEP.x, STEP.z), STEP.z]}>
+        <Box p={[0, STEP.h / 2 - 0.03, 0]} s={[0.5, STEP.h + 0.06, 0.4]} m={TM.step} />
+        <Box p={[0, STEP.h + 0.002, 0]} s={[0.52, 0.012, 0.06]} m={LM.darkWood} />
       </group>
+      <sprite ref={orderPop} material={popMat} position={[POP.x, POP.y, POP.z]} scale={[0.95, 0.3, 1]} visible={false} renderOrder={3} />
       <group ref={crew}>
         {parts.map((p, i) => (
           <MiniBot key={i} color={colors[i]} parts={p} />
@@ -776,7 +921,11 @@ export default function FoodTruck({ animate = true, night = 0, bedtime = false, 
   );
 }
 
-// Cook pose: k = 0 at the griddle, 1 reaching out the window.
+// Where the "ORDER UP!" pops: above the window's east end, over the line.
+const POP = { x: WIN_X + 0.75, y: truckG + 2.05, z: TRUCK.z + 1.25 };
+
+// Cook pose: k = 0 at the griddle, 1 reaching out the window (leaning in
+// over the counter so the hand-off meets the customer's reach).
 function p0(cp, t, k) {
   const flip = Math.max(0, Math.sin(t * 5.5)) ** 3;
   cp.armR.rotation.x = -0.75 - flip * 0.55;
@@ -784,6 +933,8 @@ function p0(cp, t, k) {
   cp.head.rotation.x = 0.3 * (1 - k) - 0.05 * k;
   cp.head.rotation.y = Math.sin(t * 0.6) * 0.25 * (1 - k);
   cp.pose.rotation.z = Math.sin(t * 2.4) * 0.04; // humming along
-  cp.armL.rotation.x = -0.4 - k * 1.1;
+  cp.pose.rotation.x = 0.22 * k;
+  cp.root.rotation.y = 0.4 * k; // turn toward the customer (a bit east)
+  cp.armL.rotation.x = -0.4 - k * 1.2;
   cp.armL.rotation.z = -0.1;
 }

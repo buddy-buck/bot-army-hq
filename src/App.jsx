@@ -1,10 +1,13 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Html, OrbitControls } from '@react-three/drei';
+import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 
 import Island from './components/Island.jsx';
 import Bot, { WAVE_SECONDS } from './components/Bot.jsx';
+import GainFloats, { FLOAT_SECONDS } from './components/GainFloats.jsx';
+import Postcard, { CaptureBridge } from './components/Postcard.jsx';
+import { botOfTheDayId } from './utils/botOfDay.js';
 import Handoffs from './components/Handoff.jsx';
 import SkyClock from './components/SkyClock.jsx';
 import Sky from './components/Sky.jsx';
@@ -182,17 +185,6 @@ function RenderOnMount() {
   return null;
 }
 
-// "+18 min" chips that float up from the bot that earned the minutes.
-function MinuteFloats({ floats }) {
-  return floats.map((f) => (
-    <Html key={f.id} position={[f.x, f.y, f.z]} center zIndexRange={[20, 0]} pointerEvents="none">
-      <div className="gain-float" style={{ borderColor: f.color }}>
-        +{formatNumber(f.minutes)} min
-      </div>
-    </Html>
-  ));
-}
-
 // Confetti burst from Chief's Tower (DOM, cheap, gone in 2.4 seconds).
 const CONFETTI_COLORS = ['#D63AF9', '#F09024', '#19469D', '#2BA84A', '#FF04A0', '#FFDE69', '#2ec4c8'];
 function Confetti({ burst }) {
@@ -280,7 +272,7 @@ const FIT_POINTS = (() => {
   pts.push(new THREE.Vector3(LANAI.x1, 3.0, LANAI.z1 - 0.8)); // lanai umbrella
   pts.push(new THREE.Vector3(DOCK.x0, 1.4, DOCK.z1)); // end of the pier
   pts.push(new THREE.Vector3(0, 8.6, 0)); // tower flag
-  pts.push(new THREE.Vector3(SITES.lighthouse.x, SITES.lighthouse.height + 1.2, SITES.lighthouse.z)); // lighthouse vane
+  pts.push(new THREE.Vector3(SITES.lighthouse.x, SITES.lighthouse.height + 1.7, SITES.lighthouse.z)); // lighthouse vane
   return pts;
 })();
 
@@ -352,9 +344,12 @@ function sampleFit(table, theta) {
 
 const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
+const MIN_POLAR = 0.55;
+const MIN_DIST = 7;
+
 function CameraRig({ fly, reduced, holdRotate, insets, controlsRef, layout, kiosk }) {
   const { camera, size, invalidate } = useThree();
-  const st = useRef({ userActive: false, resumeAt: 0, anim: null, autoFit: true, placed: false, offsetY: 0, offsetTarget: 0, distAtStart: 0 });
+  const st = useRef({ userActive: false, resumeAt: 0, anim: null, autoFit: true, placed: false, offsetY: 0, offsetTarget: 0, distAtStart: 0, shot: null, minPolar: MIN_POLAR, minDist: MIN_DIST });
   const aspect = size.width / Math.max(1, size.height);
   const polar = homePolar(aspect, reduced);
   const theta0 = startTheta(aspect);
@@ -417,11 +412,36 @@ function CameraRig({ fly, reduced, holdRotate, insets, controlsRef, layout, kios
     let dist;
     let pol;
     const current = new THREE.Spherical().setFromVector3(camera.position.clone().sub(c.target));
+    s.shot = null;
+    if (fly.shot) {
+      // Camera shot: look at `target` from `dist` at polar angle `polar`
+      // (0 = straight down) and azimuth `theta`, then hold still.
+      const sh = fly.shot;
+      const tgt = new THREE.Vector3().fromArray(sh.target || [0, 0, 0]);
+      const pol = Math.max(0.06, Math.min(1.5, sh.polar ?? 0.95));
+      const d = Math.max(2, sh.dist ?? 12);
+      const th = reduced ? theta0 : sh.theta ?? current.theta;
+      const hold = sh.hold ?? 12000;
+      // Let the controls reach this angle and distance while the shot runs.
+      s.minPolar = Math.min(s.minPolar, pol - 0.02);
+      s.minDist = Math.min(s.minDist, d * 0.9);
+      s.autoFit = false;
+      s.offsetTarget = (table.want * size.height) / 2;
+      const endPos = tgt.clone().add(new THREE.Vector3().setFromSphericalCoords(d, reduced ? polar : pol, th));
+      s.anim = { start: performance.now(), fromPos: camera.position.clone(), fromTarget: c.target.clone(), toPos: endPos, toTarget: tgt, fromOffset: s.offsetY };
+      s.shot = { end: performance.now() + (reduced ? 0 : FLY_MS) + hold };
+      s.resumeAt = s.shot.end + IDLE_RESUME_MS;
+      invalidate();
+      return;
+    }
     if (fly.photo) {
-      // Photo booth: a clean, slightly lower three-quarter view of the whole island.
-      const theta = reduced ? theta0 : theta0 + 0.35;
+      // Photo booth: a clean, slightly lower three-quarter view of the whole
+      // island. Postcard: lower still and further round, for a golden-hour look.
+      const theta = reduced ? theta0 : theta0 + (fly.postcard ? 0.75 : 0.35);
       const fit = sampleFit(table, theta);
-      const endPos = HOME_TARGET.clone().add(new THREE.Vector3().setFromSphericalCoords(fit.dist * 0.97, reduced ? polar : polar + 0.06, theta));
+      const endPos = HOME_TARGET.clone().add(
+        new THREE.Vector3().setFromSphericalCoords(fit.dist * (fly.postcard ? 1.02 : 0.97), reduced ? polar : polar + (fly.postcard ? 0.14 : 0.06), theta)
+      );
       s.autoFit = true;
       s.offsetTarget = offsetFor(fit.center);
       s.anim = { start: performance.now(), fromPos: camera.position.clone(), fromTarget: c.target.clone(), toPos: endPos, toTarget: HOME_TARGET.clone(), fromOffset: s.offsetY };
@@ -487,6 +507,36 @@ function CameraRig({ fly, reduced, holdRotate, insets, controlsRef, layout, kios
     const fit = sampleFit(table, theta);
     labelState.baseDist = fit.dist;
 
+    // Camera shots may go below the usual polar / distance limits. Once the
+    // shot is over, ease the limits back so the camera drifts back, no snap.
+    if (!reduced) {
+      if (!s.shot && !s.anim) {
+        if (s.minPolar < MIN_POLAR) s.minPolar = Math.min(MIN_POLAR, s.minPolar + dt * 0.45);
+        if (s.minDist < MIN_DIST) s.minDist = Math.min(MIN_DIST, s.minDist + dt * 2.5);
+      }
+      if (c.minPolarAngle !== s.minPolar) {
+        c.minPolarAngle = s.minPolar;
+        invalidate();
+      }
+      if (c.minDistance !== s.minDist) c.minDistance = s.minDist;
+    }
+    // Shot held long enough: glide back to the whole island.
+    if (s.shot && !s.anim && !s.userActive && now >= s.shot.end) {
+      s.shot = null;
+      const home = sampleFit(table, theta);
+      s.autoFit = true;
+      s.offsetTarget = offsetFor(home.center);
+      s.anim = {
+        start: now,
+        fromPos: camera.position.clone(),
+        fromTarget: c.target.clone(),
+        toPos: HOME_TARGET.clone().add(new THREE.Vector3().setFromSphericalCoords(home.dist, polar, theta)),
+        toTarget: HOME_TARGET.clone(),
+        fromOffset: s.offsetY,
+      };
+      s.resumeAt = now + FLY_MS + 1500;
+    }
+
     if (s.anim) {
       const k = Math.min(1, (now - s.anim.start) / FLY_MS);
       const e = easeInOut(k);
@@ -498,7 +548,7 @@ function CameraRig({ fly, reduced, holdRotate, insets, controlsRef, layout, kios
       return;
     }
 
-    if (!reduced && !s.userActive && !holdRotate && now >= s.resumeAt) {
+    if (!reduced && !s.userActive && !holdRotate && !s.shot && now >= s.resumeAt) {
       offset.applyAxisAngle(THREE.Object3D.DEFAULT_UP, ROTATE_SPEED * dt);
       // Kiosk: also breathe the tilt a little so nothing sits still for hours.
       if (kiosk && s.autoFit) {
@@ -530,14 +580,15 @@ function CameraRig({ fly, reduced, holdRotate, insets, controlsRef, layout, kios
       dampingFactor={0.08}
       rotateSpeed={0.6}
       zoomSpeed={0.7}
-      minDistance={7}
+      minDistance={MIN_DIST}
       maxDistance={table.maxDist * 1.2}
-      minPolarAngle={reduced ? polar : 0.55}
+      minPolarAngle={reduced ? polar : MIN_POLAR}
       maxPolarAngle={reduced ? polar : 1.5}
       onStart={() => {
         const s = st.current;
         s.userActive = true;
         s.anim = null;
+        s.shot = null; // the user takes over; limits ease back
         s.distAtStart = camera.position.distanceTo(controlsRef.current.target);
       }}
       onEnd={() => {
@@ -612,6 +663,8 @@ export default function App() {
   const [note, setNote] = useState(null);
   const [scoreOpen, setScoreOpen] = useState(false);
   const [photo, setPhoto] = useState(null); // null | 'flying' | 'shoot' | 'flash'
+  const [postcard, setPostcard] = useState(null); // null | 'flying' | 'open'
+  const captureRef = useRef(null);
   const lastTap = useRef({ t: 0, x: 0, z: 0 });
   const controlsRef = useRef();
   const hudTopRef = useRef();
@@ -644,6 +697,7 @@ export default function App() {
   const claudeHome = baseLayout.claude || null;
   const clinks = useMemo(() => clinkPairs(layout), [layout]);
   const selected = bots.find((b) => b.id === selectedId) || null;
+  const crownId = useMemo(() => botOfTheDayId(bots), [bots]);
   const isExample = !!data?.isExample;
 
   useEffect(() => {
@@ -678,25 +732,72 @@ export default function App() {
     });
   }, []);
 
-  // Minutes gained: float a chip from the bot and give it a little cheer.
-  const celebrateGain = useCallback((g) => {
-    const p = g.bot ? labelState.positions.get(g.bot) : null;
-    const bot = g.bot ? (data?.bots || []).find((b) => b.id === g.bot) : null;
-    const pos = p ? [p.x, p.y + p.labelY + 0.35, p.z] : [0, 6.2, 0];
-    const id = `g${g.id}`;
-    if (g.bot) botFx.cheer.set(g.bot, fxNow());
-    setFloats((f) => [...f.slice(-6), { id, x: pos[0], y: pos[1], z: pos[2], minutes: g.minutes, color: bot?.color || '#19469d' }]);
-    setTimeout(() => setFloats((f) => f.filter((x) => x.id !== id)), 2700);
-  }, [data]);
+  // Minutes gained: a big "+X min" floats up from the bot (following it if it
+  // moves) while the bot jumps and spins. Floats lay themselves out so they
+  // never overlap each other, story bubbles or name tags (labels.js).
+  const floatSeq = useRef(0);
+  const celebrateGain = useCallback(
+    (g) => {
+      const known = g.bot && labelState.positions.has(g.bot);
+      const bot = g.bot ? (data?.bots || []).find((b) => b.id === g.bot) : null;
+      const id = `g${g.id}-${++floatSeq.current}`;
+      if (known) botFx.cheer.set(g.bot, fxNow());
+      const f = { id, bot: known ? g.bot : null, pos: known ? null : [0, 6.2, 0], minutes: g.minutes, color: bot?.color || '#19469d' };
+      setFloats((list) => [...list.slice(-6), f]);
+      setTimeout(() => setFloats((list) => list.filter((x) => x.id !== id)), FLOAT_SECONDS * 1000 + 200);
+    },
+    [data]
+  );
 
   // Real gains: new minutesSaved.recent entries since the last refresh.
   useEffect(() => {
     if (!gains?.length) return;
-    gains.slice(0, 5).forEach((g, i) => setTimeout(() => celebrateGain(g), i * 700));
+    gains.slice(0, 5).forEach((g, i) => setTimeout(() => celebrateGain(g), i * 900));
   }, [gains]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Demo only: a working bot earns a few minutes every minute or so, so the
-  // odometer, chips and cheers can be seen. Never runs in Live mode.
+  // Live: on page load, replay up to 3 of the latest ledger entries from the
+  // last 2 hours, oldest first, a few seconds apart once the island is up.
+  const replayed = useRef(false);
+  useEffect(() => {
+    replayed.current = false;
+  }, [mode, fellBack]);
+  useEffect(() => {
+    if (!data || isExample || replayed.current) return undefined;
+    replayed.current = true;
+    const cutoff = Date.now() - 2 * 3600e3;
+    const list = (data.minutesSaved?.recent || []).filter((r) => r.bot && (Date.parse(r.at) || 0) >= cutoff).slice(0, 3).reverse();
+    const ids = list.map((r, i) => setTimeout(() => celebrateGain({ ...r, id: `r${i}` }), 3500 + i * 3200));
+    return () => ids.forEach(clearTimeout);
+  }, [data, isExample, celebrateGain]);
+
+  // A new feed line from a bot with no minutes attached: just the jump and spin.
+  const seenHop = useRef(null);
+  useEffect(() => {
+    seenHop.current = null;
+  }, [mode, fellBack]);
+  useEffect(() => {
+    if (!data) return;
+    const keyOf = (f) => `${f.at}|${f.bot}|${f.text}`;
+    if (seenHop.current === null) {
+      seenHop.current = new Set(data.feed.map(keyOf));
+      return;
+    }
+    const recent = data.minutesSaved?.recent || [];
+    let n = 0;
+    for (const f of data.feed) {
+      const k = keyOf(f);
+      if (seenHop.current.has(k)) continue;
+      seenHop.current.add(k);
+      if (!f.bot || n >= 4) continue;
+      const t = Date.parse(f.at) || 0;
+      if (recent.some((r) => r.bot === f.bot && Math.abs((Date.parse(r.at) || 0) - t) < 120000)) continue; // its gain cheers already
+      const bot = f.bot;
+      setTimeout(() => botFx.cheer.set(bot, fxNow()), n++ * 700);
+    }
+  }, [data]);
+
+  // Demo only: a random working bot earns a few minutes every 12 to 25
+  // seconds, so the score, floats and cheers can be seen. Never in Live mode.
   useEffect(() => {
     setDemoAdded(0);
   }, [mode, fellBack]);
@@ -708,12 +809,13 @@ export default function App() {
         const working = (data?.bots || []).filter((b) => b.status === 'working');
         if (working.length) {
           const b = working[Math.floor(Math.random() * working.length)];
-          const minutes = 3 + Math.floor(Math.random() * 13);
+          // 2 to 15, mostly 3 to 8
+          const minutes = Math.random() < 0.72 ? 3 + Math.floor(Math.random() * 6) : 2 + Math.floor(Math.random() * 14);
           setDemoAdded((d) => d + minutes);
           celebrateGain({ id: `d${Date.now()}`, bot: b.id, minutes, what: DEMO_TASKS[Math.floor(Math.random() * DEMO_TASKS.length)] });
         }
         tick();
-      }, 40000 + Math.random() * 35000);
+      }, 12000 + Math.random() * 13000);
     };
     tick();
     return () => clearTimeout(t);
@@ -782,15 +884,38 @@ export default function App() {
   }, [data, reduced, spotlightId]);
 
   const flyTo = useCallback((zone) => setFly({ zone, n: Date.now() + Math.random() }), []);
+  // Camera shot: onShot({ target: [x, y, z], dist, polar, theta, hold }).
+  const onShot = useCallback((shot) => {
+    if (!shot?.target) return;
+    setFly({ shot, n: Date.now() + Math.random() });
+  }, []);
 
   // Easter eggs.
   const openBottle = useCallback(() => setNote({ id: Date.now(), title: CHIEF_WELCOME.title, body: CHIEF_WELCOME.body, from: CHIEF_WELCOME.from }), []);
   // Notes can be a plain line or { title, body: [lines], from }.
+  // Optional links: [{ href, text }] show as buttons under the note.
   const openChest = useCallback(
-    (n) => setNote(typeof n === 'string' ? { id: Date.now(), title: "Nasty's treasure", body: [n], from: 'Nasty' } : { id: Date.now(), title: n.title, body: n.body, from: n.from }),
+    (n) =>
+      setNote(
+        typeof n === 'string'
+          ? { id: Date.now(), title: "Nasty's treasure", body: [n], from: 'Nasty' }
+          : { id: Date.now(), title: n.title, body: Array.isArray(n.body) ? n.body : [String(n.body ?? '')], from: n.from, links: Array.isArray(n.links) ? n.links : null }
+      ),
     []
   );
   const showToast = useCallback((text) => setToast({ id: Date.now(), text }), []);
+  // Lazy chunks without ctx can ask for a toast or a note with window events:
+  //   island:toast { text }   island:note { title, body: [lines], from, links? }
+  useEffect(() => {
+    const onToastEv = (e) => e.detail?.text && showToast(String(e.detail.text));
+    const onNoteEv = (e) => e.detail && openChest(e.detail);
+    window.addEventListener('island:toast', onToastEv);
+    window.addEventListener('island:note', onNoteEv);
+    return () => {
+      window.removeEventListener('island:toast', onToastEv);
+      window.removeEventListener('island:note', onNoteEv);
+    };
+  }, [showToast, openChest]);
   const closeNote = useCallback(() => setNote(null), []);
   const openOffice = useCallback(() => setScoreOpen(true), []);
 
@@ -798,7 +923,7 @@ export default function App() {
   // for a couple of seconds (time to screenshot), flash, and bring it back.
   const photoTimers = useRef([]);
   const shootPhoto = useCallback(() => {
-    if (photo) return;
+    if (photo || postcard) return;
     setSelectedId(null);
     setRosterOpen(false);
     setScoreOpen(false);
@@ -813,8 +938,28 @@ export default function App() {
     });
     later((reduced ? 200 : FLY_MS + 100) + Math.max(2000, WAVE_SECONDS * 1000 - 300), () => setPhoto('flash'));
     later((reduced ? 200 : FLY_MS + 100) + Math.max(2000, WAVE_SECONDS * 1000 - 300) + 500, () => setPhoto(null));
-  }, [photo, reduced, data]);
+  }, [photo, postcard, reduced, data]);
   useEffect(() => () => photoTimers.current.forEach(clearTimeout), []);
+
+  // Postcard: fly to a low golden three-quarter view, freeze the island, hide
+  // the HUD and show a vintage "Greetings from Bot Island" card to share.
+  const postcardTimer = useRef(null);
+  const openPostcard = useCallback(() => {
+    if (photo || postcard) return;
+    setSelectedId(null);
+    setRosterOpen(false);
+    setScoreOpen(false);
+    setNote(null);
+    setFly({ photo: true, postcard: true, n: Date.now() + Math.random() });
+    setPostcard('flying');
+    clearTimeout(postcardTimer.current);
+    postcardTimer.current = setTimeout(() => setPostcard('open'), reduced ? 250 : FLY_MS + 150);
+  }, [photo, postcard, reduced]);
+  const closePostcard = useCallback(() => {
+    clearTimeout(postcardTimer.current);
+    setPostcard(null);
+  }, []);
+  useEffect(() => () => clearTimeout(postcardTimer.current), []);
   const recenter = useCallback(() => setFly({ zone: '__home', n: Date.now() + Math.random() }), []);
   const select = useCallback((id) => setSelectedId(id), []);
   const closeCard = useCallback(() => setSelectedId(null), []);
@@ -854,25 +999,26 @@ export default function App() {
 
   // Everything the Bot Island HQ extras need to know about the scene.
   const worldCtx = useMemo(
-    () => ({ sky, animate: !reduced, reduced, lowPower: LOW_POWER, bots, sceneBots, layout, bedtime, onNote: openChest, onToast: showToast }),
-    [sky, reduced, bots, sceneBots, layout, bedtime, openChest, showToast]
+    () => ({ sky, animate: !reduced, reduced, lowPower: LOW_POWER, bots, sceneBots, layout, bedtime, onNote: openChest, onToast: showToast, onShot }),
+    [sky, reduced, bots, sceneBots, layout, bedtime, openChest, showToast, onShot]
   );
 
   return (
-    <div className={`app phase-${sky.phase}${reduced ? ' is-reduced' : ''}${kiosk ? ' is-kiosk' : ''}${photo === 'shoot' ? ' is-photo' : ''}`} style={{ '--hud-top': `${Math.round(insets.top)}px` }}>
+    <div className={`app phase-${sky.phase}${reduced ? ' is-reduced' : ''}${kiosk ? ' is-kiosk' : ''}${photo === 'shoot' ? ' is-photo' : ''}${postcard ? ' is-postcard' : ''}`} style={{ '--hud-top': `${Math.round(insets.top)}px` }}>
       <div className="scene">
         <Canvas
           flat
           dpr={[1, MAX_DPR]}
-          frameloop={hidden ? 'never' : reduced || throttled ? 'demand' : 'always'}
+          frameloop={hidden ? 'never' : reduced || throttled || postcard === 'open' ? 'demand' : 'always'}
           camera={{ fov: FOV, near: 0.5, far: 500, position: [0, 30, 50] }}
           gl={{ antialias: true, powerPreference: 'high-performance' }}
         >
           <Suspense fallback={null}>
-            <FrameThrottle fps={throttled ? 30 : 0} />
+            <FrameThrottle fps={throttled && postcard !== 'open' ? 30 : 0} />
+            <CaptureBridge apiRef={captureRef} />
             <Sky sky={sky} animate={!reduced} useFog={!reduced} onBuck={onBuck} />
             <SkyClock sky={sky} animate={!reduced} timeOverride={hourOverride} />
-            <Island sky={sky} animate={!reduced} onGroundTap={onGroundTap} onZoneTap={flyTo} showLabels lowPower={LOW_POWER} />
+            <Island sky={sky} animate={!reduced} onGroundTap={onGroundTap} onZoneTap={flyTo} onShot={onShot} showLabels lowPower={LOW_POWER} />
             {!reduced && (
               <Suspense fallback={null}>
                 <SeaLife sky={sky} lowPower={LOW_POWER} />
@@ -905,12 +1051,13 @@ export default function App() {
                   pulseKey={pulseKeys[b.id] || 0}
                   animate={!reduced}
                   clink={clinks[b.id] || null}
+                  crowned={b.id === crownId}
                 />
               ) : null
             )}
             {!reduced && data && <Handoffs bots={sceneBots} handoffs={data.handoffs} layout={layout} onActiveChange={setWalks} />}
             {claudeBot && <ClaudeCommute desired={claudeWants} visit={claudeVisit} homeSlot={claudeHome} onVisit={setClaudeVisit} animate={!reduced} />}
-            {bedtime && <Campfire layout={layout} bots={sceneBots} animate={!reduced} />}
+            {bedtime && <Campfire layout={layout} bots={sceneBots} animate={!reduced} minutesSaved={data?.minutesSaved} feed={data?.feed} />}
             <Weather weather={weather} />
             {!reduced && <Flyover />}
             {!reduced && <Surfer color={bots.find((b) => b.id === 'echo')?.color} sky={sky} />}
@@ -918,8 +1065,8 @@ export default function App() {
             <TreasureChest onOpen={openChest} animate={!reduced} />
             <DockOffice onOpen={openOffice} night={sky.stars} animate={!reduced} />
             <PhotoBooth onShoot={shootPhoto} />
-            <MinuteFloats floats={floats} />
-            <CameraRig fly={fly} reduced={reduced} holdRotate={!!selected || rosterOpen} insets={insets} controlsRef={controlsRef} layout={layout} kiosk={kiosk} />
+            <GainFloats floats={floats} animate={!reduced} />
+            <CameraRig fly={fly} reduced={reduced} holdRotate={!!selected || rosterOpen || !!postcard} insets={insets} controlsRef={controlsRef} layout={layout} kiosk={kiosk} />
             <LabelDirector controls={controlsRef} />
           </Suspense>
         </Canvas>
@@ -938,6 +1085,7 @@ export default function App() {
           rosterOpen={rosterOpen}
           kiosk={kiosk}
           onKiosk={toggleKiosk}
+          onPostcard={openPostcard}
         />
       </div>
 
@@ -955,6 +1103,7 @@ export default function App() {
       <Toast message={toast} />
       <IslandNote note={note} onClose={closeNote} />
       {photo === 'flash' && <div className="photo-flash" aria-hidden="true" />}
+      {postcard === 'open' && <Postcard captureRef={captureRef} onClose={closePostcard} />}
       <Roster open={rosterOpen} bots={bots} onPick={pickBot} onClose={closeRoster} />
       <BotCard bot={selected} onClose={closeCard} nextUp={data?.nextUp} minutesSaved={data?.minutesSaved} />
     </div>

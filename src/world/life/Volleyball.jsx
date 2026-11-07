@@ -6,7 +6,9 @@ import { SITES, groundY, islandE } from '../../utils/paths.js';
 import { aliveClock } from '../../wild/director.js';
 import { Beam, Box, Cyl, LM, canvasTexture, resetBot, seeded, smooth, std, usePoseOnce, walkPose } from './common.jsx';
 
-// Beach volleyball, 2 v 2, on the court north of the lanai. The whole game
+// Beach volleyball, 2 v 2, on the north lounge beach (all sand; the sea is
+// just past the north sideline). The net runs north-south so the default
+// south camera watches the ball arc left and right over it. The whole game
 // is a deterministic schedule (rallies made once from a seeded random), so
 // every frame just looks up where the ball and the players are: no physics,
 // no allocations. Each rally: a serve, then bump, set and hit over the net a
@@ -23,19 +25,20 @@ const TEAM_COLORS = [
   ['#ff8a5c', '#ffb84d'], // west pair (warm)
   ['#4aa8ff', '#7ad0ff'], // east pair (cool)
 ];
-// player index = team * 2 + k
+// player index = team * 2 + k; home spots relative to the court center
 const BASE = [
-  [12.0, -6.1],
-  [12.6, -5.0],
-  [14.75, -5.1],
-  [14.2, -6.15],
+  [C.x - 1.4, C.z - 0.5],
+  [C.x - 0.8, C.z + 0.6],
+  [C.x + 1.35, C.z + 0.5],
+  [C.x + 0.8, C.z - 0.55],
 ];
 const SIDE = (team) => (team === 0 ? -1 : 1); // -1 west of the net, +1 east
 
 // Contact heights above the sand.
 const H = { bump: 0.5, set: 1.2, hit: 1.4, serve: 1.45, hold: 0.75 };
 
-const onCourt = (x, z) => islandE(x, z) < 0.79;
+// Dry sand only: the court's north edge runs near the waterline.
+const onCourt = (x, z) => islandE(x, z) < 0.9 && Math.abs(x - C.x) <= C.hx && Math.abs(z - C.z) <= C.hz;
 
 // A random spot on a team's side: depth = distance from the net.
 function spot(rand, team, d0, d1) {
@@ -241,6 +244,8 @@ function Ball({ innerRef, shadowRef }) {
   );
 }
 
+const guy = (z) => (z < C.z ? -0.45 : 0.6);
+
 function Net() {
   const tex = useMemo(() => netTexture(), []);
   const mat = useMemo(() => new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide, depthWrite: false, alphaTest: 0.05 }), [tex]);
@@ -255,9 +260,9 @@ function Net() {
         <group key={z}>
           <Cyl p={[C.x, (g - 0.15 + top + 0.08) / 2, z]} rt={0.045} rb={0.055} h={top + 0.08 - g + 0.15} m={LM.white} seg={7} />
           <Cyl p={[C.x, top + 0.1, z]} rt={0.06} h={0.04} m={LM.red} seg={7} />
-          {/* guy rope, staked in the sand */}
-          <Beam a={[C.x, top + 0.04, z]} b={[C.x, groundY(C.x, z + Math.sign(z - C.z) * 0.6) + 0.02, z + Math.sign(z - C.z) * 0.6]} r={0.008} m={LM.rope} seg={3} />
-          <Cyl p={[C.x, groundY(C.x, z + Math.sign(z - C.z) * 0.6) + 0.04, z + Math.sign(z - C.z) * 0.6]} rt={0.02} rb={0.012} h={0.1} m={LM.darkWood} seg={4} />
+          {/* guy rope, staked in the sand (short on the sea side) */}
+          <Beam a={[C.x, top + 0.04, z]} b={[C.x, groundY(C.x, z + guy(z)) + 0.02, z + guy(z)]} r={0.008} m={LM.rope} seg={3} />
+          <Cyl p={[C.x, groundY(C.x, z + guy(z)) + 0.04, z + guy(z)]} rt={0.02} rb={0.012} h={0.1} m={LM.darkWood} seg={4} />
         </group>
       ))}
       <mesh position={[C.x, top - NET_DROP / 2, C.z]} rotation={[0, Math.PI / 2, 0]} material={mat}>
@@ -269,12 +274,12 @@ function Net() {
   );
 }
 
-// A towel, a cooler and a spare ball by the north sideline.
+// A towel and a cooler by the south (land-side) sideline.
 function Sideline() {
   const tx = C.x - 1.3;
-  const tz = C.z - C.hz - 0.75;
-  const cx = C.x + 0.6;
-  const cz = C.z - C.hz - 0.7;
+  const tz = C.z + C.hz + 0.8;
+  const cx = C.x + 0.75;
+  const cz = C.z + C.hz + 0.75;
   return (
     <group>
       <group position={[tx, groundY(tx, tz) + 0.012, tz]} rotation={[0, 0.25, 0]}>
@@ -302,9 +307,9 @@ export default function Volleyball({ animate, bedtime }) {
   const tmp = useMemo(() => ({ x: 0, z: 0, moving: false }), []);
   usePoseOnce(animate, bedtime);
 
-  // Resting ball for bedtime: by the north-west post.
+  // Resting ball for bedtime: by the south-west post.
   const restX = C.x - 0.45;
-  const restZ = C.z - C.hz - 0.35;
+  const restZ = C.z + C.hz + 0.35;
 
   useFrame((_, delta) => {
     const b = ball.current;

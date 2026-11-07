@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { claimTravel, releaseTravel, TEST, testOn } from './director.js';
+import { claimTravel, releaseTravel, slotBusy, TEST, testOn } from './director.js';
 import { SEA_LANES } from '../utils/paths.js';
 import { world } from '../world/state.js';
 import MiniBot from '../world/MiniBot.jsx';
@@ -116,7 +116,8 @@ export default function Surfer({ color = '#2E86DE', sky = null }) {
     if (!run.current) {
       g.visible = false;
       if (now < nextAt.current) return;
-      if (!claimTravel('surf', DURATION + 0.5)) {
+      // A boat race owns the water: wait for it to finish.
+      if (slotBusy('sea') || !claimTravel('surf', DURATION + 0.5)) {
         nextAt.current = now + 5;
         return;
       }

@@ -9,6 +9,9 @@ import FishSchools from '../world/sea/Fish.jsx';
 import Spray, { splash } from '../world/sea/Spray.jsx';
 import Turtles from '../world/sea/Turtles.jsx';
 import Whale from '../world/sea/Whale.jsx';
+import Nessie from '../world/sea/Nessie.jsx';
+import TidePools from '../world/sea/TidePools.jsx';
+import Bigfoot from '../wild/Bigfoot.jsx';
 import { BODY_GEO, CONE4, TRI_GEO, buildGeo, rnd, std } from '../world/sea/kit.js';
 
 // Sea life and the living world around the island. All low-poly, a handful
@@ -20,12 +23,16 @@ import { BODY_GEO, CONE4, TRI_GEO, buildGeo, rnd, std } from '../world/sea/kit.j
 //   Sea turtles cruising, coming up to breathe, one napping on the beach
 //   Dolphin pods leaping in step: often at sunrise, now and then by day
 //   A humpback whale breaching far out (rare)
+//   Nessie surfacing far out now and then (rare; world/sea/Nessie.jsx)
+//   Tide pools with starfish, anemones and crabs at low tide (TidePools.jsx)
+//   Bigfoot, very very rarely, in the north-west woods (wild/Bigfoot.jsx)
 //   Seagulls overhead, fireflies over the island at night
 // Purely ambient: none of it says anything about the bots or the data.
 // Not rendered at all when reduced motion is on.
 //
 // Test switches: ?test=whale, dolphins, turtles, fish, wake (a little test
-// dinghy that shows off boat wakes and scares the fish).
+// dinghy that shows off boat wakes and scares the fish), nessie, bigfoot,
+// tide (holds the tide out so the tide pools stay open).
 
 const MAT = {
   shark: std('#5d6873'),
@@ -352,6 +359,9 @@ export default function SeaLife({ sky, lowPower = false }) {
       <Turtles lowPower={lowPower} />
       <Dolphins phase={sky.phase} lowPower={lowPower} />
       <Whale />
+      <Nessie hour={sky.hour} />
+      <TidePools lowPower={lowPower} />
+      <Bigfoot phase={sky.phase} />
       <Seagulls />
       <Spray />
       {testOn('wake') && <TestDinghy />}

@@ -1,20 +1,30 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { DOCK, terrainY } from '../../utils/paths.js';
-import { Beam, Box, Cyl, Fringe, Roof, M, Torch, canvasTexture, std } from './kit.jsx';
+import { Beam, Box, Cyl, Fringe, Roof, M, StringLights, Torch, canvasTexture, std } from './kit.jsx';
 
-// A carved wooden welcome arch at the land end of Launch's Pier, with a
-// hanging tiki-style sign and two tiki torches that light it at night.
-// The sign is painted on both faces: from the island it says welcome, and
-// from the pier it greets whoever just stepped off a boat.
+// The big welcome gate at the land end of Launch's Pier: four tall carved
+// tiki posts under a thatched roof, the way onto the island. Hanging signs
+// at both ends greet whoever walks through (from the pier and from the
+// island), and a long carved frieze on each side reads BOT ISLAND HQ, so the
+// gate is readable from the default camera to the south too. Flower garlands
+// swag under the friezes, leis hang on the posts, and at night string lights,
+// the glowing signs and four tiki torches light it up.
+// The walkway between the posts stays clear: bots walk through it.
 
 const AX = DOCK.x1 + 1.05; // just past the ramp, on the sand
 const AZ = (DOCK.z0 + DOCK.z1) / 2;
-const HALF = (DOCK.z1 - DOCK.z0) / 2 + 0.35; // posts stand outside the walkway
-const POST_H = 2.45;
-const SIGN_W = 2.3;
+const HALF = (DOCK.z1 - DOCK.z0) / 2 + 0.45; // posts stand outside the walkway
+const DX = 0.95; // half the gate's depth along the walkway
+const POST_H = 3.7;
+const SIGN_W = 2.3; // fits between the posts
 const SIGN_H = 0.72;
+const FRIEZE_W = DX * 2 + 0.75;
+const FRIEZE_H = FRIEZE_W / 4;
+const BEAM_Y = POST_H - 0.2;
+const FRIEZE_Y = BEAM_Y - 0.2 - FRIEZE_H / 2;
+const FRIEZE_Z = HALF + 0.27; // just outside the posts
 
 function drawBot(x, cx, cy, s, body) {
   x.save();
@@ -124,6 +134,55 @@ function signTexture() {
   });
 }
 
+// The long side frieze: BOT ISLAND HQ with LAUNCH'S PIER under it.
+function friezeTexture() {
+  return canvasTexture(1024, 256, (x, w, h) => {
+    x.fillStyle = '#7f512c';
+    x.fillRect(0, 0, w, h);
+    x.strokeStyle = 'rgba(50,25,10,0.2)';
+    x.lineWidth = 2;
+    for (let i = 0; i < 24; i++) {
+      const y = (i * 29) % h;
+      x.beginPath();
+      x.moveTo(0, y);
+      for (let k = 0; k <= 8; k++) x.lineTo((k * w) / 8, y + Math.sin(i * 2.3 + k) * 4);
+      x.stroke();
+    }
+    x.strokeStyle = '#4a2c15';
+    x.lineWidth = 14;
+    x.strokeRect(8, 8, w - 16, h - 16);
+    // tiki zig-zag along the top and bottom
+    x.fillStyle = '#2ec4c8';
+    for (let i = 0; i < 26; i++) {
+      const x0 = 20 + i * 38;
+      x.beginPath();
+      x.moveTo(x0, 22);
+      x.lineTo(x0 + 19, 40);
+      x.lineTo(x0 + 38, 22);
+      x.fill();
+    }
+    x.fillStyle = '#ff8a5c';
+    for (let i = 0; i < 26; i++) {
+      const x0 = 20 + i * 38;
+      x.beginPath();
+      x.moveTo(x0, h - 22);
+      x.lineTo(x0 + 19, h - 40);
+      x.lineTo(x0 + 38, h - 22);
+      x.fill();
+    }
+    x.textAlign = 'center';
+    x.textBaseline = 'middle';
+    x.font = '900 104px "Arial Black", "Arial Rounded MT Bold", Arial, sans-serif';
+    x.fillStyle = 'rgba(30,14,4,0.75)';
+    x.fillText('BOT ISLAND HQ', w / 2 + 5, 112 + 6);
+    x.fillStyle = '#ffde69';
+    x.fillText('BOT ISLAND HQ', w / 2, 112);
+    x.font = '900 40px "Arial Black", Arial, sans-serif';
+    x.fillStyle = '#fbf3dc';
+    x.fillText("~ LAUNCH'S PIER ~", w / 2, 190);
+  });
+}
+
 const AM = {
   post: std('#6e4527'),
   carve: std('#4a2c15'),
@@ -132,91 +191,190 @@ const AM = {
   teal: std('#2ec4c8'),
 };
 
-// A carved tiki post: a pole with a face near the top and painted bands.
-function TikiPost({ z, face }) {
+// A tall carved tiki post: two stacked faces, painted bands, a carved cap.
+function TikiPost({ x, z, face }) {
   return (
-    <group position={[0, 0, z]}>
-      <Cyl p={[0, POST_H / 2, 0]} rt={0.15} rb={0.18} h={POST_H} seg={8} m={AM.post} />
-      {[0.5, 0.9].map((y) => (
-        <Cyl key={y} p={[0, y, 0]} rt={0.185} h={0.07} seg={8} m={y === 0.5 ? AM.red : AM.teal} />
+    <group position={[x, 0, z]}>
+      <Cyl p={[0, POST_H / 2, 0]} rt={0.17} rb={0.22} h={POST_H} seg={8} m={AM.post} />
+      {[0.55, 1.0, 2.55].map((y, i) => (
+        <Cyl key={y} p={[0, y, 0]} rt={0.215 - y * 0.012} h={0.08} seg={8} m={i === 1 ? AM.teal : AM.red} />
       ))}
-      {/* faces on both sides of the post */}
-      {[1, -1].map((s) => (
-        <group key={s} position={[s * 0.15, 1.55, 0]} rotation={[0, s > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
-          <Box p={[0, 0.2, 0.02]} s={[0.26, 0.06, 0.06]} m={AM.carve} />
-          <Box p={[-0.07, 0.1, 0.03]} s={[0.08, 0.06, 0.04]} m={AM.eye} />
-          <Box p={[0.07, 0.1, 0.03]} s={[0.08, 0.06, 0.04]} m={AM.eye} />
-          <Box p={[0, 0.0, 0.04]} s={[0.06, 0.12, 0.05]} m={AM.post} />
-          <Box p={[0, -0.14, 0.03]} s={[0.2, 0.06, 0.04]} m={face} />
-        </group>
-      ))}
-      <mesh position={[0, POST_H + 0.05, 0]} material={AM.carve}>
-        <coneGeometry args={[0.2, 0.22, 8]} />
+      {/* faces looking along the walkway (toward the pier and the island) */}
+      {[1, -1].map((s) =>
+        [1.75, 3.05].map((fy, k) => (
+          <group key={`${s}${fy}`} position={[s * (0.2 - fy * 0.01), fy, 0]} rotation={[0, s > 0 ? Math.PI / 2 : -Math.PI / 2, 0]} scale={k ? 0.9 : 1.1}>
+            <Box p={[0, 0.2, 0.02]} s={[0.3, 0.07, 0.06]} m={AM.carve} />
+            <Box p={[-0.08, 0.1, 0.03]} s={[0.09, 0.07, 0.04]} m={AM.eye} />
+            <Box p={[0.08, 0.1, 0.03]} s={[0.09, 0.07, 0.04]} m={AM.eye} />
+            <Box p={[0, 0.0, 0.04]} s={[0.07, 0.13, 0.05]} m={AM.post} />
+            <Box p={[0, -0.15, 0.03]} s={[0.22, 0.07, 0.04]} m={face} />
+          </group>
+        ))
+      )}
+      <mesh position={[0, POST_H + 0.08, 0]} material={AM.carve}>
+        <coneGeometry args={[0.24, 0.26, 8]} />
       </mesh>
     </group>
   );
 }
 
+// Flowers: leis on the four posts and garlands swagged under both friezes,
+// all in one instanced mesh.
+const FLOWER_GEO = new THREE.IcosahedronGeometry(0.06, 0);
+const FLOWER_MAT = new THREE.MeshStandardMaterial({ flatShading: true, roughness: 0.8 });
+const FLOWER_COLORS = ['#ff5d8f', '#ffd23f', '#ffffff', '#f25cff', '#ff8a3d'].map((c) => new THREE.Color(c));
+const FLOWERS = (() => {
+  const out = [];
+  for (const px of [-DX, DX]) {
+    for (const pz of [-HALF, HALF]) {
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * Math.PI * 2;
+        out.push([px + Math.cos(a) * 0.25, 1.38 - Math.abs(Math.sin(a + 0.5)) * 0.14, pz + Math.sin(a) * 0.25]);
+      }
+    }
+  }
+  // two swags per side, hanging under each frieze
+  const y0 = FRIEZE_Y - FRIEZE_H / 2 - 0.03;
+  for (const pz of [-FRIEZE_Z - 0.06, FRIEZE_Z + 0.06]) {
+    for (let k = 0; k < 2; k++) {
+      const xa = -DX - 0.15 + k * (DX + 0.15);
+      const xb = xa + DX + 0.15;
+      for (let i = 0; i <= 11; i++) {
+        const t = i / 11;
+        out.push([xa + (xb - xa) * t, y0 - Math.sin(t * Math.PI) * 0.32, pz]);
+      }
+    }
+  }
+  return out;
+})();
+
+function Flowers() {
+  const ref = useRef();
+  useLayoutEffect(() => {
+    const d = new THREE.Object3D();
+    FLOWERS.forEach((p, i) => {
+      d.position.set(...p);
+      d.rotation.set(i * 0.7, i * 1.3, 0);
+      d.scale.setScalar(0.85 + ((i * 37) % 7) / 20);
+      d.updateMatrix();
+      ref.current.setMatrixAt(i, d.matrix);
+      ref.current.setColorAt(i, FLOWER_COLORS[i % FLOWER_COLORS.length]);
+    });
+    ref.current.instanceMatrix.needsUpdate = true;
+    if (ref.current.instanceColor) ref.current.instanceColor.needsUpdate = true;
+  }, []);
+  return <instancedMesh ref={ref} args={[FLOWER_GEO, FLOWER_MAT, FLOWERS.length]} />;
+}
+
 export default function WelcomeArch({ ctx }) {
   const { sky, animate } = ctx;
   const night = sky.stars;
-  const sign = useRef();
-  const mat = useMemo(() => {
+  const signs = [useRef(), useRef()];
+  const mats = useMemo(() => {
     const map = signTexture();
-    return new THREE.MeshStandardMaterial({ map, emissiveMap: map, emissive: '#ffb066', emissiveIntensity: 0.06, roughness: 0.8 });
+    const fmap = friezeTexture();
+    return {
+      sign: new THREE.MeshStandardMaterial({ map, emissiveMap: map, emissive: '#ffb066', emissiveIntensity: 0.06, roughness: 0.8 }),
+      frieze: new THREE.MeshStandardMaterial({ map: fmap, emissiveMap: fmap, emissive: '#ffb066', emissiveIntensity: 0.06, roughness: 0.8 }),
+    };
   }, []);
-  useEffect(() => () => (mat.map.dispose(), mat.dispose()), [mat]);
+  useEffect(
+    () => () => {
+      for (const m of Object.values(mats)) {
+        m.map.dispose();
+        m.dispose();
+      }
+    },
+    [mats]
+  );
   useEffect(() => {
-    mat.emissiveIntensity = 0.06 + night * 0.42;
-  }, [mat, night]);
-  // the sign sways a touch in the breeze
+    mats.sign.emissiveIntensity = 0.06 + night * 0.5;
+    mats.frieze.emissiveIntensity = 0.06 + night * 0.5;
+  }, [mats, night]);
+  // the end signs sway a touch in the breeze
   useFrame((state) => {
-    if (!animate || !sign.current) return;
-    sign.current.rotation.z = Math.sin(state.clock.elapsedTime * 0.9) * 0.025;
+    if (!animate) return;
+    const t = state.clock.elapsedTime;
+    signs.forEach((r, i) => {
+      if (r.current) r.current.rotation.z = Math.sin(t * 0.9 + i * 1.7) * 0.025;
+    });
   });
   const g = terrainY(AX, AZ);
-  const topY = POST_H + 0.05;
-  const t1 = [AX + 0.35, AZ - HALF - 0.55];
-  const t2 = [AX + 0.35, AZ + HALF + 0.55];
+  const topY = POST_H + 0.02;
+  const beamY = BEAM_Y;
+  const torches = [
+    [AX + DX + 0.45, AZ - HALF - 0.25],
+    [AX + DX + 0.45, AZ + HALF + 0.25],
+    [AX - DX - 0.1, AZ - HALF - 0.45],
+    [AX - DX - 0.1, AZ + HALF + 0.45],
+  ];
+  const lightPts = useMemo(
+    () => [
+      [
+        [-DX - 0.2, beamY - 0.1, -FRIEZE_Z - 0.12],
+        [DX + 0.2, beamY - 0.1, -FRIEZE_Z - 0.12],
+      ],
+      [
+        [-DX - 0.2, beamY - 0.1, FRIEZE_Z + 0.12],
+        [DX + 0.2, beamY - 0.1, FRIEZE_Z + 0.12],
+      ],
+    ],
+    [beamY]
+  );
   return (
     <group>
       <group position={[AX, g - 0.05, AZ]}>
-        <TikiPost z={-HALF} face={AM.red} />
-        <TikiPost z={HALF} face={AM.teal} />
-        {/* crossbeam with a little thatch cap and bamboo trim */}
-        <Box p={[0, topY - 0.22, 0]} s={[0.26, 0.2, HALF * 2 + 0.7]} m={M.darkWood} />
-        <Beam a={[0.15, topY - 0.32, -HALF - 0.3]} b={[0.15, topY - 0.32, HALF + 0.3]} r={0.04} m={M.bamboo} />
-        <Beam a={[-0.15, topY - 0.32, -HALF - 0.3]} b={[-0.15, topY - 0.32, HALF + 0.3]} r={0.04} m={M.bamboo} />
-        <Roof p={[0, topY + 0.12, 0]} halfX={0.38} halfZ={HALF + 0.5} h={0.4} m={M.thatch} />
-        <Fringe p={[0, topY - 0.08, 0]} halfX={0.36} halfZ={HALF + 0.48} drop={0.14} />
-        {/* the sign, hung on two ropes */}
-        {[-0.85, 0.85].map((z) => (
-          <Beam key={z} a={[0, topY - 0.32, z]} b={[0, topY - 0.6, z]} r={0.014} m={M.rope} seg={3} />
+        {[-DX, DX].map((x) => [-HALF, HALF].map((z) => <TikiPost key={`${x}${z}`} x={x} z={z} face={z < 0 ? AM.red : AM.teal} />))}
+        {/* end beams across the walkway and side beams along it */}
+        {[-DX, DX].map((x) => (
+          <Box key={`eb${x}`} p={[x, beamY, 0]} s={[0.28, 0.24, HALF * 2 + 0.6]} m={M.darkWood} />
         ))}
-        <group ref={sign} position={[0, topY - 0.6, 0]}>
-          <Box p={[0, -SIGN_H / 2, 0]} s={[0.07, SIGN_H + 0.06, SIGN_W + 0.06]} m={AM.carve} />
-          <mesh position={[0.037, -SIGN_H / 2, 0]} rotation={[0, Math.PI / 2, 0]} material={mat}>
-            <planeGeometry args={[SIGN_W, SIGN_H]} />
-          </mesh>
-          <mesh position={[-0.037, -SIGN_H / 2, 0]} rotation={[0, -Math.PI / 2, 0]} material={mat}>
-            <planeGeometry args={[SIGN_W, SIGN_H]} />
-          </mesh>
-        </group>
-        {/* a lei of flowers hung on each post */}
-        {[-HALF, HALF].map((z) =>
-          Array.from({ length: 8 }, (_, i) => {
-            const a = (i / 8) * Math.PI * 2;
-            return (
-              <mesh key={`${z}${i}`} position={[Math.cos(a) * 0.2, 1.22 - Math.abs(Math.sin(a)) * 0.1, z + Math.sin(a) * 0.2]}>
-                <icosahedronGeometry args={[0.05, 0]} />
-                <meshStandardMaterial color={['#ff5d8f', '#ffd23f', '#ffffff', '#f25cff'][i % 4]} flatShading />
+        {[-HALF, HALF].map((z) => (
+          <Box key={`sb${z}`} p={[0, beamY, z * 1.06]} s={[DX * 2 + 0.6, 0.24, 0.42]} m={M.darkWood} />
+        ))}
+        {[-DX, DX].map((x) => (
+          <Beam key={`bm${x}`} a={[x + 0.16, beamY - 0.13, -HALF - 0.3]} b={[x + 0.16, beamY - 0.13, HALF + 0.3]} r={0.04} m={M.bamboo} />
+        ))}
+        {/* thatched roof over the whole gate */}
+        <Roof p={[0, topY + 0.38, 0]} halfX={DX + 0.5} halfZ={HALF + 0.55} h={0.85} m={M.thatch} />
+        <Fringe p={[0, topY - 0.04, 0]} halfX={DX + 0.48} halfZ={HALF + 0.53} drop={0.2} />
+        <Cyl p={[0, topY + 0.92, 0]} rt={0.015} h={0.5} m={M.darkWood} />
+        <mesh position={[0, topY + 1.2, 0]} material={AM.red}>
+          <icosahedronGeometry args={[0.09, 0]} />
+        </mesh>
+        {/* the side friezes: BOT ISLAND HQ, facing south and north */}
+        {[1, -1].map((s) => (
+          <group key={`fr${s}`} position={[0, FRIEZE_Y, s * FRIEZE_Z]} rotation={[0, s > 0 ? 0 : Math.PI, 0]}>
+            <Box p={[0, 0, -0.03]} s={[FRIEZE_W + 0.08, FRIEZE_H + 0.08, 0.05]} m={AM.carve} />
+            <mesh position={[0, 0, 0.0]} material={mats.frieze}>
+              <planeGeometry args={[FRIEZE_W, FRIEZE_H]} />
+            </mesh>
+          </group>
+        ))}
+        {/* hanging welcome signs at both ends, on two ropes each */}
+        {[DX, -DX].map((x, i) => (
+          <group key={`hs${x}`} position={[x + Math.sign(x) * 0.02, 0, 0]}>
+            {[-0.95, 0.95].map((z) => (
+              <Beam key={z} a={[0, beamY - 0.12, z]} b={[0, beamY - 0.42, z]} r={0.016} m={M.rope} seg={3} />
+            ))}
+            <group ref={signs[i]} position={[0, beamY - 0.42, 0]}>
+              <Box p={[0, -SIGN_H / 2, 0]} s={[0.07, SIGN_H + 0.06, SIGN_W + 0.06]} m={AM.carve} />
+              <mesh position={[0.037, -SIGN_H / 2, 0]} rotation={[0, Math.PI / 2, 0]} material={mats.sign}>
+                <planeGeometry args={[SIGN_W, SIGN_H]} />
               </mesh>
-            );
-          })
-        )}
+              <mesh position={[-0.037, -SIGN_H / 2, 0]} rotation={[0, -Math.PI / 2, 0]} material={mats.sign}>
+                <planeGeometry args={[SIGN_W, SIGN_H]} />
+              </mesh>
+            </group>
+          </group>
+        ))}
+        <Flowers />
+        <StringLights points={lightPts[0]} sag={0.12} per={5} night={night} />
+        <StringLights points={lightPts[1]} sag={0.12} per={5} night={night} />
       </group>
-      <Torch p={[t1[0], terrainY(...t1), t1[1]]} night={night} animate={animate} />
-      <Torch p={[t2[0], terrainY(...t2), t2[1]]} night={night} animate={animate} />
+      {torches.map(([x, z]) => (
+        <Torch key={`${x}${z}`} p={[x, terrainY(x, z), z]} night={night} animate={animate} />
+      ))}
     </group>
   );
 }

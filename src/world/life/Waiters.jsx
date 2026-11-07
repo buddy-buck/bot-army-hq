@@ -3,29 +3,35 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import MiniBot, { CREW_COLORS } from '../MiniBot.jsx';
 import { aliveClock } from '../../wild/director.js';
-import { groundY } from '../../utils/paths.js';
+import { ZONES, groundY } from '../../utils/paths.js';
 import { BAR_PICKUPS } from './TikiBar.jsx';
 import { LM, lerpAngle, makePath, resetBot, std, usePoseOnce, walkPose } from './common.jsx';
 
 // Two waiters with round trays of drinks held up on one hand, walking from
 // the tiki bar out to the lounging spots and back: one serves Nasty's beach
-// chair and the Networking Tiki Hut, the other carries a tray up the ramp to
-// the Real Estate Lanai. They stop, hand a drink over, and carry on.
+// chair and the Networking Tiki Hut (walking north of the DJ booth's dance
+// floor), the other carries a tray up the ramp to the Real Estate Lanai.
+// (The Lounge Beach is up on the north shore now, too far for a tray.) They stop, hand a drink over, and carry on.
 // Routes are hand-checked: on land, around palms, clear of the team bots'
 // stations and hammocks and the other landmarks. Off at bedtime.
 
 const SPEED = 0.85;
+// Where the waiter stands to serve the Networking Tiki Hut crew: just
+// outside their arc of spots on the hut's south-east side.
+const HUT_STOP = { x: ZONES.tikihut.x + 1.75, z: ZONES.tikihut.z + 1.75 };
 
 // Each route: walking points (out and back the same way) and stops.
 // kind: 'pickup' fills the tray, 'serve' hands over `give` drinks.
 const ROUTES = [
   {
     color: CREW_COLORS[6],
-    pts: [[BAR_PICKUPS.front.x, BAR_PICKUPS.front.z], [10.95, 8.05], [9.6, 9.0], [7.6, 8.9], [4.9, 8.75], [3.5, 8.6]],
+    // west along z ~8.8: north of the DJ booth's dance floor (its north
+    // edge is at z ~10.4), south of the Tiki Hut's torches
+    pts: [[BAR_PICKUPS.front.x, BAR_PICKUPS.front.z], [10.95, 8.05], [9.6, 8.95], [7.6, 8.8], [5.0, 9.1], [HUT_STOP.x, HUT_STOP.z]],
     stops: [
       { at: 0, kind: 'pickup', face: BAR_PICKUPS.front.face, wait: 3.5 },
       { at: 1, kind: 'serve', face: -1.75, wait: 3.2, give: 1 }, // Nasty, lying back in the beach chair
-      { at: 5, kind: 'serve', face: Math.atan2(2.19 - 3.5, 8.94 - 8.6), wait: 3.6, give: 2 }, // the tiki hut crew
+      { at: 5, kind: 'serve', face: Math.atan2(ZONES.tikihut.x - HUT_STOP.x, ZONES.tikihut.z + 1.0 - HUT_STOP.z), wait: 3.6, give: 2 }, // the tiki hut crew
     ],
     offset: 0,
   },

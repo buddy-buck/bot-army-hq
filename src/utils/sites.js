@@ -19,14 +19,15 @@ export const SITES = {
   // planes take off and land over the east shore. That freed the north beach
   // for the lounge loungers and the volleyball court.
   runway: { x: 10.3, z: -3.3, hx: 4.7, hz: 1.35, rotY: 0 },
+  runwayApproach: { x: 17.0, z: -3.6, hx: 1.6, hz: 1.4, rotY: 0 }, // no palms on the climb-out / final approach line
   visitor: { x: -13.4, z: 9.2, r: 2.1, rotY: 0.25 }, // Visitor Center near the head of Launch's Pier
   // Island life
   tikibar: { x: 12.8, z: 9.6, r: 2.4 },
-  foodtruck: { x: -3.6, z: 11.6, r: 3.0 }, // bigger truck; the line forms toward the east (+x)
+  foodtruck: { x: -3.6, z: 11.6, r: 3.6 }, // bigger truck; the line forms toward the east (+x)
   dj: { x: 7.0, z: 12.0, r: 2.9 }, // next to the tiki bar (drink, then dance); booth faces north onto a big dance floor
   volleyball: { x: 4.2, z: -12.8, hx: 2.3, hz: 1.4, rotY: 0 }, // north lounge beach, all sand
   napHammock: { x: -14.6, z: -3.6, r: 1.5 },
-  yoga: { x: -10.2, z: -11.2, r: 1.8 }, // sunrise yoga mats, west end of the north lounge beach
+  yoga: { x: -10.0, z: -10.85, r: 1.8 }, // sunrise yoga mats, west end of the north lounge beach
   // Bot antics (set pieces)
   sandcastle: { x: -8.8, z: 12.6, r: 1.3 },
   armWrestle: { x: 2.6, z: -9.0, r: 1.2 },

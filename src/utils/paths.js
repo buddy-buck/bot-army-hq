@@ -239,9 +239,12 @@ const SLOT_RULES = {
   dock: (n) => grid(-14.6 + DOCK_DX, 5.35, 3, 0.8, 0.7, n),
   bungalow: (n) => {
     // Flo's porch chair on the overwater platform, facing the sunset; anyone
-    // else in the zone stands along the platform's west edge.
+    // else in the zone stands along the platform's west edge. Like the tower
+    // chairs, the seat pose puts the root on the deck (the pose itself lifts
+    // the hips onto the cushion); nudged a hair back into the backrest.
     const s = FLO.seat;
-    const porch = n ? [{ x: s.x, z: s.z, y: FLO.platform.y + 0.35, rotY: s.rotY, fixedRot: true, seat: true }] : [];
+    const back = 0.05;
+    const porch = n ? [{ x: s.x - Math.sin(s.rotY) * back, z: s.z - Math.cos(s.rotY) * back, y: FLO.platform.y, rotY: s.rotY, fixedRot: true, seat: true }] : [];
     const extra = Array.from({ length: Math.max(0, n - 1) }, (_, i) => ({ x: FLO.platform.x0 + 0.6, z: FLO.platform.z1 - 0.6 - (i % 4) * 0.8, rotY: -Math.PI / 2, fixedRot: true }));
     return porch.concat(extra);
   },

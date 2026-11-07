@@ -2,8 +2,9 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
-import { BOT_SCALE } from '../components/Bot.jsx';
-import { labelState } from '../components/labels.js';
+import { BOT_SCALE, TALK_SECONDS } from '../components/Bot.jsx';
+import { addBubble, botFx, fxNow, labelState } from '../components/labels.js';
+import { formatNumber } from '../utils/ticker.js';
 import { CAMPFIRE, CAMPFIRE_SEAT_H, PALMS, ZONES, campfireSpots, groundY, islandE, siteDistance } from '../utils/paths.js';
 
 // Campfire mode (9 PM to 6 AM Duvall time): working bots gather around a
@@ -15,9 +16,12 @@ import { CAMPFIRE, CAMPFIRE_SEAT_H, PALMS, ZONES, campfireSpots, groundY, island
 // embers: no real lights, so it's cheap to draw. Tiki torches ring the
 // circle and somebody left a guitar leaning on a log.
 
-// One bubble at the normal view, a few when zoomed in, none when zoomed out.
-const BUBBLES_BY_TIER = { far: 0, default: 1, close: 3 };
-const BUBBLE_SECONDS = 6;
+// Campfire stories: two at the normal view, more when zoomed in, one when
+// zoomed out. They take turns every few seconds.
+const BUBBLES_BY_TIER = { far: 1, default: 2, close: 4 };
+const BUBBLE_SECONDS = 5.5;
+const STORY_HOURS = 36; // ledger entries newer than this make a story
+const STORY_Y = 1.55 * BOT_SCALE + 0.3; // just above the name tag
 
 // Move working bots (except Claude, who commutes by boat) to the fire and
 // sit them down on the seats (Bot.jsx 'seat' pose: root on the sand, seat
@@ -122,17 +126,46 @@ function Fire({ animate }) {
   );
 }
 
-const clip = (s, n = 64) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}...` : s);
+const clip = (s, n = 90) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}...` : s);
 
-// Thought bubbles: a few at a time, taking turns, so the circle never
-// turns into a wall of text.
+// What a bot has to tell at the fire: its latest logged minutes ("Saved 12
+// min: Drafted the newsletter"), else its last action, else its latest feed line.
+function storyFor(bot, minutesSaved, feed) {
+  const now = Date.now();
+  const r = (minutesSaved?.recent || []).find((e) => e.bot === bot.id && now - (Date.parse(e.at) || 0) < STORY_HOURS * 3600e3);
+  if (r) return { kicker: `Saved ${formatNumber(r.minutes)} min`, text: r.what || bot.lastAction?.text || '' };
+  const text = bot.lastAction?.text || (feed || []).find((f) => f.bot === bot.id && f.text)?.text;
+  return text ? { kicker: null, text } : null;
+}
+
+function StoryBubble({ it, slot }) {
+  const wrap = useRef();
+  useLayoutEffect(
+    () => addBubble({ ref: wrap, x: it.x, y: it.y + STORY_Y, z: it.z, prio: 10 - slot, hideable: true, tail: true, bottom: true }),
+    [it.x, it.y, it.z, slot]
+  );
+  return (
+    <Html position={[it.x, it.y + STORY_Y, it.z]} center zIndexRange={[11, 1]} pointerEvents="none">
+      <div ref={wrap} className="story-wrap photo-hide">
+        <div className="story" style={{ '--bot': it.color }}>
+          <div className="story-name">{it.name}</div>
+          {it.kicker && <div className="story-kicker">{it.kicker}</div>}
+          <div className="story-text">{clip(it.text)}</div>
+        </div>
+      </div>
+    </Html>
+  );
+}
+
+// Story bubbles: a few at a time, taking turns, so the circle never turns
+// into a wall of text. The bot telling the story talks with its hands.
 function Bubbles({ items, animate }) {
   const [tick, setTick] = useState(0);
   const [tier, setTier] = useState(labelState.tier);
   useFrame(() => {
     if (labelState.tier !== tier) setTier(labelState.tier);
   });
-  const count = Math.min(BUBBLES_BY_TIER[tier] ?? 1, items.length);
+  const count = Math.min(BUBBLES_BY_TIER[tier] ?? 2, items.length);
   useEffect(() => {
     if (!animate || items.length <= count) return undefined;
     const id = setInterval(() => setTick((t) => t + 1), BUBBLE_SECONDS * 1000);
@@ -140,13 +173,13 @@ function Bubbles({ items, animate }) {
   }, [animate, items.length, count]);
   const shown = [];
   for (let k = 0; k < count; k++) shown.push(items[(tick * count + k) % items.length]);
-  return shown.map((it) => (
-    <Html key={`${it.id}-${tick}`} position={[it.x, it.y + 1.55 * BOT_SCALE + 0.8, it.z]} center zIndexRange={[8, 0]} pointerEvents="none">
-      <div className="thought photo-hide" style={{ borderColor: it.color }}>
-        {clip(it.text)}
-      </div>
-    </Html>
-  ));
+  const ids = shown.map((x) => x.id).join(',');
+  useEffect(() => {
+    if (!animate) return;
+    const t = fxNow();
+    ids.split(',').forEach((id, i) => id && botFx.talk.set(id, t + i * 0.4 - (TALK_SECONDS - BUBBLE_SECONDS)));
+  }, [ids, tick, animate]);
+  return shown.map((it, k) => <StoryBubble key={`${it.id}-${tick}`} it={it} slot={k} />);
 }
 
 // ---------------------------------------------------------------------------
@@ -306,15 +339,20 @@ function Guitar() {
   );
 }
 
-export default function Campfire({ layout, bots, animate = true }) {
+export default function Campfire({ layout, bots, animate = true, minutesSaved = null, feed = null }) {
   const g = groundY(CAMPFIRE.x, CAMPFIRE.z);
-  const items = useMemo(
-    () =>
-      bots
-        .filter((b) => layout[b.id]?.campfire && b.lastAction?.text)
-        .map((b) => ({ id: b.id, color: b.color, text: b.lastAction.text, x: layout[b.id].x, y: layout[b.id].y, z: layout[b.id].z })),
-    [bots, layout]
-  );
+  const items = useMemo(() => {
+    const out = [];
+    for (const b of bots) {
+      const l = layout[b.id];
+      if (!l?.campfire) continue;
+      const st = storyFor(b, minutesSaved, feed);
+      if (!st) continue;
+      out.push({ id: b.id, name: b.name, color: b.color, kicker: st.kicker, text: st.text, x: l.x, y: l.y, z: l.z });
+    }
+    // Stories with minutes first, so the best ones come around soonest.
+    return out.sort((a, b) => (b.kicker ? 1 : 0) - (a.kicker ? 1 : 0));
+  }, [bots, layout, minutesSaved, feed]);
   const seated = useMemo(() => bots.filter((b) => layout[b.id]?.campfire).length, [bots, layout]);
   return (
     <group>

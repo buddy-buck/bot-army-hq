@@ -27,6 +27,7 @@ import {
   zonePathCurve,
 } from '../utils/paths.js';
 import { labelState } from './labels.js';
+import { isIslandNight } from '../wild/director.js';
 import Water from '../world/Water.jsx';
 import FloVilla, { FLO_TAG_Y } from '../world/landmarks/FloVilla.jsx';
 import {
@@ -43,6 +44,9 @@ import {
   Torch,
   TowerChair,
   brandTexture,
+  canvasTexture,
+  pointer,
+  tap,
   hash2,
   std,
   useGlowMaterial,
@@ -177,7 +181,6 @@ function SandPaths() {
   const geometry = useMemo(() => {
     const out = { pos: [], idx: [] };
     for (const key of Object.keys(ZONES)) {
-      if (key === 'patio') continue; // shares the cabana's path
       const c = zonePathCurve(key);
       if (c) ribbon(c.getSpacedPoints(28), 0.75, out);
     }
@@ -848,6 +851,12 @@ function TikiHut({ night, animate }) {
   const t1 = [cx - 2.1, cz + 0.4];
   const t2 = [cx + 2.2, cz - 0.2];
   const g = groundY(cx, cz);
+  // String lights from each torch up onto the thatch and round the front of
+  // the roof: they stay above the heads of the crew standing out front.
+  const lights = useMemo(() => {
+    const roof = (a) => [cx + Math.cos(a) * 1.05, g + 1.63, cz + Math.sin(a) * 1.05];
+    return [[t1[0], groundY(...t1) + 1.36, t1[1]], roof(2.5), roof(1.95), roof(Math.PI / 2), roof(1.2), roof(0.55), [t2[0], groundY(...t2) + 1.36, t2[1]]];
+  }, [cx, cz, g]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <group>
       <group position={[cx, g, cz]}>
@@ -861,36 +870,187 @@ function TikiHut({ night, animate }) {
           return <Cyl key={i} p={[Math.cos(a) * 1.09, 0.55, Math.sin(a) * 1.09]} rt={0.045} h={1.1} m={i % 2 ? M.bambooNode : M.bambooGreen} />;
         })}
       </group>
-      <StringLights
-        points={[[t1[0], groundY(...t1) + 1.3, t1[1]], [cx, g + 1.15, cz + 1.75], [t2[0], groundY(...t2) + 1.3, t2[1]]]}
-        sag={0.25}
-        per={5}
-        night={night}
-      />
+      <StringLights points={lights} sag={0.06} per={3} night={night} />
       <Torch p={[t1[0], groundY(...t1), t1[1]]} night={night} animate={animate} />
       <Torch p={[t2[0], groundY(...t2), t2[1]]} night={night} animate={animate} />
     </group>
   );
 }
 
-function MoneyDesk({ night }) {
+// Benji's Money Desk: piled high. Tall stacks of banded cash (one instanced
+// mesh, the band baked in with vertex colors), a few bundles spilled on the
+// desk and the sand, a pallet of cash, stacks of gold coins (one more
+// instanced mesh), gold bars and a fat money bag with a $ on it. Benji's
+// spot on the north side stays clear. Tap the desk for a close-up.
+const BRICK = { w: 0.2, h: 0.05, d: 0.1 };
+const BRICK_GEO = (() => {
+  const g = new THREE.BoxGeometry(BRICK.w, BRICK.h, BRICK.d, 3, 1, 1);
+  const pos = g.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    if (Math.abs(Math.abs(x) - BRICK.w / 6) < 1e-4) pos.setX(i, Math.sign(x) * 0.026);
+  }
+  const flat = g.toNonIndexed();
+  g.dispose();
+  const p = flat.attributes.position;
+  const col = new Float32Array(p.count * 3);
+  const cash = new THREE.Color('#5fae6e');
+  const cashTop = new THREE.Color('#7cc78a');
+  const band = new THREE.Color('#fff7e0');
+  for (let f = 0; f < p.count; f += 3) {
+    const cx = (p.getX(f) + p.getX(f + 1) + p.getX(f + 2)) / 3;
+    const top = p.getY(f) > 0.02 && p.getY(f + 1) > 0.02 && p.getY(f + 2) > 0.02;
+    const c = Math.abs(cx) < 0.026 ? band : top ? cashTop : cash;
+    for (let k = 0; k < 3; k++) c.toArray(col, (f + k) * 3);
+  }
+  flat.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  flat.computeVertexNormals();
+  return flat;
+})();
+const COIN_GEO = new THREE.CylinderGeometry(0.038, 0.038, 0.012, 9);
+const MONEY_M = {
+  brick: new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.8 }),
+  gold: std('#ffd03a', { roughness: 0.35, metalness: 0.15, emissive: '#b98200', emissiveIntensity: 0.4 }),
+  bag: std('#c9a46a'),
+  bagDark: std('#8a6a3c'),
+  pallet: std('#b48a5a'),
+};
+
+// Deterministic jitter so the piles look the same every visit.
+const jit = (i, k = 1) => (Math.sin(i * 91.17 + k * 13.3) * 43758.5453) % 1;
+
+// [x, y, z, rotY, tiltX, tiltZ] in the desk's frame (desk top at 0.77).
+const DESK_TOP = 0.77;
+const MONEY_BRICKS = (() => {
+  const out = [];
+  // tall stacks on the west, east and south of the desk top
+  [
+    [-0.36, 0.02, 11, 0.2],
+    [0.3, 0.22, 9, -0.4],
+    [-0.2, 0.26, 7, 0.9],
+    [-0.06, 0.4, 4, 0.1],
+    [0.12, 0.08, 5, 1.4],
+    [0.15, 0.38, 3, -0.2],
+    [-0.3, -0.16, 6, 0.6],
+    [0.27, 0.4, 5, 1.0],
+  ].forEach(([x, z, n, r], si) => {
+    for (let i = 0; i < n; i++) {
+      const j = si * 20 + i;
+      out.push([x + jit(j) * 0.012, DESK_TOP + BRICK.h * (i + 0.5), z + jit(j, 2) * 0.012, r + jit(j, 3) * 0.12, 0, 0]);
+    }
+  });
+  // spilled bundles: one sliding off the desk edge, a few on the sand
+  out.push([-0.46, DESK_TOP + 0.02, 0.33, 0.8, 0.0, 0.35]);
+  out.push([0.45, DESK_TOP + 0.025, 0.12, -1.1, 0, 0]);
+  [[0.55, 0.72, 0.4], [-0.62, 0.58, 1.9], [0.08, 0.86, -0.3], [0.32, 0.92, 1.2], [-0.25, 0.8, 2.6], [0.97, 0.8, 2.2]].forEach(([x, z, r], i) =>
+    out.push([x, 0.03 + (i % 2) * 0.004, z, r, 0, i % 3 ? 0 : 0.12])
+  );
+  out.push([0.58, 0.075, 0.74, 1.0, 0, 0]); // one tossed on top
+  // a pallet of cash on the sand to the west: 3 x 2 bricks, 4 high
+  for (let y = 0; y < 4; y++)
+    for (let ix = 0; ix < 3; ix++)
+      for (let iz = 0; iz < 2; iz++) {
+        if (y === 3 && ix === 2) continue; // top layer half taken already
+        out.push([-0.98 + (ix - 1) * 0.105, 0.09 + BRICK.h * (y + 0.5), 0.42 + (iz - 0.5) * 0.21, Math.PI / 2, 0, 0]);
+      }
+  return out;
+})();
+const MONEY_COINS = (() => {
+  const out = [];
+  [[0.2, -0.08, 9], [0.29, 0.0, 6], [0.0, -0.04, 4], [0.98, 0.08, 7], [0.7, 0.86, 5]].forEach(([x, z, n], si) => {
+    const y0 = si < 3 ? DESK_TOP : 0.02;
+    for (let i = 0; i < n; i++) out.push([x + jit(si * 9 + i) * 0.008, y0 + 0.006 + i * 0.012, z + jit(si * 9 + i, 4) * 0.008, 0, 0]);
+  });
+  // loose coins on the desk and spilling out of the bag
+  for (let i = 0; i < 14; i++) {
+    const onDesk = i < 5;
+    const a = i * 2.4;
+    const r = onDesk ? 0.2 + (i % 3) * 0.08 : 0.3 + (i % 4) * 0.07;
+    const x = onDesk ? 0.05 + Math.cos(a) * r * 0.5 : 0.78 + Math.cos(a) * r;
+    const z = onDesk ? 0.2 + Math.sin(a) * r * 0.4 : 0.45 + Math.abs(Math.sin(a)) * r;
+    out.push([x, (onDesk ? DESK_TOP : 0.015) + 0.006, z, (i % 3) * 0.25, 0.1]);
+  }
+  return out;
+})();
+const MONEY_SHOT_POS = (() => {
+  const { x, z } = ZONES.moneydesk;
+  return { x, z, g: groundY(x, z) };
+})();
+// Low three-quarter view from the south-east: the piles in front, Benji
+// behind the desk, the lantern and the palms on the west side behind.
+export const MONEY_SHOT = { target: [MONEY_SHOT_POS.x - 0.05, MONEY_SHOT_POS.g + 0.85, MONEY_SHOT_POS.z + 0.15], dist: 4.2, polar: 1.12, theta: 0.55, hold: 12000 };
+
+function DollarBag() {
+  const sign = useMemo(() => {
+    const map = canvasTexture(64, 64, (ctx, w, h) => {
+      ctx.clearRect(0, 0, w, h);
+      ctx.font = 'bold 54px Georgia, serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = '#fff3c4';
+      ctx.strokeText('$', w / 2, h / 2 + 3);
+      ctx.fillStyle = '#2E5248';
+      ctx.fillText('$', w / 2, h / 2 + 3);
+    });
+    return new THREE.MeshStandardMaterial({ map, transparent: true, alphaTest: 0.2, roughness: 0.8 });
+  }, []);
+  useEffect(() => () => (sign.map.dispose(), sign.dispose()), [sign]);
+  return (
+    <group position={[0.78, 0, 0.42]} rotation={[0, 0.55, 0]}>
+      <mesh position={[0, 0.2, 0]} scale={[0.24, 0.21, 0.22]} material={MONEY_M.bag}>
+        <icosahedronGeometry args={[1, 1]} />
+      </mesh>
+      <Cyl p={[0, 0.43, 0]} rt={0.05} rb={0.08} h={0.1} seg={7} m={MONEY_M.bag} />
+      <Cyl p={[0, 0.4, 0]} rt={0.085} h={0.03} seg={8} m={MONEY_M.bagDark} />
+      <Cone p={[0, 0.52, 0]} rad={0.09} h={0.12} seg={6} m={MONEY_M.bag} r={[Math.PI, 0, 0]} />
+      <mesh position={[0, 0.21, 0.216]} rotation={[-0.12, 0, 0]} material={sign}>
+        <planeGeometry args={[0.24, 0.24]} />
+      </mesh>
+    </group>
+  );
+}
+
+function MoneyDesk({ night, onShot }) {
   const cx = ZONES.moneydesk.x;
   const cz = ZONES.moneydesk.z;
   const g = groundY(cx, cz);
+  const bricks = useRef();
+  const coins = useRef();
+  useLayoutEffect(() => {
+    const d = new THREE.Object3D();
+    MONEY_BRICKS.forEach(([x, y, z, r, tx, tz], i) => {
+      d.position.set(x, y, z);
+      d.rotation.set(tx, r, tz);
+      d.updateMatrix();
+      bricks.current.setMatrixAt(i, d.matrix);
+    });
+    bricks.current.instanceMatrix.needsUpdate = true;
+    MONEY_COINS.forEach(([x, y, z, r, tilt], i) => {
+      d.position.set(x, y, z);
+      d.rotation.set(tilt, r, 0);
+      d.updateMatrix();
+      coins.current.setMatrixAt(i, d.matrix);
+    });
+    coins.current.instanceMatrix.needsUpdate = true;
+  }, []);
+  const onTap = useMemo(() => tap(() => onShot?.(MONEY_SHOT)), [onShot]);
   return (
-    <group position={[cx, g, cz]}>
+    <group position={[cx, g, cz]} onClick={onTap} {...pointer}>
       <Cyl p={[0, 0.36, 0]} rt={0.06} h={0.72} m={M.darkWood} />
       <Cyl p={[0, 0.74, 0]} rt={0.58} h={0.06} seg={10} m={M.white} />
       <Cyl p={[0, 1.3, 0]} rt={0.03} h={2.6} m={M.white} />
       <Cone p={[0, 2.3, 0]} rad={1.2} h={0.45} m={M.lisnGreen} />
       <Cone p={[0, 2.56, 0]} rad={0.25} h={0.16} m={M.white} />
-      {/* stacks of cash */}
-      {[[-0.22, 0.1, 2], [0.08, 0.22, 3], [0.22, -0.1, 1]].map(([x, z, n], i) => (
-        <group key={i} position={[x, 0.77, z]} rotation={[0, i * 0.5, 0]}>
-          <Box p={[0, n * 0.025, 0]} s={[0.2, n * 0.05, 0.1]} m={M.cash} />
-          <Box p={[0, n * 0.025, 0]} s={[0.05, n * 0.05 + 0.004, 0.104]} m={M.cashBand} />
-        </group>
-      ))}
+      {/* cash: stacks, spills and a pallet (one draw) */}
+      <instancedMesh ref={bricks} args={[BRICK_GEO, MONEY_M.brick, MONEY_BRICKS.length]} frustumCulled={false} />
+      {/* the pallet under the cash */}
+      <Box p={[-0.98, 0.045, 0.42]} s={[0.4, 0.09, 0.5]} m={MONEY_M.pallet} />
+      {/* gold coins (one draw) and two gold bars */}
+      <instancedMesh ref={coins} args={[COIN_GEO, MONEY_M.gold, MONEY_COINS.length]} frustumCulled={false} />
+      <Box p={[0.5, 0.04, 0.95]} s={[0.2, 0.07, 0.09]} r={[0, 0.3, 0]} m={MONEY_M.gold} />
+      <Box p={[0.45, 0.11, 0.97]} s={[0.2, 0.07, 0.09]} r={[0, -0.2, 0]} m={MONEY_M.gold} />
+      <DollarBag />
       <Lantern p={[0.4, 0.86, -0.2]} night={night} />
     </group>
   );
@@ -1001,18 +1161,20 @@ function Dock({ night, animate }) {
       )}
       <Box p={[deck.x1 + 0.4, (y + rampBottom) / 2, cz]} s={[Math.hypot(0.8, y - rampBottom), 0.08, deck.z1 - deck.z0]} r={[0, 0, -rampAngle]} m={M.plank} />
       {/* bollards (two hold the cruiser's lines) and lantern posts along the pier */}
-      {[CRUISER_AT.x - 1.1, CRUISER_AT.x + 1.2, deck.x0 + 7.6].map((x) => (
+      {/* (south side: clear of the fishing spot near the end, two by the
+          dock office houseboat) */}
+      {[CRUISER_AT.x - 1.1, CRUISER_AT.x + 1.2, deck.x0 + 7.4, deck.x0 + 9.6].map((x) => (
         <Bollard key={`bn${x}`} p={[x, y, deck.z0 + 0.13]} />
       ))}
-      {[deck.x0 + 1.4, deck.x0 + 6.6, deck.x1 - 0.6].map((x) => (
+      {[deck.x0 + 3.2, deck.x0 + 5.4, deck.x0 + 8.2, deck.x1 - 0.6].map((x) => (
         <Bollard key={`bs${x}`} p={[x, y, deck.z1 - 0.13]} />
       ))}
       {[
         [deck.x0 + 0.15, deck.z1 - 0.1],
         [deck.x0 + 0.15, deck.z0 + 0.1],
-        [deck.x0 + 3.0, deck.z1 - 0.1],
-        [deck.x0 + 5.6, deck.z0 + 0.1],
-        [deck.x0 + 8.2, deck.z1 - 0.1],
+        [deck.x0 + 4.3, deck.z1 - 0.1],
+        [deck.x0 + 6.2, deck.z0 + 0.1],
+        [deck.x0 + 8.9, deck.z1 - 0.1],
         [deck.x1 - 0.15, deck.z0 + 0.1],
       ].map(([x, z]) => (
         <group key={`lp${x}${z}`}>
@@ -1035,6 +1197,58 @@ function Dock({ night, animate }) {
   );
 }
 
+// The Research Lookout stands beside the lighthouse and matches it: red
+// and white banded posts and rail caps, and a rope-and-plank gangway from
+// its east side down to the lighthouse door step.
+const LH_RED = std('#d0333a');
+const LH_WHITE = std('#fbf7ef');
+const GANGWAY = (() => {
+  const L = SITES.lighthouse;
+  const { x: cx, z: cz } = ZONES.lookout;
+  const top = terrainY(cx, cz) + LOOKOUT_H + 0.06;
+  const face = Math.atan2(-L.x, -L.z); // the lighthouse door faces the island center
+  const a = [cx + 0.95, top, cz - 0.35];
+  const b = [L.x + Math.sin(face) * 1.25, 0.74, L.z + Math.cos(face) * 1.25];
+  const dx = b[0] - a[0];
+  const dz = b[2] - a[2];
+  const run = Math.hypot(dx, dz);
+  const len = Math.hypot(run, a[1] - b[1]);
+  return { a, b, yaw: Math.atan2(dx, dz), pitch: Math.atan2(a[1] - b[1], run), len, run };
+})();
+
+function Gangway() {
+  const { a, b, yaw, pitch, len } = GANGWAY;
+  const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
+  const n = Math.floor(len / 0.2);
+  const side = (s) => [Math.cos(yaw) * s, 0, -Math.sin(yaw) * s];
+  const post = (p, s, h) => {
+    const o = side(s);
+    return [p[0] + o[0], p[1] + h, p[2] + o[2]];
+  };
+  return (
+    <group>
+      <group position={mid} rotation={[0, yaw, 0]}>
+        <group rotation={[pitch, 0, 0]}>
+          {Array.from({ length: n }, (_, i) => (
+            <Box key={i} p={[0, 0, -len / 2 + 0.1 + i * (len - 0.2) / (n - 1)]} s={[0.5, 0.04, 0.14]} m={i % 2 ? M.plank : M.wood} />
+          ))}
+          {[-0.2, 0.2].map((x) => (
+            <Box key={x} p={[x, -0.035, 0]} s={[0.04, 0.04, len]} m={M.darkWood} />
+          ))}
+        </group>
+      </group>
+      {/* rope hand lines on red and white posts */}
+      {[-0.27, 0.27].map((s) => (
+        <group key={s}>
+          <Beam a={post(a, s, 0.55)} b={post(b, s, 0.55)} r={0.016} m={M.rope} seg={4} />
+          <Cyl p={post(b, s, 0.28)} rt={0.035} h={0.56} m={LH_RED} />
+          <Cyl p={post(b, s, 0.58)} rt={0.04} h={0.05} m={LH_WHITE} />
+        </group>
+      ))}
+    </group>
+  );
+}
+
 function Lookout({ night, animate }) {
   const cx = ZONES.lookout.x;
   const cz = ZONES.lookout.z;
@@ -1047,12 +1261,19 @@ function Lookout({ night, animate }) {
     <group>
       <group position={[cx, g, cz]}>
         {[[-0.85, -0.65], [0.85, -0.65], [-0.85, 0.65], [0.85, 0.65]].map(([x, z], i) => (
-          <Cyl key={i} p={[x, (LOOKOUT_H + 0.55) / 2 - 0.1, z]} rt={0.07} h={LOOKOUT_H + 0.6} m={M.wood} />
+          <group key={i}>
+            <Cyl p={[x, (LOOKOUT_H + 0.55) / 2 - 0.1, z]} rt={0.07} h={LOOKOUT_H + 0.6} m={M.wood} />
+            {/* lighthouse bands above the deck */}
+            <Cyl p={[x, LOOKOUT_H + 0.2, z]} rt={0.078} h={0.18} m={LH_RED} />
+            <Cyl p={[x, LOOKOUT_H + 0.38, z]} rt={0.078} h={0.18} m={LH_WHITE} />
+          </group>
         ))}
         <Box p={[0, LOOKOUT_H, 0]} s={[1.9, 0.12, 1.5]} m={M.plank} />
-        <Box p={[0, LOOKOUT_H + 0.45, -0.68]} s={[1.75, 0.06, 0.06]} m={M.wood} />
-        <Box p={[-0.88, LOOKOUT_H + 0.45, 0]} s={[0.06, 0.06, 1.3]} m={M.wood} />
-        <Box p={[0.88, LOOKOUT_H + 0.45, 0]} s={[0.06, 0.06, 1.3]} m={M.wood} />
+        <Box p={[0, LOOKOUT_H - 0.075, 0]} s={[1.94, 0.05, 1.54]} m={LH_RED} />
+        <Box p={[0, LOOKOUT_H + 0.45, -0.68]} s={[1.75, 0.06, 0.06]} m={LH_WHITE} />
+        <Box p={[-0.88, LOOKOUT_H + 0.45, 0]} s={[0.06, 0.06, 1.3]} m={LH_WHITE} />
+        {/* east rail stops short of the gangway to the lighthouse */}
+        <Box p={[0.88, LOOKOUT_H + 0.45, 0.33]} s={[0.06, 0.06, 0.64]} m={LH_WHITE} />
         {/* telescope */}
         <group position={[0.6, LOOKOUT_H + 0.06, -0.45]}>
           <Cyl p={[0, 0.3, 0]} rt={0.02} h={0.6} m={M.dark} />
@@ -1061,6 +1282,7 @@ function Lookout({ night, animate }) {
         <Flag p={[-0.85, LOOKOUT_H + 0.06, -0.65]} color="#2BA84A" animate={animate} w={0.5} h={0.3} />
         <Lantern p={[0.88, LOOKOUT_H + 0.62, 0.65]} night={night} />
       </group>
+      <Gangway />
       {/* ramp down to the sand path */}
       <group position={[cx, (top + rampFoot) / 2, cz + 0.75 + 0.625]} rotation={[rampAngle, 0, 0]}>
         <Box p={[0, 0, 0]} s={[0.62, 0.07, rampLen]} m={M.plank} />
@@ -1187,9 +1409,9 @@ const TAG_POS = {
 
 // A few landmark tags (tapping one flies there, like a zone tag).
 const LANDMARK_TAGS = [
-  { key: 'lighthouse', label: 'Lighthouse', pos: [SITES.lighthouse.x, SITES.lighthouse.height + 1.55, SITES.lighthouse.z] },
-  { key: 'visitor', label: 'Visitor Center', pos: [SITES.visitor.x, 4.3, SITES.visitor.z] },
-  { key: 'runway', label: 'Airstrip', pos: [SITES.runway.x - 3.2, 1.7, SITES.runway.z + 0.6] },
+  { key: 'lighthouse', label: 'Lighthouse', pos: [SITES.lighthouse.x, SITES.lighthouse.height + 2.4, SITES.lighthouse.z] },
+  { key: 'visitor', label: 'Visitor Center', pos: [SITES.visitor.x, 5.0, SITES.visitor.z] },
+  { key: 'runway', label: 'Airstrip', pos: [SITES.runway.x, 2.4, SITES.runway.z] }, // centered over the inland strip
 ];
 
 function ZoneLabels({ onZoneTap }) {
@@ -1209,8 +1431,11 @@ function ZoneLabels({ onZoneTap }) {
 
 // ---------------------------------------------------------------------------
 
-export default function Island({ sky, animate = true, onGroundTap, onZoneTap, showLabels = true, lowPower = false }) {
+// onShot (optional): ask App's camera for a close-up, see MONEY_SHOT and
+// FloVilla's GLASS_SHOT.
+export default function Island({ sky, animate = true, onGroundTap, onZoneTap, showLabels = true, lowPower = false, onShot }) {
   const night = sky.stars;
+  const bedtime = isIslandNight(sky.hour);
   return (
     <group>
       <Terrain onTap={onGroundTap} />
@@ -1224,9 +1449,9 @@ export default function Island({ sky, animate = true, onGroundTap, onZoneTap, sh
       <Patio />
       <Lanai night={night} animate={animate} />
       <TikiHut night={night} animate={animate} />
-      <MoneyDesk night={night} />
+      <MoneyDesk night={night} onShot={onShot} />
       <Dock night={night} animate={animate} />
-      <FloVilla night={night} animate={animate} />
+      <FloVilla night={night} animate={animate} bedtime={bedtime} onShot={onShot} />
       <Lookout night={night} animate={animate} />
       <BeachChair />
       {showLabels && <ZoneLabels onZoneTap={onZoneTap} />}
