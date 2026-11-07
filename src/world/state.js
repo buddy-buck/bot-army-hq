@@ -29,3 +29,10 @@ export function audioCtx() {
   }
   return ctx;
 }
+
+// Requests from the app to the sky show. App bumps a counter; SkyShow notices
+// the change and plays it. fireworks: crossing a round thousand minutes saved.
+export const skyRequests = { fireworks: 0 };
+export function requestFireworks() {
+  skyRequests.fireworks += 1;
+}

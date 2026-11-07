@@ -27,6 +27,7 @@ import Surfer from './wild/Surfer.jsx';
 import Campfire, { campfireLayout } from './wild/Campfire.jsx';
 import { Bottle, CHIEF_WELCOME, DockOffice, PhotoBooth, TreasureChest } from './wild/Easter.jsx';
 import { TEST, isIslandNight } from './wild/director.js';
+import { requestFireworks } from './world/state.js';
 
 // ---------------------------------------------------------------------------
 // Small hooks
@@ -743,6 +744,7 @@ export default function App() {
     const k = Math.floor(displayTotal / 1000) * 1000;
     setToast({ id: Date.now(), text: `Buck yeah! ${formatNumber(k)} minutes saved` });
     requestWeather('double');
+    if (!reduced) requestFireworks();
     if (!reduced) {
       const p = labelState.towerScreen || { x: window.innerWidth / 2, y: window.innerHeight * 0.4 };
       setBurst({ id: Date.now(), x: p.x, y: p.y });
