@@ -16,6 +16,7 @@ import Radar from './components/Radar.jsx';
 import BotCard from './components/BotCard.jsx';
 import Feed from './components/Feed.jsx';
 import Roster from './components/Roster.jsx';
+import SpotifyPlayer from './components/SpotifyPlayer.jsx';
 import UI, { IslandNote, LoadingNotice, RecentHandoffs, Toast } from './components/UI.jsx';
 import { botFx, fxNow, LabelDirector, labelState } from './components/labels.js';
 import useData, { HAS_LIVE, headlineMinutes, initialMode, saveMode } from './hooks/useData.js';
@@ -917,6 +918,8 @@ export default function App() {
     };
   }, [showToast, openChest]);
   const closeNote = useCallback(() => setNote(null), []);
+  // Spotify didn't load: the DJ booth (lazy chunk) plays its own beat instead.
+  const djFallback = useCallback(() => window.dispatchEvent(new CustomEvent('island:dj-beat')), []);
   const openOffice = useCallback(() => setScoreOpen(true), []);
 
   // Photo booth: fly to a clean angle, hide the UI and have everyone wave
@@ -1102,6 +1105,7 @@ export default function App() {
       <Confetti burst={burst} />
       <Toast message={toast} />
       <IslandNote note={note} onClose={closeNote} />
+      <SpotifyPlayer onFallback={djFallback} onToast={showToast} />
       {photo === 'flash' && <div className="photo-flash" aria-hidden="true" />}
       {postcard === 'open' && <Postcard captureRef={captureRef} onClose={closePostcard} />}
       <Roster open={rosterOpen} bots={bots} onPick={pickBot} onClose={closeRoster} />

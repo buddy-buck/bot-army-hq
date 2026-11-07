@@ -11,6 +11,8 @@ import { audioCtx } from '../state.js';
 // Visuals read djState.playing and djBeat() (beats since the loop started,
 // on the audio clock) so the DJ, the floor and the band move with the music.
 
+import { closeSpotify, openSpotify, spotifyAvailable, spotifyState } from '../../utils/spotify.js';
+
 export const DJ_BPM = 80;
 const SPB = 60 / DJ_BPM; // seconds per beat
 const STEP = SPB / 4; // a 16th
@@ -355,6 +357,26 @@ export function toggleDJ() {
   if (session) stopDJ();
   else startDJ();
   return djState.playing;
+}
+
+// What a tap on the booth does: stop whatever is playing, or else open the
+// Spotify player, or (Spotify not available) play the island's own beat.
+export function tapDJ() {
+  if (session) {
+    stopDJ();
+    return;
+  }
+  if (spotifyState.open) {
+    closeSpotify();
+    return;
+  }
+  if (spotifyAvailable()) openSpotify();
+  else startDJ();
+}
+
+// The Spotify embed failed to load: switch to the island beat.
+export function fallbackToIslandBeat() {
+  if (!session) startDJ();
 }
 
 // Beats since the loop started on the audio clock (what you actually hear),

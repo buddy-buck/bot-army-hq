@@ -5,7 +5,8 @@ import MiniBot, { CREW_COLORS } from '../MiniBot.jsx';
 import { testOn } from '../../wild/director.js';
 import { Box, Cyl, LM, canvasTexture, glowMat, glyphTexture, resetBot, std, useNightGlow, usePoseOnce } from './common.jsx';
 import { DJ_Z, F, FLOOR, FLOOR_LOW, FLOOR_TOP, FLOOR_Y, S, STAGE, STAGE_LOW, STAGE_Y, TABLE_Y, TABLE_Z, TILE_T, groove } from './DJLayout.js';
-import { djBeat, djState, onDJChange, preloadDJ, toggleDJ } from './djAudio.js';
+import { DJ_BPM, djBeat, djState, fallbackToIslandBeat, onDJChange, preloadDJ, stopDJ, tapDJ } from './djAudio.js';
+import { closeSpotify, onSpotifyChange, preconnectSpotify, spotifyState } from '../../utils/spotify.js';
 import Concert from './Concert.jsx';
 
 // DJ booth on the south-east beach, next to the tiki bar (drink, then dance):
@@ -120,15 +121,27 @@ const onOut = () => {
 };
 
 export default function DJBooth({ animate, night, bedtime, lowPower }) {
-  const [music, setMusic] = useState(djState.playing);
+  const [beat, setBeat] = useState(djState.playing);
+  const [spotify, setSpotify] = useState(spotifyState.open);
   useEffect(() => {
     preloadDJ();
-    const off = onDJChange(setMusic);
+    const warm = () => preconnectSpotify();
+    window.addEventListener('pointerdown', warm, { once: true, passive: true });
+    const off = onDJChange(setBeat);
+    const offS = onSpotifyChange((st) => setSpotify(st.open));
+    // The Spotify player couldn't load (or "Island beat" was tapped).
+    window.addEventListener('island:dj-beat', fallbackToIslandBeat);
     return () => {
       off();
-      if (djState.playing) toggleDJ(); // nobody left to switch it off
+      offS();
+      window.removeEventListener('island:dj-beat', fallbackToIslandBeat);
+      window.removeEventListener('pointerdown', warm);
+      if (djState.playing) stopDJ(); // nobody left to switch it off
+      closeSpotify();
     };
   }, []);
+  // Music is on: the island beat, or the Spotify player is open.
+  const music = beat || spotify;
 
   // At bedtime the booth is closed... unless someone taps it for a late set.
   const live = !bedtime || music || TEST_CONCERT;
@@ -185,7 +198,9 @@ export default function DJBooth({ animate, night, bedtime, lowPower }) {
   useFrame((state) => {
     // Frozen at a nice mid-groove moment with reduced motion.
     const t = animate ? state.clock.elapsedTime : 3.37;
-    const mb = music && animate ? djBeat() : -1;
+    // The island beat is synced to its audio clock; Spotify can't be read,
+    // so the crew just grooves along at the same tempo.
+    const mb = beat && animate ? djBeat() : spotify && animate ? (t * DJ_BPM) / 60 : -1;
     const playing = mb >= 0;
     const b = playing ? mb : (t * IDLE_BPM) / 60; // beats
     const pulse = kickPulse(b, playing);
@@ -431,14 +446,14 @@ export default function DJBooth({ animate, night, bedtime, lowPower }) {
         </group>
       </MiniBot>
 
-      {/* tap the booth: music on / off */}
+      {/* tap the booth: Spotify player (or the island beat) on / off */}
       <mesh
         position={[0, STAGE_Y + 0.9, (STAGE.z0 + STAGE.z1) / 2]}
         material={HIT_MAT}
         onClick={(e) => {
           if (e.delta > 8) return;
           e.stopPropagation();
-          toggleDJ();
+          tapDJ();
         }}
         onPointerOver={onOver}
         onPointerOut={onOut}
