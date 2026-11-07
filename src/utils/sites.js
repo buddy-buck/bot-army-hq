@@ -12,20 +12,40 @@
 // (half-sizes along its own x and z before rotation).
 export const SITES = {
   // Buildings
-  lighthouse: { x: 12.7, z: -9.5, r: 1.7, height: 6.4 }, // north-east point, on rocks
-  watchtower: { x: 7.6, z: 12.4, r: 1.3 }, // lifeguard-style tower on the south beach
-  runway: { x: -0.6, z: -13.15, hx: 6.4, hz: 1.6, rotY: 0 }, // airstrip along the north shore, runs east-west (strip at z -12.55, apron and hangar on its north side)
+  lighthouse: { x: 12.7, z: -9.5, r: 1.7, height: 6.4 }, // north-east point, on rocks; nothing else within ~3 units
+  watchtower: { x: 2.6, z: 14.0, r: 1.3 }, // lifeguard tower on the middle of the south beach (American flag)
+  // Bot Air moved inland (round 3): a shorter strip across the east-middle of
+  // the island, between the tower and the Real Estate Lanai. Runs east-west;
+  // planes take off and land over the east shore. That freed the north beach
+  // for the lounge loungers and the volleyball court.
+  runway: { x: 10.3, z: -3.3, hx: 4.7, hz: 1.35, rotY: 0 },
   visitor: { x: -13.4, z: 9.2, r: 2.1, rotY: 0.25 }, // Visitor Center near the head of Launch's Pier
   // Island life
-  tikibar: { x: 12.4, z: 9.8, r: 2.4 },
-  foodtruck: { x: -4.6, z: 12.0, r: 2.4 }, // the line forms toward the east (+x)
-  dj: { x: 0.4, z: 12.7, r: 2.2 }, // booth faces north onto a small dance floor
-  volleyball: { x: 13.4, z: -5.6, hx: 2.3, hz: 1.4, rotY: 0 },
+  tikibar: { x: 12.8, z: 9.6, r: 2.4 },
+  foodtruck: { x: -3.6, z: 11.6, r: 3.0 }, // bigger truck; the line forms toward the east (+x)
+  dj: { x: 7.0, z: 12.0, r: 2.9 }, // next to the tiki bar (drink, then dance); booth faces north onto a big dance floor
+  volleyball: { x: 4.2, z: -12.8, hx: 2.3, hz: 1.4, rotY: 0 }, // north lounge beach, all sand
   napHammock: { x: -14.6, z: -3.6, r: 1.5 },
+  yoga: { x: -10.2, z: -11.2, r: 1.8 }, // sunrise yoga mats, west end of the north lounge beach
   // Bot antics (set pieces)
   sandcastle: { x: -8.8, z: 12.6, r: 1.3 },
   armWrestle: { x: 2.6, z: -9.0, r: 1.2 },
-  pushups: { x: 9.4, z: -6.6, r: 1.1 },
+  pushups: { x: -6.2, z: -9.6, r: 1.1 },
+};
+
+// Extra beach: areas painted as sand even though they sit inland of the
+// normal beach band. The north lounge beach (loungers, volleyball, yoga)
+// is one big patch. Ellipses: { x, z, rx, rz }.
+export const SAND_PATCHES = [
+  { x: -1.8, z: -13.2, rx: 10.6, rz: 2.9 },
+  { x: 4.2, z: -12.8, rx: 3.4, rz: 2.4 }, // volleyball court, 100% sand
+  { x: -10.2, z: -11.6, rx: 2.6, rz: 2.0 }, // yoga corner
+];
+
+// Per-bot hammock spots that override the automatic ones. Nudge naps alone
+// under a palm in a quiet corner of the north-west woods, far from Byte Bites.
+export const BOT_HAMMOCKS = {
+  nudge: { x: -13.0, z: -8.0, rotY: 0.75, palm: { x: -13.7, z: -8.75 } },
 };
 
 // Flo's overwater bungalow (Maldives style) off the north shore: a boardwalk
@@ -44,7 +64,7 @@ export const FLO = {
 
 // Lanes on the water so sea life and boats don't run into the decks,
 // moorings or each other. Ellipses are centered on the island center.
-// Every island deck stays inside rx 26 / rz 21.
+// Every island deck stays inside rx 27 / rz 21 (Launch's Pier reaches x -26.8).
 export const SEA_LANES = {
   sharkInner: { rx: 29, rz: 24 },
   sharkOuter: { rx: 36, rz: 30 },

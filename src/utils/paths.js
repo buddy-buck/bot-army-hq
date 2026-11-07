@@ -4,9 +4,9 @@
 // Coordinates: x = east (+) / west (-), z = south (+) / north (-), y = up.
 // The default camera sits to the south looking north.
 import * as THREE from 'three';
-import { FLO, SITES } from './sites.js';
+import { BOT_HAMMOCKS, FLO, SAND_PATCHES, SITES } from './sites.js';
 
-export { FLO, SEA_LANES, SITES } from './sites.js';
+export { BOT_HAMMOCKS, FLO, SAND_PATCHES, SEA_LANES, SITES } from './sites.js';
 
 // Zones are laid out 20% wider than the original island so they have
 // breathing room. Building and bot sizes don't change, only spacing.
@@ -65,7 +65,7 @@ const LANAI_DX = 2.8;
 const DOCK_DX = -3.6;
 export const DECKS = [
   { id: 'lanai', x0: 12.8 + LANAI_DX, x1: 18.2 + LANAI_DX, z0: -1.0, z1: 3.4, y: 0.62, ramp: { side: 'x0', len: 0.9, z0: 0.6, z1: 1.8 } },
-  { id: 'dock', x0: -22.0 + DOCK_DX, x1: -12.4 + DOCK_DX, z0: 4.35, z1: 6.35, y: 0.45, ramp: { side: 'x1', len: 0.8, z0: 4.35, z1: 6.35 } },
+  { id: 'dock', x0: -23.2 + DOCK_DX, x1: -12.4 + DOCK_DX, z0: 4.35, z1: 6.35, y: 0.45, ramp: { side: 'x1', len: 0.8, z0: 4.35, z1: 6.35 } },
   { id: 'floPlatform', ...FLO.platform },
   { id: 'floBoardwalk', ...FLO.boardwalk, ramp: { side: 'z1', len: FLO.boardwalk.rampLen, x0: FLO.boardwalk.x0, x1: FLO.boardwalk.x1 } },
 ];
@@ -111,13 +111,13 @@ export const lookoutTopY = () => terrainY(ZONES.lookout.x, ZONES.lookout.z) + LO
 export const ZONES = {
   tower: { label: "Chief's Tower", x: 0, z: 0, entry: [0, 3.0], labelY: 6.6, bend: 0, focusY: 3.0 },
   cabana: { label: 'Content Cabana', x: -7.8, z: -5.4, entry: [-6.4, -1.9], labelY: 3.4, bend: 0.7 },
-  patio: { label: 'Cabana Patio', x: -3.4, z: -9.6, entry: [-6.4, -1.9], labelY: 2.0, bend: 0.7, noLabel: true },
+  patio: { label: 'Lounge Beach', x: -4.4, z: -13.4, entry: [-2.9, -10.4], labelY: 2.0, bend: 0.4, noLabel: true }, // north lounge beach
   lanai: { label: 'Real Estate Lanai', x: 15.6 + LANAI_DX, z: 1.2, entry: [11.4 + LANAI_DX, 1.2], labelY: 2.6, bend: -0.6 },
-  tikihut: { label: 'Networking Tiki Hut', x: 0.6, z: 8.2, entry: [2.9, 6.6], labelY: 3.3, bend: 0.5 },
+  tikihut: { label: 'Networking Tiki Hut', x: 2.0, z: 7.2, entry: [2.6, 5.0], labelY: 3.3, bend: 0.3 },
   moneydesk: { label: 'Money Desk', x: -11.4, z: 0.6, entry: [-10.0, 1.8], labelY: 2.3, bend: -0.5 },
   dock: { label: "Launch's Pier", x: -16.2 + DOCK_DX, z: 5.35, entry: [-12.0 + DOCK_DX, 5.35], labelY: 2.2, bend: 0.6 },
   bungalow: { label: "Flo's Bungalow", x: FLO.house.x - 0.8, z: FLO.house.z, entry: FLO.entry, labelY: 3.2, bend: -0.3, focusY: 1.2 },
-  lookout: { label: 'Research Lookout', x: 6.2, z: -3.6, entry: [6.2, -1.2], labelY: 3.6, bend: 0.5 },
+  lookout: { label: 'Research Lookout', x: 8.8, z: -7.9, entry: [7.4, -5.9], labelY: 3.6, bend: 0.3 }, // beside the lighthouse
   beachchair: { label: "Nasty's Chair", x: 10.3, z: 7.2, entry: [9.1, 5.9], labelY: 2.0, bend: -0.6 },
 };
 
@@ -293,11 +293,11 @@ export const CLAUDE_VISIT = {
 
 // Treasure chest spots: one is picked per day.
 export const CHEST_SPOTS = [
-  { x: 4.1, z: 5.9, rotY: 0.4 },
+  { x: 5.6, z: 4.2, rotY: 0.4 },
   { x: -11.5, z: -3.5, rotY: -0.6 },
   { x: 8.8, z: 2.9, rotY: 0.9 },
   { x: -1.2, z: -5.2, rotY: 0.2 },
-  { x: 11.0, z: -1.2, rotY: -0.3 },
+  { x: 12.4, z: -6.2, rotY: -0.3 },
   { x: -9.1, z: -1.1, rotY: -0.8 },
 ];
 
@@ -424,7 +424,8 @@ export function layoutBots(bots) {
       // Neighbors alternate near/far so two hammocks never overlap.
       let hammock = null;
       if (wantsHammock) {
-        const spot = !raised && spots.length ? spots.shift() : null;
+        const own = BOT_HAMMOCKS[bot.id];
+        const spot = own || (!raised && spots.length ? spots.shift() : null);
         if (spot) {
           hammock = { x: spot.x, y: groundY(spot.x, spot.z), z: spot.z, rotY: spot.rotY };
         } else {
@@ -655,6 +656,11 @@ export function siteDistance(x, z, sites = SITES) {
   return best;
 }
 
+// Painted beach (SAND_PATCHES in sites.js): true inside any extra-sand patch.
+export function inSandPatch(x, z) {
+  return SAND_PATCHES.some((p) => ((x - p.x) / p.rx) ** 2 + ((z - p.z) / p.rz) ** 2 < 1);
+}
+
 // Open water: off the island (islandE above e0) and at least `margin` away
 // from every deck. Handy for placing boats and sea life.
 export function seaClear(x, z, margin = 1.2, e0 = 1.12) {
@@ -714,7 +720,7 @@ export const PALMS = (() => {
     const w = islandWobble(x, z);
     x *= w;
     z *= w;
-    if (!clearOfPaths(x, z, 0.5)) continue;
+    if (!clearOfPaths(x, z, 0.5) || inSandPatch(x, z)) continue;
     list.push({ x, z, h: 2.3 + r() * 1.2, tilt: 0.08 + r() * 0.2, tiltDir: r() * Math.PI * 2, yaw: r() * Math.PI * 2 });
   }
   // Hand-placed groves: palms around the tiki hut, some shade behind Flo's
@@ -724,13 +730,19 @@ export const PALMS = (() => {
     [-1.4, 8.1], [3.3, 8.0], [3.7, 6.5],
     [-0.4, -5.0], [3.2, -5.2], [4.0, -6.2], [-1.3, -6.3],
     [-9.7, -5.6],
-    [6.9, -4.3], [3.5, -4.4],
+    [3.5, -4.4],
   ].map(([x, z]) => [x * SPREAD, z * SPREAD]);
+
   for (const [x, z] of groves) {
     if (!clearOfPaths(x, z, 0.1)) continue;
     list.push({ x, z, h: 2.4 + r() * 1.0, tilt: 0.08 + r() * 0.16, tiltDir: r() * Math.PI * 2, yaw: r() * Math.PI * 2 });
   }
-  return list;
+  // Private hammock palms (BOT_HAMMOCKS): placed by hand, leaning over the
+  // hammock, with no other palm crowding them.
+  const own = Object.values(BOT_HAMMOCKS).filter((h) => h.palm);
+  const kept = list.filter((p) => !own.some((h) => Math.hypot(p.x - h.x, p.z - h.z) < 1.8 && Math.hypot(p.x - h.palm.x, p.z - h.palm.z) > 0.01));
+  for (const h of own) kept.push({ x: h.palm.x, z: h.palm.z, h: 3.2, tilt: 0.24, tiltDir: Math.atan2(h.x - h.palm.x, h.z - h.palm.z), yaw: 0.4 });
+  return kept;
 })();
 
 export const FLOWERS = (() => {
@@ -742,7 +754,7 @@ export const FLOWERS = (() => {
     tries++;
     const x = (r() - 0.5) * 2 * ISLAND.rx * 0.85;
     const z = (r() - 0.5) * 2 * ISLAND.rz * 0.85;
-    if (islandE(x, z) > 0.68) continue;
+    if (islandE(x, z) > 0.68 || inSandPatch(x, z)) continue;
     if (!clearOfPaths(x, z, 0.2)) continue;
     list.push({ x, z, color: colors[Math.floor(r() * colors.length)], s: 0.7 + r() * 0.6 });
   }

@@ -19,6 +19,7 @@ import {
   TOWER_LEG_H,
   ZONES,
   groundY,
+  inSandPatch,
   islandE,
   islandWobble,
   ringPoints,
@@ -128,7 +129,7 @@ function Terrain({ onTap }) {
         c.copy(floor).lerp(deep, Math.min(1, (-cy - 0.08) / 0.6));
       } else if (cy < 0.07) {
         c.set('#e6cd93');
-      } else if (e > 0.8) {
+      } else if (e > 0.8 || inSandPatch(cx, cz)) {
         c.copy(sandA).lerp(sandB, j);
       } else {
         c.copy(grassA).lerp(grassB, j);

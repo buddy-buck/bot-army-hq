@@ -21,7 +21,7 @@ import { aimCrew, bump, ease, lerp, standCrew } from './rig.js';
 // registered in world.glow so the water can glow around it.
 
 // On the south edge, between the dock office (west) and the ramp (east).
-export const FISH_SPOT = { x: -18.9, z: DOCK.z1 - 0.2, y: DOCK.y, faceY: 0.42 };
+export const FISH_SPOT = { x: DOCK.x0 + 1.3, z: DOCK.z1 - 0.2, y: DOCK.y, faceY: 0.42 }; // out near the end of the pier, over deep water
 const OUT = 2.7; // bobber distance from the bot
 const ANCHOR = { x: FISH_SPOT.x + Math.sin(FISH_SPOT.faceY) * OUT, z: FISH_SPOT.z + Math.cos(FISH_SPOT.faceY) * OUT };
 const SIDE = { x: Math.cos(FISH_SPOT.faceY), z: -Math.sin(FISH_SPOT.faceY) }; // the bot's local +x, in world
