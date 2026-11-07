@@ -60,3 +60,51 @@ export function writeStore(kind, key, value) {
     // blocked: nothing to do
   }
 }
+
+// ---------------------------------------------------------------------------
+// Bot Island HQ upgrade: more shared slots and test switches.
+//
+// Slots: one thing at a time per slot, same rules as the travel slot above.
+//   'travel' : aircraft and fast runs (seaplane, drone, jet ski, helicopter,
+//              the airstrip plane). Use claimTravel/releaseTravel.
+//   'sky'    : big sky shows (fireworks, UFO, northern lights, shooting star
+//              showers) so two never overlap.
+//   'rare'   : rare easter eggs (whale breach, UFO) so rarities stay rare.
+//   'antic'  : bot antics that grab attention (a trip-and-help, a selfie)
+const slots = new Map();
+export function claimSlot(slot, owner, seconds) {
+  const t = now();
+  const s = slots.get(slot);
+  if (s && s.owner !== owner && t < s.until) return false;
+  slots.set(slot, { owner, until: t + seconds });
+  return true;
+}
+export function releaseSlot(slot, owner) {
+  const s = slots.get(slot);
+  if (s && s.owner === owner) slots.delete(slot);
+}
+export const slotBusy = (slot) => {
+  const s = slots.get(slot);
+  return !!s && now() < s.until;
+};
+
+// ?test=whale,ufo,aurora (or ?test=all) makes those extras show up right
+// away and often, so they can be checked. Off unless asked for.
+const testSet = new Set((params.get('test') || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
+export const testOn = (name) => testSet.has(name) || testSet.has('all');
+
+// Seconds of frames actually drawn, so timed extras never play unseen in a
+// hidden tab. Make one per component: const clock = aliveClock();
+// then in useFrame: const t = clock.tick(delta).
+export function aliveClock() {
+  let t = 0;
+  return {
+    tick(delta) {
+      t += Math.min(delta, 0.1);
+      return t;
+    },
+    get t() {
+      return t;
+    },
+  };
+}

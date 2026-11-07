@@ -17,7 +17,7 @@ import UI, { IslandNote, LoadingNotice, RecentHandoffs, Toast } from './componen
 import { botFx, fxNow, LabelDirector, labelState } from './components/labels.js';
 import useData, { HAS_LIVE, headlineMinutes, initialMode, saveMode } from './hooks/useData.js';
 import useSunPosition from './hooks/useSunPosition.js';
-import { DECKS, DOCK, ISLAND, LANAI, ZONES, botHash, groundY, islandWobble, layoutBots, nearestZone } from './utils/paths.js';
+import { DECKS, DOCK, ISLAND, LANAI, SITES, ZONES, botHash, groundY, islandWobble, layoutBots, nearestZone } from './utils/paths.js';
 import { formatNumber } from './utils/ticker.js';
 import { applySafeMode, isSafeMode } from './utils/safe.js';
 import ClaudeCommute, { claudeZoneFor, visitSlot } from './wild/ClaudeCommute.jsx';
@@ -27,6 +27,7 @@ import Surfer from './wild/Surfer.jsx';
 import Campfire, { campfireLayout } from './wild/Campfire.jsx';
 import { Bottle, CHIEF_WELCOME, DockOffice, PhotoBooth, TreasureChest } from './wild/Easter.jsx';
 import { TEST, isIslandNight } from './wild/director.js';
+import { requestFireworks } from './world/state.js';
 
 // ---------------------------------------------------------------------------
 // Small hooks
@@ -58,6 +59,12 @@ function useTabHidden() {
 
 // Sea life is decoration, so it loads after the island in its own small chunk.
 const SeaLife = lazy(() => import('./components/SeaLife.jsx'));
+// The Bot Island HQ extras load the same way, each in its own chunk.
+const Landmarks = lazy(() => import('./world/Landmarks.jsx'));
+const IslandLife = lazy(() => import('./world/IslandLife.jsx'));
+const Boats = lazy(() => import('./world/Boats.jsx'));
+const SkyShow = lazy(() => import('./world/SkyShow.jsx'));
+const Antics = lazy(() => import('./world/Antics.jsx'));
 
 // Device hints for battery and GPU budget.
 const IS_TOUCH = typeof navigator !== 'undefined' && (navigator.maxTouchPoints > 1 || /iPad|iPhone|Android/.test(navigator.userAgent));
@@ -162,6 +169,19 @@ function FrameThrottle({ fps }) {
   return null;
 }
 
+// Lazy extras arrive after the first frame. With on-demand rendering
+// (reduced motion, idle) nothing would draw them until the next input, so ask
+// for a couple of fresh frames when they mount.
+function RenderOnMount() {
+  const invalidate = useThree((st) => st.invalidate);
+  useEffect(() => {
+    invalidate();
+    const id = setTimeout(() => invalidate(), 120);
+    return () => clearTimeout(id);
+  }, [invalidate]);
+  return null;
+}
+
 // "+18 min" chips that float up from the bot that earned the minutes.
 function MinuteFloats({ floats }) {
   return floats.map((f) => (
@@ -260,6 +280,7 @@ const FIT_POINTS = (() => {
   pts.push(new THREE.Vector3(LANAI.x1, 3.0, LANAI.z1 - 0.8)); // lanai umbrella
   pts.push(new THREE.Vector3(DOCK.x0, 1.4, DOCK.z1)); // end of the pier
   pts.push(new THREE.Vector3(0, 8.6, 0)); // tower flag
+  pts.push(new THREE.Vector3(SITES.lighthouse.x, SITES.lighthouse.height + 1.2, SITES.lighthouse.z)); // lighthouse vane
   return pts;
 })();
 
@@ -422,9 +443,10 @@ function CameraRig({ fly, reduced, holdRotate, insets, controlsRef, layout, kios
         target = new THREE.Vector3(p.x, p.y + 0.9, p.z);
         dist = reduced ? 11 : 8.5;
       } else {
-        const z = ZONES[fly.zone];
+        // Zones, or a landmark's tag (lighthouse, visitor center, airstrip).
+        const z = ZONES[fly.zone] || SITES[fly.zone];
         if (!z) return;
-        target = new THREE.Vector3(z.x, z.focusY ?? groundY(z.x, z.z) + 0.6, z.z);
+        target = new THREE.Vector3(z.x, z.focusY ?? groundY(z.x, z.z) + (ZONES[fly.zone] ? 0.6 : 1.5), z.z);
         dist = reduced ? 14 : 13;
       }
       pol = reduced ? polar : 0.95;
@@ -432,7 +454,7 @@ function CameraRig({ fly, reduced, holdRotate, insets, controlsRef, layout, kios
       s.offsetTarget = (table.want * size.height) / 2;
     }
     // Zones: look in from the seaward side, so the tower never blocks the view.
-    const zone = !fly.bot && ZONES[fly.zone];
+    const zone = !fly.bot && (ZONES[fly.zone] || SITES[fly.zone]);
     const outward = zone && Math.hypot(zone.x, zone.z) > 3 ? Math.atan2(zone.x, zone.z) : current.theta;
     const endPos = target.clone().add(new THREE.Vector3().setFromSphericalCoords(dist, pol, reduced ? theta0 : outward));
     s.anim = { start: performance.now(), fromPos: camera.position.clone(), fromTarget: c.target.clone(), toPos: endPos, toTarget: target, fromOffset: s.offsetY };
@@ -736,6 +758,7 @@ export default function App() {
     const k = Math.floor(displayTotal / 1000) * 1000;
     setToast({ id: Date.now(), text: `Buck yeah! ${formatNumber(k)} minutes saved` });
     requestWeather('double');
+    if (!reduced) requestFireworks();
     if (!reduced) {
       const p = labelState.towerScreen || { x: window.innerWidth / 2, y: window.innerHeight * 0.4 };
       setBurst({ id: Date.now(), x: p.x, y: p.y });
@@ -762,7 +785,12 @@ export default function App() {
 
   // Easter eggs.
   const openBottle = useCallback(() => setNote({ id: Date.now(), title: CHIEF_WELCOME.title, body: CHIEF_WELCOME.body, from: CHIEF_WELCOME.from }), []);
-  const openChest = useCallback((line) => setNote({ id: Date.now(), title: "Nasty's treasure", body: [line], from: 'Nasty' }), []);
+  // Notes can be a plain line or { title, body: [lines], from }.
+  const openChest = useCallback(
+    (n) => setNote(typeof n === 'string' ? { id: Date.now(), title: "Nasty's treasure", body: [n], from: 'Nasty' } : { id: Date.now(), title: n.title, body: n.body, from: n.from }),
+    []
+  );
+  const showToast = useCallback((text) => setToast({ id: Date.now(), text }), []);
   const closeNote = useCallback(() => setNote(null), []);
   const openOffice = useCallback(() => setScoreOpen(true), []);
 
@@ -824,6 +852,12 @@ export default function App() {
 
   const throttled = idle && !reduced && !hidden;
 
+  // Everything the Bot Island HQ extras need to know about the scene.
+  const worldCtx = useMemo(
+    () => ({ sky, animate: !reduced, reduced, lowPower: LOW_POWER, bots, sceneBots, layout, bedtime, onNote: openChest, onToast: showToast }),
+    [sky, reduced, bots, sceneBots, layout, bedtime, openChest, showToast]
+  );
+
   return (
     <div className={`app phase-${sky.phase}${reduced ? ' is-reduced' : ''}${kiosk ? ' is-kiosk' : ''}${photo === 'shoot' ? ' is-photo' : ''}`} style={{ '--hud-top': `${Math.round(insets.top)}px` }}>
       <div className="scene">
@@ -842,6 +876,20 @@ export default function App() {
             {!reduced && (
               <Suspense fallback={null}>
                 <SeaLife sky={sky} lowPower={LOW_POWER} />
+                <RenderOnMount />
+              </Suspense>
+            )}
+            <Suspense fallback={null}>
+              <Landmarks ctx={worldCtx} />
+              <IslandLife ctx={worldCtx} />
+              <RenderOnMount />
+            </Suspense>
+            {!reduced && (
+              <Suspense fallback={null}>
+                <Boats ctx={worldCtx} />
+                <SkyShow ctx={worldCtx} />
+                <Antics ctx={worldCtx} />
+                <RenderOnMount />
               </Suspense>
             )}
             {sceneBots.map((b) =>
@@ -865,7 +913,7 @@ export default function App() {
             {bedtime && <Campfire layout={layout} bots={sceneBots} animate={!reduced} />}
             <Weather weather={weather} />
             {!reduced && <Flyover />}
-            {!reduced && <Surfer color={bots.find((b) => b.id === 'echo')?.color} />}
+            {!reduced && <Surfer color={bots.find((b) => b.id === 'echo')?.color} sky={sky} />}
             <Bottle onOpen={openBottle} animate={!reduced} />
             <TreasureChest onOpen={openChest} animate={!reduced} />
             <DockOffice onOpen={openOffice} night={sky.stars} animate={!reduced} />

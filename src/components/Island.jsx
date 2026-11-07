@@ -3,12 +3,12 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import {
-  BUNGALOW_ROT,
   CABANA_DESK_Z,
   CABANA_STATIONS,
   DECKS,
   DOCK,
   PATIO_LOUNGERS,
+  SITES,
   TOWER_SEATS,
   FLOWERS,
   HUB_RADIUS,
@@ -26,251 +26,36 @@ import {
   zonePathCurve,
 } from '../utils/paths.js';
 import { labelState } from './labels.js';
+import Water from '../world/Water.jsx';
+import FloVilla, { FLO_TAG_Y } from '../world/landmarks/FloVilla.jsx';
+import {
+  BambooPost,
+  Beam,
+  Box,
+  Cone,
+  Cyl,
+  Flag,
+  Fringe,
+  Lantern,
+  M,
+  StringLights,
+  Torch,
+  TowerChair,
+  brandTexture,
+  hash2,
+  std,
+  useGlowMaterial,
+  HELIPAD,
+  helipadState,
+} from '../world/landmarks/kit.jsx';
+
+// The building kit lives in world/landmarks/kit.jsx; older imports read the
+// brand screens from here.
+export { brandTexture };
 
 // ---------------------------------------------------------------------------
-// Shared materials and geometry
+// Lanai laptops
 // ---------------------------------------------------------------------------
-
-const std = (color, extra = {}) => new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: 0.85, ...extra });
-
-const M = {
-  wood: std('#a8774a'),
-  darkWood: std('#7a5232'),
-  plank: std('#c08a57'),
-  thatch: std('#dcb468'),
-  thatchDark: std('#b98a45'),
-  // See-through thatch for the open-air cabana, so the bots inside show.
-  thatchSee: std('#e2bd72', { transparent: true, opacity: 0.4, depthWrite: false, side: THREE.DoubleSide }),
-  fringe: std('#c99a52', { side: THREE.DoubleSide }),
-  thatchSeeTower: std('#dcb468', { transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide }),
-  white: std('#fdf8ee'),
-  bamboo: std('#d4b872'),
-  bambooNode: std('#9c8240'),
-  bambooGreen: std('#b9b465'),
-  wire: std('#2e2a26'),
-  mat: std('#e8d39c'),
-  matStripe: std('#c79a5a'),
-  stone: std('#9aa3a8'),
-  dark: std('#3b3430'),
-  lisnGreen: std('#2E5248'),
-  lisnOrange: std('#F09024'),
-  bbBlue: std('#19469D'),
-  bbYellow: std('#FFDE69'),
-  chief: std('#D63AF9'),
-  nasty: std('#FF4500'),
-  launch: std('#2BA84A'),
-  research: std('#2BA84A'),
-  claude: std('#D97757'),
-  claudeSoft: std('#f2c4ae'),
-  cash: std('#5fae6e'),
-  cashBand: std('#ffffff'),
-  shell: std('#ffd6e4'),
-  football: std('#8a4b26'),
-  coconut: std('#6b4a2a'),
-  brass: std('#c9a24a', { roughness: 0.35, metalness: 0.5 }),
-  porthole: std('#2c4a6e', { roughness: 0.3 }),
-  glass: std('#bfe8ff', { transparent: true, opacity: 0.55, roughness: 0.2 }),
-  rope: std('#d9c79a'),
-  floCushion: std('#8fd3c1'),
-  screenDTV: new THREE.MeshStandardMaterial({ color: '#FF04A0', emissive: '#FF04A0', emissiveIntensity: 0.7, flatShading: true }),
-  screen: new THREE.MeshStandardMaterial({ color: '#bfe8ff', emissive: '#7cc8ff', emissiveIntensity: 0.5, flatShading: true }),
-};
-
-const PYRAMID = new THREE.ConeGeometry(1, 1, 4).rotateY(Math.PI / 4); // square base, half-extent 0.707
-const PYR_K = 1 / Math.SQRT1_2;
-
-function Box({ p, s, m, r }) {
-  return (
-    <mesh position={p} rotation={r} material={m}>
-      <boxGeometry args={s} />
-    </mesh>
-  );
-}
-
-function Cyl({ p, rt = 0.06, rb, h, m, seg = 6, r }) {
-  return (
-    <mesh position={p} rotation={r} material={m}>
-      <cylinderGeometry args={[rt, rb ?? rt, h, seg]} />
-    </mesh>
-  );
-}
-
-function Cone({ p, rad, h, m, seg = 8, r }) {
-  return (
-    <mesh position={p} rotation={r} material={m}>
-      <coneGeometry args={[rad, h, seg]} />
-    </mesh>
-  );
-}
-
-// Square-based roof: halfX, halfZ are the half-widths of the base.
-function Roof({ p, halfX, halfZ, h, m }) {
-  return <mesh position={p} geometry={PYRAMID} material={m} scale={[halfX * PYR_K, h, halfZ * PYR_K]} />;
-}
-
-function useGlowMaterial(color, night, base = 0.1, boost = 1.3) {
-  const mat = useMemo(() => new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: base, flatShading: true }), [color, base]);
-  useEffect(() => {
-    mat.emissiveIntensity = base + night * boost;
-  }, [mat, night, base, boost]);
-  return mat;
-}
-
-
-// A beam between two points (rafters, bamboo braces).
-const UP = new THREE.Vector3(0, 1, 0);
-function Beam({ a, b, r = 0.04, m, seg = 5 }) {
-  const { pos, quat, len } = useMemo(() => {
-    const va = new THREE.Vector3(...a);
-    const vb = new THREE.Vector3(...b);
-    const dir = vb.clone().sub(va);
-    return {
-      pos: va.clone().add(vb).multiplyScalar(0.5).toArray(),
-      quat: new THREE.Quaternion().setFromUnitVectors(UP, dir.clone().normalize()),
-      len: dir.length(),
-    };
-  }, [a, b]);
-  return (
-    <mesh position={pos} quaternion={quat} material={m}>
-      <cylinderGeometry args={[r, r, len, seg]} />
-    </mesh>
-  );
-}
-
-// Bamboo pole: light cane with darker node rings.
-function BambooPost({ p, h, r = 0.08, m = M.bamboo }) {
-  const nodes = Math.max(2, Math.round(h / 0.55));
-  return (
-    <group position={p}>
-      <Cyl p={[0, h / 2, 0]} rt={r * 0.92} rb={r} h={h} m={m} seg={7} />
-      {Array.from({ length: nodes }, (_, i) => (
-        <Cyl key={i} p={[0, ((i + 0.6) / (nodes + 0.2)) * h, 0]} rt={r * 1.12} h={0.04} m={M.bambooNode} seg={7} />
-      ))}
-    </group>
-  );
-}
-
-// Ragged thatch skirt hanging under a rectangular (or round) eave.
-function makeFringe(halfX, halfZ, drop, round = false) {
-  const pos = [];
-  const pts = [];
-  if (round) {
-    const n = 40;
-    for (let i = 0; i <= n; i++) {
-      const a = (i / n) * Math.PI * 2;
-      pts.push([Math.cos(a) * halfX, Math.sin(a) * halfZ]);
-    }
-  } else {
-    const c = [[-halfX, -halfZ], [halfX, -halfZ], [halfX, halfZ], [-halfX, halfZ], [-halfX, -halfZ]];
-    for (let k = 0; k < 4; k++) {
-      const [x0, z0] = c[k];
-      const [x1, z1] = c[k + 1];
-      const n = Math.max(4, Math.round(Math.hypot(x1 - x0, z1 - z0) / 0.16));
-      for (let i = 0; i < n; i++) pts.push([x0 + ((x1 - x0) * i) / n, z0 + ((z1 - z0) * i) / n]);
-    }
-    pts.push(c[4]);
-  }
-  for (let i = 0; i < pts.length - 1; i++) {
-    const [ax, az] = pts[i];
-    const [bx, bz] = pts[i + 1];
-    const mx = (ax + bx) / 2;
-    const mz = (az + bz) / 2;
-    const d = drop * (0.7 + 0.6 * hash2(mx * 3.1, mz * 2.7));
-    pos.push(ax, 0, az, bx, 0, bz, mx, -d, mz);
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.computeVertexNormals();
-  return g;
-}
-
-function Fringe({ p, halfX, halfZ, drop = 0.28, round = false, m = M.fringe }) {
-  const geo = useMemo(() => makeFringe(halfX, halfZ, drop, round), [halfX, halfZ, drop, round]);
-  useEffect(() => () => geo.dispose(), [geo]);
-  return <mesh position={p} geometry={geo} material={m} />;
-}
-
-// Festoon string lights: bulbs hung along a sagging wire. They glow warmly
-// at night and are just colored glass beads by day.
-const BULB_COLORS = ['#ffd27a', '#ff8fb8', '#7fe3d8', '#ffb35c'];
-const BULB_GEO = new THREE.IcosahedronGeometry(0.055, 0);
-function StringLights({ points, sag = 0.3, per = 7, night }) {
-  const mats = [
-    useGlowMaterial(BULB_COLORS[0], night, 0.25, 1.8),
-    useGlowMaterial(BULB_COLORS[1], night, 0.25, 1.8),
-    useGlowMaterial(BULB_COLORS[2], night, 0.25, 1.8),
-    useGlowMaterial(BULB_COLORS[3], night, 0.25, 1.8),
-  ];
-  const { bulbs, wire } = useMemo(() => {
-    const bulbs = [];
-    const wirePts = [];
-    for (let s = 0; s < points.length - 1; s++) {
-      const a = new THREE.Vector3(...points[s]);
-      const b = new THREE.Vector3(...points[s + 1]);
-      const at = (t) => a.clone().lerp(b, t).add(new THREE.Vector3(0, -sag * 4 * t * (1 - t), 0));
-      for (let i = 0; i <= 12; i++) if (s === 0 || i > 0) wirePts.push(at(i / 12));
-      for (let i = 1; i <= per; i++) bulbs.push(at(i / (per + 1)).add(new THREE.Vector3(0, -0.05, 0)).toArray());
-    }
-    const curve = new THREE.CatmullRomCurve3(wirePts);
-    return { bulbs, wire: new THREE.TubeGeometry(curve, wirePts.length * 2, 0.012, 3, false) };
-  }, [points, sag, per]);
-  useEffect(() => () => wire.dispose(), [wire]);
-  return (
-    <group>
-      <mesh geometry={wire} material={M.wire} />
-      {bulbs.map((b, i) => (
-        <mesh key={i} position={b} geometry={BULB_GEO} material={mats[i % mats.length]} />
-      ))}
-    </group>
-  );
-}
-
-// Brand screens for the lanai laptops: Buddy Buck RE, Duvall TV, and
-// Living In SnoValley. Drawn once to small canvases.
-export function brandTexture(kind) {
-  const c = document.createElement('canvas');
-  c.width = 128;
-  c.height = 84;
-  const x = c.getContext('2d');
-  let text = 'BB';
-  let fg = '#FFDE69';
-  if (kind === 'bb') {
-    x.fillStyle = '#19469D';
-    x.fillRect(0, 0, 128, 84);
-    x.fillStyle = '#FFDE69';
-    x.fillRect(0, 70, 128, 6);
-  } else if (kind === 'dtv') {
-    x.fillStyle = '#FF04A0';
-    x.fillRect(0, 0, 128, 84);
-    text = 'DTV';
-    fg = '#ffffff';
-  } else {
-    const gr = x.createLinearGradient(0, 0, 0, 84);
-    gr.addColorStop(0, '#f3b624');
-    gr.addColorStop(0.5, '#f09024');
-    gr.addColorStop(1, '#d74525');
-    x.fillStyle = gr;
-    x.fillRect(0, 0, 128, 84);
-    // a little setting sun
-    x.fillStyle = 'rgba(255,255,255,0.35)';
-    x.beginPath();
-    x.arc(64, 84, 30, Math.PI, 0);
-    x.fill();
-    text = 'LIS';
-    fg = '#ffffff';
-  }
-  x.fillStyle = fg;
-  x.font = `900 ${text.length > 2 ? 40 : 50}px "Arial Black", Arial, sans-serif`;
-  x.textAlign = 'center';
-  x.textBaseline = 'middle';
-  x.shadowColor = 'rgba(0,0,0,0.3)';
-  x.shadowBlur = 4;
-  x.fillText(text, 64, 40);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 4;
-  return t;
-}
 
 const BRANDS = ['bb', 'dtv', 'lis'];
 const SCREEN_GEO = new THREE.PlaneGeometry(0.38, 0.25);
@@ -316,14 +101,9 @@ function BrandLaptop({ p, index, mats, animate }) {
 // Ground, water, foam, paths
 // ---------------------------------------------------------------------------
 
-function hash2(x, z) {
-  const s = Math.sin(x * 127.1 + z * 311.7) * 43758.5453;
-  return s - Math.floor(s);
-}
-
 function Terrain({ onTap }) {
   const geometry = useMemo(() => {
-    const g = new THREE.PlaneGeometry(48, 36, 96, 72);
+    const g = new THREE.PlaneGeometry(56, 46, 112, 92);
     g.rotateX(-Math.PI / 2);
     const pos = g.attributes.position;
     for (let i = 0; i < pos.count; i++) pos.setY(i, terrainY(pos.getX(i), pos.getZ(i)));
@@ -363,138 +143,6 @@ function Terrain({ onTap }) {
   return (
     <mesh geometry={geometry} onClick={onTap}>
       <meshStandardMaterial vertexColors flatShading roughness={0.95} />
-    </mesh>
-  );
-}
-
-// Waves run on the GPU: the vertex shader lifts each vertex, and flat
-// shading picks up the new slopes for free. At night a faint bioluminescent
-// shimmer glints in the shallows (skipped on low-power devices).
-const WAVE_GLSL = /* glsl */ `
-  uniform float uTime;
-  varying vec2 vXZ;
-  float waveY(vec2 p, float t) {
-    return 0.07 * sin(p.x * 0.35 + t * 0.8) + 0.05 * cos(p.y * 0.42 + t * 0.63) + 0.03 * sin((p.x + p.y) * 0.9 + t * 1.4);
-  }
-`;
-
-function Water({ tint, animate, onTap, glow = 0 }) {
-  const ref = useRef();
-  const geometry = useMemo(() => {
-    const g = new THREE.PlaneGeometry(170, 170, 84, 84);
-    g.rotateX(-Math.PI / 2);
-    const pos = g.attributes.position;
-    const colors = new Float32Array(pos.count * 3);
-    const shallow = new THREE.Color('#72e6da');
-    const mid = new THREE.Color('#2bb9cb');
-    const deep = new THREE.Color('#1784b3');
-    const c = new THREE.Color();
-    for (let i = 0; i < pos.count; i++) {
-      const e = islandE(pos.getX(i), pos.getZ(i));
-      if (e < 2.0) c.copy(shallow).lerp(mid, Math.max(0, (e - 1.1) / 0.9));
-      else c.copy(mid).lerp(deep, Math.min(1, (e - 2.0) / 4));
-      c.toArray(colors, i * 3);
-    }
-    g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    return g;
-  }, []);
-
-  const uniforms = useMemo(() => ({ uTime: { value: 0 }, uGlow: { value: 0 } }), []);
-  const material = useMemo(() => {
-    const m = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, transparent: true, opacity: 0.82, roughness: 0.3, metalness: 0.05 });
-    m.onBeforeCompile = (shader) => {
-      shader.uniforms.uTime = uniforms.uTime;
-      shader.uniforms.uGlow = uniforms.uGlow;
-      shader.vertexShader = shader.vertexShader
-        .replace('#include <common>', `#include <common>\n${WAVE_GLSL}`)
-        .replace('#include <begin_vertex>', `#include <begin_vertex>\n  vXZ = position.xz;\n  transformed.y += waveY(position.xz, uTime);`);
-      shader.fragmentShader = shader.fragmentShader
-        .replace('#include <common>', `#include <common>\nuniform float uTime;\nuniform float uGlow;\nvarying vec2 vXZ;`)
-        .replace(
-          '#include <emissivemap_fragment>',
-          `#include <emissivemap_fragment>
-  if (uGlow > 0.0) {
-    float d = length(vXZ / vec2(${ISLAND.rx.toFixed(1)}, ${ISLAND.rz.toFixed(1)}));
-    float band = smoothstep(0.95, 1.08, d) * (1.0 - smoothstep(1.2, 1.55, d));
-    float s = sin(vXZ.x * 4.1 + uTime * 0.9) * sin(vXZ.y * 3.7 - uTime * 0.7) * sin((vXZ.x - vXZ.y) * 2.3 + uTime * 0.5);
-    totalEmissiveRadiance += vec3(0.2, 0.85, 1.0) * pow(max(s, 0.0), 12.0) * band * uGlow * 0.9;
-  }`
-        );
-    };
-    m.customProgramCacheKey = () => 'island-water-v1';
-    return m;
-  }, [uniforms]);
-
-  useEffect(() => {
-    material.color.set(tint);
-  }, [material, tint]);
-  useEffect(() => {
-    uniforms.uGlow.value = glow;
-  }, [uniforms, glow]);
-  useEffect(() => () => material.dispose(), [material]);
-
-  useFrame((state) => {
-    if (animate) uniforms.uTime.value = state.clock.elapsedTime;
-  });
-
-  return (
-    <group>
-      <mesh ref={ref} geometry={geometry} material={material} onClick={onTap} renderOrder={1} />
-      {/* Far ocean, static, fades into the horizon fog. Sits well below the
-          wave troughs (lowest about -0.15) so it never pokes through. */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.4, 0]}>
-        <circleGeometry args={[420, 48]} />
-        <meshStandardMaterial color="#2a86c8" roughness={0.4} />
-      </mesh>
-      {/* Lagoon floor beyond the terrain mesh */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.9, 0]}>
-        <circleGeometry args={[84, 48]} />
-        <meshStandardMaterial color="#3d9fae" roughness={1} />
-      </mesh>
-    </group>
-  );
-}
-
-function Foam({ animate }) {
-  const ref = useRef();
-  const geometry = useMemo(() => {
-    const n = 160;
-    const inner = 0.93;
-    const outer = 1.07;
-    const pos = [];
-    const idx = [];
-    for (let i = 0; i <= n; i++) {
-      const a = (i / n) * Math.PI * 2;
-      const dx = ISLAND.rx * Math.cos(a);
-      const dz = ISLAND.rz * Math.sin(a);
-      const w = islandWobble(dx, dz);
-      for (const e of [inner, outer]) {
-        const s = Math.sqrt(e) * w;
-        const x = dx * s;
-        const z = dz * s;
-        pos.push(x, Math.max(terrainY(x, z), 0) + 0.05, z);
-      }
-      if (i < n) {
-        const k = i * 2;
-        idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2);
-      }
-    }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    g.setIndex(idx);
-    g.computeVertexNormals();
-    return g;
-  }, []);
-  useFrame((state) => {
-    if (!ref.current || !animate) return;
-    const t = state.clock.elapsedTime;
-    ref.current.material.opacity = 0.42 + 0.18 * Math.sin(t * 0.9);
-    const s = 1 + 0.006 * Math.sin(t * 0.9);
-    ref.current.scale.set(s, 1, s);
-  });
-  return (
-    <mesh ref={ref} geometry={geometry} renderOrder={2}>
-      <meshBasicMaterial color="#ffffff" transparent opacity={0.5} depthWrite={false} side={THREE.DoubleSide} />
     </mesh>
   );
 }
@@ -742,60 +390,127 @@ function Rocks() {
 // Buildings
 // ---------------------------------------------------------------------------
 
-function Flag({ p, color, animate, w = 0.6, h = 0.36 }) {
-  const ref = useRef();
+
+
+// Helipad on top of Chief's Tower: the thatch is cut flat and a round pad
+// sits on steel struts above it. Green edge lights glow at night, a windsock
+// shows the breeze, and the helicopter's downwash ripples the thatch.
+// Looking straight down (the reduced-motion view), the pad fades so Chief
+// and Claude's chairs still show through it.
+const PAD_THATCH_TOP = 1.15; // half-width of the thatch's flat top
+const PAD_THATCH_RISE = 0.62;
+const PAD_T = 0.14;
+const THATCH_FRUSTUM = new THREE.CylinderGeometry(PAD_THATCH_TOP * Math.SQRT2, 2.2 * Math.SQRT2, PAD_THATCH_RISE, 4, 1, true).rotateY(Math.PI / 4);
+const PAD_GEO = new THREE.CylinderGeometry(HELIPAD.r, HELIPAD.r * 0.97, PAD_T, 28);
+const PAD_RING = new THREE.RingGeometry(1.0, 1.08, 40).rotateX(-Math.PI / 2);
+const PAD_EDGE = new THREE.RingGeometry(1.3, 1.4, 40).rotateX(-Math.PI / 2);
+const PAD_NET = new THREE.RingGeometry(HELIPAD.r, HELIPAD.r + 0.3, 28, 2).rotateX(-Math.PI / 2);
+const PAD_HALO = new THREE.RingGeometry(1.2, 1.75, 40).rotateX(-Math.PI / 2);
+const RIPPLE_GEO = new THREE.RingGeometry(0.93, 1.0, 36).rotateX(-Math.PI / 2);
+const PAD_LIGHT_GEO = new THREE.IcosahedronGeometry(0.045, 0);
+const PAD_LIGHTS = Array.from({ length: 14 }, (_, i) => {
+  const a = (i / 14) * Math.PI * 2;
+  return [Math.cos(a) * (HELIPAD.r - 0.05), Math.sin(a) * (HELIPAD.r - 0.05)];
+});
+const PAD_M = {
+  deck: std('#5d636b', { transparent: true }),
+  white: std('#f4f1ea', { transparent: true, side: THREE.DoubleSide }),
+  yellow: std('#ffd23a', { transparent: true, side: THREE.DoubleSide }),
+  steel: std('#7d858e', { roughness: 0.5, metalness: 0.3 }),
+  net: std('#d9c79a', { wireframe: true }),
+  sock: std('#ff7a1a', { side: THREE.DoubleSide }),
+  halo: new THREE.MeshBasicMaterial({ color: '#5dff8f', transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, side: THREE.DoubleSide }),
+};
+const RIPPLE_MATS = [0, 1].map(() => new THREE.MeshBasicMaterial({ color: '#fff3c9', transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
+const FADE_MATS = [PAD_M.deck, PAD_M.white, PAD_M.yellow];
+
+function Helipad({ canopyY, night, animate }) {
+  const padY = HELIPAD.y;
+  const top = canopyY + PAD_THATCH_RISE;
+  const lightMat = useGlowMaterial('#5dff8f', night, 0.3, 2.0);
+  const thatch = useRef();
+  const sock = useRef();
+  const ripples = [useRef(), useRef()];
+  const fx = useMemo(() => ({ fade: 0 }), []);
   useFrame((state) => {
-    if (animate && ref.current) ref.current.rotation.y = Math.sin(state.clock.elapsedTime * 2.2) * 0.25;
+    const t = animate ? state.clock.elapsedTime : 0;
+    const wash = helipadState.wash || 0;
+    // Steep top-down view: fade the pad so the chairs show.
+    const cam = state.camera.position;
+    const dist = Math.hypot(cam.x, cam.y - padY, cam.z) || 1;
+    const steep = Math.min(1, Math.max(0, ((cam.y - padY) / dist - 0.78) / 0.14));
+    if (Math.abs(steep - fx.fade) > 0.01) {
+      fx.fade = steep;
+      for (const m of FADE_MATS) m.opacity = 1 - steep * 0.7;
+    }
+    if (thatch.current) {
+      const k = 1 + wash * 0.025 * Math.sin(t * 31);
+      thatch.current.scale.set(k, 1 - wash * 0.03, k);
+    }
+    ripples.forEach((r, i) => {
+      if (!r.current) return;
+      const ph = (t * 0.9 + i * 0.5) % 1;
+      const rad = PAD_THATCH_TOP * 1.2 + ph * 1.2;
+      r.current.visible = wash > 0.02;
+      r.current.scale.setScalar(rad);
+      r.current.position.y = top + 0.03 - (rad - PAD_THATCH_TOP) * (PAD_THATCH_RISE / (2.2 - PAD_THATCH_TOP));
+      r.current.material.opacity = wash * 0.45 * (1 - ph);
+    });
+    if (sock.current) {
+      // Gentle breeze; the rotor wash makes it flap hard.
+      sock.current.rotation.y = 0.6 + Math.sin(t * 0.13) * 0.5 + wash * Math.sin(t * 17) * 0.5;
+      sock.current.rotation.z = -0.25 + Math.sin(t * 1.3) * 0.08 - wash * 0.2;
+    }
   });
+  useEffect(() => {
+    PAD_M.halo.opacity = 0.22 * night;
+  }, [night]);
   return (
-    <group position={p}>
-      <Cyl p={[0, 0.45, 0]} rt={0.025} h={0.9} m={M.darkWood} />
-      <group ref={ref} position={[0, 0.72, 0]}>
-        <mesh position={[w / 2, 0, 0]}>
-          <boxGeometry args={[w, h, 0.02]} />
-          <meshStandardMaterial color={color} flatShading side={THREE.DoubleSide} />
-        </mesh>
-      </group>
-    </group>
-  );
-}
-
-function Lantern({ p, night, color = '#ffcf6b' }) {
-  const mat = useGlowMaterial(color, night, 0.15, 1.6);
-  return (
-    <group position={p}>
-      <mesh material={mat}>
-        <icosahedronGeometry args={[0.1, 0]} />
+    <group>
+      {/* thatch skirt, cut flat on top */}
+      <mesh ref={thatch} geometry={THATCH_FRUSTUM} material={M.thatchSeeTower} position={[0, canopyY + PAD_THATCH_RISE / 2, 0]} renderOrder={2} />
+      {/* struts from the corner posts and from the thatch top up to the pad */}
+      {[[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([x, z], i) => (
+        <group key={i}>
+          <Beam a={[x * 1.5, canopyY, z * 1.5]} b={[x * 0.92, padY - PAD_T, z * 0.92]} r={0.045} m={PAD_M.steel} />
+          <Beam a={[x * PAD_THATCH_TOP * 0.95, top - 0.05, z * PAD_THATCH_TOP * 0.95]} b={[x * 0.85, padY - PAD_T, z * 0.85]} r={0.035} m={PAD_M.steel} />
+        </group>
+      ))}
+      <mesh position={[0, padY - PAD_T - 0.02, 0]} rotation={[Math.PI / 2, 0, 0]} material={PAD_M.steel}>
+        <torusGeometry args={[1.22, 0.04, 4, 24]} />
       </mesh>
-      {night > 0.3 && (
-        <mesh>
-          <sphereGeometry args={[0.3, 10, 8]} />
-          <meshBasicMaterial color={color} transparent opacity={0.22 * night} depthWrite={false} blending={THREE.AdditiveBlending} />
-        </mesh>
-      )}
-    </group>
-  );
-}
-
-// Chief's Tower: the command center at the island's highest point. Open
-// air on every side: bamboo legs, a wide deck, a low rail, and a thatched
-// canopy up on tall posts. Two chairs (Chief and Claude), a little table
-// with snacks, and a brass telescope pointed out to sea.
-function TowerChair({ seat, top, cushion }) {
-  return (
-    <group position={[seat.x, top, seat.z]} rotation={[0, seat.rotY, 0]}>
-      {[[-0.24, -0.2], [0.24, -0.2], [-0.24, 0.2], [0.24, 0.2]].map(([x, z], i) => (
-        <Cyl key={i} p={[x, 0.15, z]} rt={0.03} h={0.3} m={M.bamboo} />
+      {/* the pad, with its markings */}
+      <mesh geometry={PAD_GEO} material={PAD_M.deck} position={[0, padY - PAD_T / 2, 0]} />
+      <mesh geometry={PAD_EDGE} material={PAD_M.white} position={[0, padY + 0.004, 0]} />
+      <mesh geometry={PAD_RING} material={PAD_M.yellow} position={[0, padY + 0.004, 0]} />
+      <Box p={[-0.24, padY + 0.008, 0]} s={[0.13, 0.012, 0.78]} m={PAD_M.yellow} />
+      <Box p={[0.24, padY + 0.008, 0]} s={[0.13, 0.012, 0.78]} m={PAD_M.yellow} />
+      <Box p={[0, padY + 0.008, 0]} s={[0.36, 0.012, 0.12]} m={PAD_M.yellow} />
+      {/* safety net and rim */}
+      <mesh geometry={PAD_NET} material={PAD_M.net} position={[0, padY - 0.1, 0]} />
+      <mesh position={[0, padY - 0.1, 0]} rotation={[Math.PI / 2, 0, 0]} material={PAD_M.steel}>
+        <torusGeometry args={[HELIPAD.r + 0.3, 0.025, 4, 32]} />
+      </mesh>
+      {PAD_LIGHTS.map(([x, z], i) => (
+        <mesh key={i} geometry={PAD_LIGHT_GEO} material={lightMat} position={[x, padY + 0.04, z]} />
       ))}
-      <Box p={[0, 0.32, 0]} s={[0.58, 0.06, 0.5]} m={M.bamboo} />
-      <Box p={[0, 0.37, 0.02]} s={[0.5, 0.05, 0.42]} m={cushion} />
-      <group position={[0, 0.34, -0.24]} rotation={[-0.32, 0, 0]}>
-        <Box p={[0, 0.3, 0]} s={[0.58, 0.6, 0.05]} m={M.bamboo} />
-        <Box p={[0, 0.3, 0.035]} s={[0.48, 0.5, 0.03]} m={cushion} />
+      {night > 0.2 && <mesh geometry={PAD_HALO} material={PAD_M.halo} position={[0, padY + 0.03, 0]} />}
+      {ripples.map((r, i) => (
+        <mesh key={i} ref={r} geometry={RIPPLE_GEO} material={RIPPLE_MATS[i]} visible={false} />
+      ))}
+      {/* windsock on the north-west edge, Chief's flag on the north-east */}
+      <group position={[-1.25, padY, -0.7]}>
+        <Cyl p={[0, 0.38, 0]} rt={0.02} h={0.76} m={PAD_M.steel} />
+        <group ref={sock} position={[0, 0.72, 0]}>
+          <mesh position={[0.2, 0, 0]} rotation={[0, 0, Math.PI / 2]} material={PAD_M.sock}>
+            <cylinderGeometry args={[0.07, 0.035, 0.4, 7, 1, true]} />
+          </mesh>
+          <mesh position={[0.2, 0, 0]} rotation={[0, 0, Math.PI / 2]} material={PAD_M.white}>
+            <cylinderGeometry args={[0.057, 0.048, 0.09, 7, 1, true]} />
+          </mesh>
+        </group>
       </group>
-      {[-0.3, 0.3].map((x) => (
-        <Box key={x} p={[x, 0.5, 0]} s={[0.06, 0.05, 0.46]} m={M.darkWood} />
-      ))}
+      <Flag p={[1.25, padY, -0.7]} color="#D63AF9" animate={animate} />
     </group>
   );
 }
@@ -849,13 +564,12 @@ function Tower({ night, animate }) {
       {legs.map(([x, z], i) => (
         <BambooPost key={`cp${i}`} p={[x * 1.07, deckTop, z * 1.07]} h={postH} r={0.07} />
       ))}
-      {/* see-through thatch on bamboo rafters, so the chairs show from above too */}
+      {/* see-through thatch on bamboo rafters, cut flat on top for the helipad */}
       {[[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([x, z], i) => (
-        <Beam key={`raf${i}`} a={[x * 2.15, canopyY + 0.02, z * 2.15]} b={[0, canopyY + 1.3, 0]} r={0.04} m={M.bambooNode} />
+        <Beam key={`raf${i}`} a={[x * 2.15, canopyY + 0.02, z * 2.15]} b={[x * PAD_THATCH_TOP, canopyY + PAD_THATCH_RISE, z * PAD_THATCH_TOP]} r={0.04} m={M.bambooNode} />
       ))}
-      <Roof p={[0, canopyY + 0.65, 0]} halfX={2.2} halfZ={2.2} h={1.3} m={M.thatchSeeTower} />
+      <Helipad canopyY={canopyY} night={night} animate={animate} />
       <Fringe p={[0, canopyY, 0]} halfX={2.2} halfZ={2.2} drop={0.3} m={M.thatchSeeTower} />
-      <Flag p={[0, canopyY + 1.2, 0]} color="#D63AF9" animate={animate} />
       <StringLights
         points={[[-L * 1.07, canopyY - 0.12, L * 1.07], [L * 1.07, canopyY - 0.12, L * 1.07], [L * 1.07, canopyY - 0.12, -L * 1.07], [-L * 1.07, canopyY - 0.12, -L * 1.07], [-L * 1.07, canopyY - 0.12, L * 1.07]]}
         sag={0.2}
@@ -1126,30 +840,6 @@ function Lanai({ night, animate }) {
   );
 }
 
-function Torch({ p, night, animate }) {
-  const flame = useRef();
-  const mat = useGlowMaterial('#ff8a2a', night, 0.6, 1.4);
-  useFrame((state) => {
-    if (!animate || !flame.current) return;
-    const t = state.clock.elapsedTime;
-    flame.current.scale.set(1, 1 + Math.sin(t * 9 + p[0]) * 0.15 + Math.sin(t * 13) * 0.08, 1);
-  });
-  return (
-    <group position={p}>
-      <Cyl p={[0, 0.65, 0]} rt={0.04} rb={0.06} h={1.3} m={M.bamboo} />
-      <Cyl p={[0, 1.33, 0]} rt={0.1} rb={0.07} h={0.16} m={M.darkWood} />
-      <mesh ref={flame} position={[0, 1.52, 0]} material={mat}>
-        <coneGeometry args={[0.09, 0.26, 5]} />
-      </mesh>
-      {night > 0.3 && (
-        <mesh position={[0, 1.5, 0]}>
-          <sphereGeometry args={[0.35, 10, 8]} />
-          <meshBasicMaterial color="#ff9a3c" transparent opacity={0.2 * night} depthWrite={false} blending={THREE.AdditiveBlending} />
-        </mesh>
-      )}
-    </group>
-  );
-}
 
 function TikiHut({ night, animate }) {
   const cx = ZONES.tikihut.x;
@@ -1266,6 +956,30 @@ function Cruiser({ animate }) {
   );
 }
 
+// Red and white life ring (striped with vertex colors).
+const LIFE_RING_GEO = (() => {
+  const g = new THREE.TorusGeometry(0.17, 0.05, 6, 16);
+  const pos = g.attributes.position;
+  const col = new Float32Array(pos.count * 3);
+  const red = new THREE.Color('#e0412f');
+  const white = new THREE.Color('#fbf7ef');
+  for (let i = 0; i < pos.count; i++) {
+    const a = Math.atan2(pos.getY(i), pos.getX(i)) + Math.PI;
+    (Math.floor(a / (Math.PI / 2) + 0.25) % 2 ? white : red).toArray(col, i * 3);
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return g;
+})();
+const LIFE_RING_MAT = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.7 });
+function Bollard({ p }) {
+  return (
+    <group position={p}>
+      <Cyl p={[0, 0.13, 0]} rt={0.08} rb={0.1} h={0.26} m={M.darkWood} />
+      <Cyl p={[0, 0.28, 0]} rt={0.12} h={0.05} m={M.dark} />
+    </group>
+  );
+}
+
 function Dock({ night, animate }) {
   const deck = DOCK;
   const cx = (deck.x0 + deck.x1) / 2;
@@ -1285,65 +999,37 @@ function Dock({ night, animate }) {
         [deck.z0 + 0.05, deck.z1 - 0.05].map((z) => <Cyl key={`${x}${z}`} p={[x, y - 0.55, z]} rt={0.09} h={1.3} m={M.darkWood} />)
       )}
       <Box p={[deck.x1 + 0.4, (y + rampBottom) / 2, cz]} s={[Math.hypot(0.8, y - rampBottom), 0.08, deck.z1 - deck.z0]} r={[0, 0, -rampAngle]} m={M.plank} />
-      {/* bollards and lanterns along the edge */}
-      {[deck.x0 + 1.0, deck.x0 + 5.0].map((x) => (
-        <Cyl key={`bo${x}`} p={[x, y + 0.15, deck.z0 + 0.12]} rt={0.09} h={0.3} m={M.darkWood} />
+      {/* bollards (two hold the cruiser's lines) and lantern posts along the pier */}
+      {[CRUISER_AT.x - 1.1, CRUISER_AT.x + 1.2, deck.x0 + 7.6].map((x) => (
+        <Bollard key={`bn${x}`} p={[x, y, deck.z0 + 0.13]} />
       ))}
-      <Cyl p={[deck.x0 + 0.15, y + 0.3, deck.z1 - 0.1]} rt={0.06} h={0.6} m={M.darkWood} />
-      <Lantern p={[deck.x0 + 0.15, y + 0.7, deck.z1 - 0.1]} night={night} />
-      <Cyl p={[deck.x0 + 0.15, y + 0.3, deck.z0 + 0.1]} rt={0.06} h={0.6} m={M.darkWood} />
-      <Lantern p={[deck.x0 + 0.15, y + 0.7, deck.z0 + 0.1]} night={night} />
-      <Flag p={[deck.x0 + 0.5, y, cz]} color="#2BA84A" animate={animate} />
-      <Cruiser animate={animate} />
-    </group>
-  );
-}
-
-// Flo's bungalow: home base for the home and family bot. It faces the water
-// and the sunset, with a porch, a chair for Flo, planters and flowers.
-function Bungalow({ night }) {
-  const zone = ZONES.bungalow;
-  const g = groundY(zone.x, zone.z);
-  const windowMat = useGlowMaterial('#ffd27a', night, 0.05, 1.5);
-  return (
-    <group position={[zone.x, g, zone.z]} rotation={[0, BUNGALOW_ROT, 0]}>
-      {[[-0.9, -0.6], [0.9, -0.6], [-0.9, 2.05], [0.9, 2.05], [0, 2.05]].map(([x, z], i) => (
-        <Cyl key={i} p={[x, 0.14, z]} rt={0.07} h={0.4} m={M.darkWood} />
+      {[deck.x0 + 1.4, deck.x0 + 6.6, deck.x1 - 0.6].map((x) => (
+        <Bollard key={`bs${x}`} p={[x, y, deck.z1 - 0.13]} />
       ))}
-      <Box p={[0, 0.3, 0.75]} s={[2.1, 0.1, 2.9]} m={M.plank} />
-      <Box p={[0, 0.9, -0.15]} s={[1.7, 1.1, 1.2]} m={M.white} />
-      <Roof p={[0, 1.45 + 0.42, -0.15]} halfX={1.15} halfZ={0.9} h={0.85} m={M.thatch} />
-      <Fringe p={[0, 1.46, -0.15]} halfX={1.15} halfZ={0.9} drop={0.2} />
-      <Box p={[0, 0.75, 0.46]} s={[0.42, 0.8, 0.04]} m={M.darkWood} />
-      <Box p={[-0.55, 1.0, 0.46]} s={[0.36, 0.3, 0.04]} m={windowMat} />
-      <Box p={[0.55, 1.0, 0.46]} s={[0.36, 0.3, 0.04]} m={windowMat} />
-      {/* short awning by the door; Flo's chair sits out in the open with the view */}
-      <Cyl p={[-0.95, 0.85, 1.05]} rt={0.045} h={1.1} m={M.wood} />
-      <Cyl p={[0.95, 0.85, 1.05]} rt={0.045} h={1.1} m={M.wood} />
-      <Box p={[0, 1.42, 0.78]} s={[2.15, 0.06, 0.7]} r={[0.15, 0, 0]} m={M.thatchDark} />
-      <Fringe p={[0, 1.36, 1.12]} halfX={1.07} halfZ={0.02} drop={0.14} />
-      {/* porch rail, open in the middle so the view stays clear */}
-      <Beam a={[-1.0, 0.68, 0.5]} b={[-1.0, 0.68, 2.15]} r={0.03} m={M.bamboo} />
-      <Beam a={[1.0, 0.68, 0.5]} b={[1.0, 0.68, 2.15]} r={0.03} m={M.bamboo} />
-      {/* Flo's chair on the porch (her seat slot sits right on it) */}
-      <TowerChair seat={{ x: 0, z: 1.55, rotY: 0 }} top={0.35} cushion={M.floCushion} />
-      {/* planters with flowers at the porch corners, and a pot by the door */}
-      {[-0.78, 0.78].map((x) => (
-        <group key={x} position={[x, 0.35, 2.0]}>
-          <Box p={[0, 0.1, 0]} s={[0.36, 0.2, 0.24]} m={M.darkWood} />
-          {[[-0.1, '#ff5d8f'], [0, '#ffd23f'], [0.1, '#f25cff']].map(([dx, c]) => (
-            <mesh key={dx} position={[dx, 0.26, 0]}>
-              <icosahedronGeometry args={[0.07, 0]} />
-              <meshStandardMaterial color={c} flatShading />
-            </mesh>
-          ))}
+      {[
+        [deck.x0 + 0.15, deck.z1 - 0.1],
+        [deck.x0 + 0.15, deck.z0 + 0.1],
+        [deck.x0 + 3.0, deck.z1 - 0.1],
+        [deck.x0 + 5.6, deck.z0 + 0.1],
+        [deck.x0 + 8.2, deck.z1 - 0.1],
+        [deck.x1 - 0.15, deck.z0 + 0.1],
+      ].map(([x, z]) => (
+        <group key={`lp${x}${z}`}>
+          <Cyl p={[x, y + 0.3, z]} rt={0.06} h={0.6} m={M.darkWood} />
+          <Lantern p={[x, y + 0.7, z]} night={night} />
         </group>
       ))}
-      <group position={[0.42, 0.35, 0.65]}>
-        <Cyl p={[0, 0.09, 0]} rt={0.1} rb={0.08} h={0.18} seg={8} m={M.claude} />
-        <Cone p={[0, 0.32, 0]} rad={0.14} h={0.32} seg={6} m={M.launch} />
+      {/* a life ring on the end post, a coil of rope and a bait bucket */}
+      <group position={[deck.x0 + 0.42, y, deck.z0 + 0.1]}>
+        <Cyl p={[0, 0.4, 0]} rt={0.05} h={0.8} m={M.darkWood} />
+        <mesh position={[0, 0.5, -0.07]} geometry={LIFE_RING_GEO} material={LIFE_RING_MAT} />
       </group>
-      <Lantern p={[0.95, 1.2, 1.05]} night={night} />
+      <mesh position={[deck.x0 + 2.1, y + 0.04, deck.z1 - 0.35]} rotation={[Math.PI / 2, 0, 0]} material={M.rope}>
+        <torusGeometry args={[0.16, 0.05, 5, 12]} />
+      </mesh>
+      <Cyl p={[deck.x0 + 6.0, y + 0.1, deck.z1 - 0.3]} rt={0.12} rb={0.1} h={0.2} seg={8} m={M.bbBlue} />
+      <Flag p={[deck.x0 + 0.5, y, cz]} color="#2BA84A" animate={animate} />
+      <Cruiser animate={animate} />
     </group>
   );
 }
@@ -1491,10 +1177,33 @@ function ZoneTag({ zoneKey, tagKey = zoneKey, zone, label = zone.label, position
   );
 }
 
+// Some tags sit higher than the zone's labelY: Chief's tag floats over the
+// helipad (so it never covers the helicopter), Flo's clears her villa roof.
+const TAG_POS = {
+  tower: [0, HELIPAD.y + 1.9, 0],
+  bungalow: [ZONES.bungalow.x, FLO_TAG_Y, ZONES.bungalow.z],
+};
+
+// A few landmark tags (tapping one flies there, like a zone tag).
+const LANDMARK_TAGS = [
+  { key: 'lighthouse', label: 'Lighthouse', pos: [SITES.lighthouse.x, SITES.lighthouse.height + 1.55, SITES.lighthouse.z] },
+  { key: 'visitor', label: 'Visitor Center', pos: [SITES.visitor.x, 4.3, SITES.visitor.z] },
+  { key: 'runway', label: 'Airstrip', pos: [SITES.runway.x - 3.2, 1.7, SITES.runway.z + 0.6] },
+];
+
 function ZoneLabels({ onZoneTap }) {
-  return Object.entries(ZONES)
-    .filter(([, z]) => !z.noLabel)
-    .map(([key, z]) => <ZoneTag key={key} zoneKey={key} zone={z} onZoneTap={onZoneTap} />);
+  return (
+    <>
+      {Object.entries(ZONES)
+        .filter(([, z]) => !z.noLabel)
+        .map(([key, z]) => (
+          <ZoneTag key={key} zoneKey={key} zone={z} position={TAG_POS[key]} onZoneTap={onZoneTap} />
+        ))}
+      {LANDMARK_TAGS.map((t) => (
+        <ZoneTag key={t.key} zoneKey={t.key} tagKey={`site-${t.key}`} zone={t} label={t.label} position={t.pos} className="zone-tag-landmark" onZoneTap={onZoneTap} />
+      ))}
+    </>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -1504,8 +1213,7 @@ export default function Island({ sky, animate = true, onGroundTap, onZoneTap, sh
   return (
     <group>
       <Terrain onTap={onGroundTap} />
-      <Water tint={sky.water} animate={animate} onTap={onGroundTap} glow={animate && !lowPower ? sky.stars : 0} />
-      <Foam animate={animate} />
+      <Water sky={sky} animate={animate} onTap={onGroundTap} lowPower={lowPower} />
       <SandPaths />
       <Palms animate={animate} />
       <Flowers />
@@ -1517,7 +1225,7 @@ export default function Island({ sky, animate = true, onGroundTap, onZoneTap, sh
       <TikiHut night={night} animate={animate} />
       <MoneyDesk night={night} />
       <Dock night={night} animate={animate} />
-      <Bungalow night={night} />
+      <FloVilla night={night} animate={animate} />
       <Lookout night={night} animate={animate} />
       <BeachChair />
       {showLabels && <ZoneLabels onZoneTap={onZoneTap} />}

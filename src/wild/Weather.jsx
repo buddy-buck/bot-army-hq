@@ -9,6 +9,8 @@ import { ZONES } from '../utils/paths.js';
 //   rainbow: a rainbow over the island (feed item with type "fantasy_win")
 //   double : a double rainbow (minutes saved crossing a round thousand)
 // ?weather=test cycles through all three. Nothing plays by default.
+// The Rainbow is exported too: the sky show uses it for a rare, longer
+// rainbow after a passing shower.
 
 export const WEATHER_SECONDS = 5;
 const GAP_MS = 1200;
@@ -70,13 +72,12 @@ export function useWeather({ enabled = true, test = false } = {}) {
 }
 
 // 0 -> 1 -> 0 over the event, with soft edges.
-function envelope(t) {
-  const fadeIn = 0.6;
-  const fadeOut = 0.9;
-  if (t < 0 || t > WEATHER_SECONDS) return 0;
-  if (t < fadeIn) return t / fadeIn;
-  if (t > WEATHER_SECONDS - fadeOut) return (WEATHER_SECONDS - t) / fadeOut;
-  return 1;
+function envelope(t, duration = WEATHER_SECONDS, fadeIn = 0.6, fadeOut = 0.9) {
+  if (t < 0 || t > duration) return 0;
+  let k = 1;
+  if (t < fadeIn) k = t / fadeIn;
+  else if (t > duration - fadeOut) k = (duration - t) / fadeOut;
+  return k * k * (3 - 2 * k);
 }
 
 // --- Thunderstorm over the pier ----------------------------------------------
@@ -172,54 +173,128 @@ function Storm() {
 }
 
 // --- Rainbows ------------------------------------------------------------------
+// A soft arc framing the island, opposite the viewer (as real rainbows are),
+// so it turns with the camera. Its legs stand in the sea off either side of
+// the island; the camera looks down at the island, so the bow leans back
+// over the far sea just enough that its top stays in view (upright when the
+// camera looks level). One shader draws the bands with soft edges,
+// the faint bright haze inside the bow, and legs that fade into the sea.
+// The double variant adds the dimmer outer bow with its colors reversed.
 
-const BANDS = ['#ff4b4b', '#ff9b3d', '#ffe14d', '#5fd16b', '#4aa8ff', '#8a63ff'];
+const BOW_R = 25; // primary radius
+const BOW_W = 3.4; // primary band width (wide: the bow is seen leaning back)
+const BOW_BACK = 4; // distance behind the island center
+const BOW_Y = -1.5; // arc center, a little under the sea so the legs dip in
+const BOW_TOP = 0.9; // where the top of the outer bow may reach on screen (-1..1)
+const _apex = new THREE.Vector3();
 
-function Rainbow({ double }) {
-  const { camera } = useThree();
+const bowVertex = /* glsl */ `
+  varying vec2 vP;
+  void main() {
+    vP = position.xy;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+const bowFragment = /* glsl */ `
+  uniform float uR0;
+  uniform float uR1;
+  uniform float uK;
+  uniform float uReverse;
+  uniform float uHaze;
+  varying vec2 vP;
+  vec3 hue(float h) {
+    return clamp(abs(mod(h * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+  }
+  void main() {
+    float r = length(vP);
+    float s = (r - uR0) / (uR1 - uR0); // 0 inner edge, 1 outer edge
+    float t = mix(s, 1.0 - s, uReverse);
+    vec3 col = mix(hue(mix(0.78, 0.0, t)), vec3(1.0), 0.18);
+    float band = smoothstep(0.0, 0.22, s) * (1.0 - smoothstep(0.78, 1.0, s));
+    // Faint bright sky just inside the primary bow.
+    float inside = step(s, 0.0) * smoothstep(-0.78, 0.0, s);
+    float bandA = band * 0.72;
+    float hazeA = inside * uHaze;
+    float a = bandA + hazeA;
+    col = (col * bandA + vec3(1.0, 1.0, 0.96) * hazeA) / max(a, 1e-3);
+    // Legs fade into the sea mist.
+    float up = vP.y / max(r, 1e-3);
+    a *= smoothstep(0.02, 0.32, up);
+    gl_FragColor = vec4(col, a * uK);
+    #include <colorspace_fragment>
+  }
+`;
+
+function bowMaterial(r0, r1, reverse, haze) {
+  return new THREE.ShaderMaterial({
+    uniforms: { uR0: { value: r0 }, uR1: { value: r1 }, uK: { value: 0 }, uReverse: { value: reverse }, uHaze: { value: haze } },
+    vertexShader: bowVertex,
+    fragmentShader: bowFragment,
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    fog: false,
+  });
+}
+
+export function Rainbow({ double, duration = WEATHER_SECONDS, fadeIn = 0.8, fadeOut = 1.2, strength = 1 }) {
+  const { camera, invalidate } = useThree();
+  const group = useRef();
   const start = useRef(null);
-  const mats = useMemo(
-    () => BANDS.map((c) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, fog: false })),
-    []
-  );
-  const outerMats = useMemo(
-    () => (double ? [...BANDS].reverse().map((c) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, fog: false })) : []),
-    [double]
-  );
-  useEffect(() => () => [...mats, ...outerMats].forEach((m) => m.dispose()), [mats, outerMats]);
+  const yaw = useRef(null);
+  const lean = useRef(null);
+  const parts = useMemo(() => {
+    const haze = BOW_W * 0.8; // width of the bright haze inside the bow
+    const inner = bowMaterial(BOW_R - BOW_W, BOW_R, 0, 0.07);
+    const innerGeo = new THREE.RingGeometry(BOW_R - BOW_W - haze, BOW_R + 0.05, 128, 1, 0, Math.PI);
+    const R2 = BOW_R * 1.24;
+    const W2 = BOW_W * 1.5;
+    const outer = double ? bowMaterial(R2, R2 + W2, 1, 0) : null;
+    const outerGeo = double ? new THREE.RingGeometry(R2 - 0.05, R2 + W2 + 0.05, 128, 1, 0, Math.PI) : null;
+    return { inner, innerGeo, outer, outerGeo };
+  }, [double]);
+  useEffect(() => () => Object.values(parts).forEach((x) => x?.dispose()), [parts]);
 
-  // Face the camera as it was when the rainbow appeared, set just behind the island.
-  const placement = useMemo(() => {
-    const dir = new THREE.Vector3(camera.position.x, 0, camera.position.z).normalize();
-    const yaw = Math.atan2(dir.x, dir.z);
-    return { position: dir.clone().multiplyScalar(-8.5).toArray(), yaw };
-  }, [camera]);
-
-  useFrame((state) => {
+  useFrame(() => {
     const now = performance.now() / 1000;
     if (start.current === null) start.current = now;
     const t = now - start.current;
-    // Fade in, hold, fade out (the outer bow trails a little).
-    const e = envelope(t);
-    mats.forEach((m) => (m.opacity = 0.55 * e));
-    outerMats.forEach((m) => (m.opacity = 0.32 * envelope(t - 0.5)));
+    const e = envelope(t, duration, fadeIn, fadeOut) * strength;
+    parts.inner.uniforms.uK.value = e;
+    // The outer bow trails in a little after the first.
+    if (parts.outer) parts.outer.uniforms.uK.value = envelope(t - 0.6, duration - 0.6, fadeIn, fadeOut) * strength * 0.5;
+    // Stay opposite the viewer, easing as the camera turns.
+    const target = Math.atan2(camera.position.x, camera.position.z);
+    if (yaw.current === null) yaw.current = target;
+    let d = target - yaw.current;
+    d = Math.atan2(Math.sin(d), Math.cos(d));
+    yaw.current += d * 0.05;
+    if (group.current) {
+      const sy = Math.sin(yaw.current);
+      const cy = Math.cos(yaw.current);
+      const x = -sy * BOW_BACK;
+      const z = -cy * BOW_BACK;
+      // Lean back the least that keeps the top of the bow on screen.
+      const R = double ? BOW_R * 1.24 + BOW_W * 1.5 : BOW_R;
+      let want = 1.4;
+      for (let L = 0; L <= 1.4; L += 0.05) {
+        _apex.set(x - sy * R * Math.sin(L), BOW_Y + R * Math.cos(L), z - cy * R * Math.sin(L)).project(camera);
+        if (_apex.y <= BOW_TOP) {
+          want = L;
+          break;
+        }
+      }
+      lean.current = lean.current === null ? want : lean.current + (want - lean.current) * 0.04;
+      group.current.rotation.set(-lean.current, yaw.current, 0, 'YXZ');
+      group.current.position.set(x, BOW_Y, z);
+    }
+    if (t < duration) invalidate();
   });
 
-  const R = 18;
-  const W = 0.42;
   return (
-    <group position={placement.position} rotation={[0, placement.yaw, 0]}>
-      {BANDS.map((_, i) => (
-        <mesh key={i} material={mats[i]} position={[0, -1.5, 0]}>
-          <ringGeometry args={[R - (i + 1) * W, R - i * W, 64, 1, 0, Math.PI]} />
-        </mesh>
-      ))}
-      {double &&
-        BANDS.map((_, i) => (
-          <mesh key={`o${i}`} material={outerMats[i]} position={[0, -1.5, -0.5]}>
-            <ringGeometry args={[R + 2.6 + i * W * 0.8, R + 2.6 + (i + 1) * W * 0.8, 64, 1, 0, Math.PI]} />
-          </mesh>
-        ))}
+    <group ref={group}>
+      <mesh geometry={parts.innerGeo} material={parts.inner} renderOrder={8} />
+      {parts.outer && <mesh geometry={parts.outerGeo} material={parts.outer} renderOrder={7} />}
     </group>
   );
 }
