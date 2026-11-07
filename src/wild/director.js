@@ -43,7 +43,15 @@ export const TEST = {
   claude: params.get('claude') === 'test',
   plane: params.get('plane') === 'test',
   surf: params.get('surf') === 'test',
+  // ?rare=test: rare sights (whale, UFO, northern lights, rainbow, bottle,
+  // fireworks, shooting stars, plane landings) come around every 20 to 40
+  // seconds instead of every several minutes, so they can be checked.
+  rare: params.get('rare') === 'test',
 };
+
+// Pick the wait before the next rare event: the real gap, or a short one
+// under ?rare=test.
+export const rareGap = (min, max) => (TEST.rare ? 20 + Math.random() * 20 : min + Math.random() * (max - min));
 
 // Storage that never throws (private windows, blocked site data).
 export function readStore(kind, key) {

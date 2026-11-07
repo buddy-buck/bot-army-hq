@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
+import StaticMerge from '../utils/StaticMerge.jsx';
 
 // Dynamic sky: gradient dome, stars at night, drifting low-poly clouds, and
 // the scene's lights and fog, all from Duvall time. The sun and moon live in
@@ -19,20 +20,50 @@ const domeVertex = /* glsl */ `
 const domeFragment = /* glsl */ `
   uniform vec3 uTop;
   uniform vec3 uHorizon;
+  uniform vec3 uSunDir;
+  uniform vec3 uGlow;
+  uniform float uGlowI;
   varying vec3 vDir;
   void main() {
-    float h = clamp(vDir.y, 0.0, 1.0);
+    vec3 d = normalize(vDir);
+    float h = clamp(d.y, 0.0, 1.0);
     vec3 col = mix(uHorizon, uTop, pow(h, 0.55));
+    // Horizon glow toward the sun (strong at sunrise and sunset), plus a
+    // soft halo around the sun itself.
+    vec3 s = normalize(vec3(uSunDir.x, max(uSunDir.y, -0.08), uSunDir.z));
+    vec2 dh = normalize(d.xz + vec2(1e-5));
+    vec2 sh = normalize(s.xz + vec2(1e-5));
+    float az = max(dot(dh, sh), 0.0);
+    float band = exp(-h * 4.5);
+    float glow = (pow(az, 3.0) * 0.6 + pow(az, 16.0) * 0.4) * band;
+    glow += pow(max(dot(d, s), 0.0), 24.0) * 0.45;
+    glow = clamp(glow * uGlowI, 0.0, 1.0);
+    col = mix(col, uGlow, glow * 0.8) + uGlow * glow * 0.12;
+    // A faint pastel lift on the opposite side keeps dusk from looking flat.
+    col += uGlow * pow(max(-dot(dh, sh), 0.0), 2.0) * band * uGlowI * 0.06;
     gl_FragColor = vec4(col, 1.0);
   }
 `;
 
-function SkyDome({ top, horizon }) {
-  const uniforms = useMemo(() => ({ uTop: { value: new THREE.Color(top) }, uHorizon: { value: new THREE.Color(horizon) } }), []); // eslint-disable-line react-hooks/exhaustive-deps
+function SkyDome({ top, horizon, sunDir, glow, glowI }) {
+  const uniforms = useMemo(
+    () => ({
+      uTop: { value: new THREE.Color(top) },
+      uHorizon: { value: new THREE.Color(horizon) },
+      uSunDir: { value: new THREE.Vector3(0, 1, 0) },
+      uGlow: { value: new THREE.Color('#ffffff') },
+      uGlowI: { value: 0 },
+    }),
+    [] // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const [sx, sy, sz] = sunDir || [0, 1, 0];
   useEffect(() => {
     uniforms.uTop.value.set(top);
     uniforms.uHorizon.value.set(horizon);
-  }, [top, horizon, uniforms]);
+    uniforms.uSunDir.value.set(sx, sy, sz);
+    uniforms.uGlow.value.set(glow || horizon);
+    uniforms.uGlowI.value = glowI || 0;
+  }, [top, horizon, sx, sy, sz, glow, glowI, uniforms]);
   return (
     <mesh renderOrder={-10} frustumCulled={false}>
       <sphereGeometry args={[DOME_RADIUS, 32, 16]} />
@@ -214,6 +245,8 @@ function Clouds({ color, animate }) {
   });
   return (
     <group ref={ref}>
+      {/* puffs never move relative to each other: one draw for the whole ring */}
+      <StaticMerge>
       {CLOUD_DEFS.map((c, i) => (
         <group key={i} position={[Math.cos(c.a) * c.r, c.y, Math.sin(c.a) * c.r]} scale={c.s}>
           <mesh geometry={puff} material={material} scale={[2.2, 1.2, 1.6]} />
@@ -222,6 +255,7 @@ function Clouds({ color, animate }) {
           <mesh geometry={puff} material={material} position={[0.4, 0.7, 0]} scale={[1.3, 1.0, 1.1]} />
         </group>
       ))}
+      </StaticMerge>
     </group>
   );
 }
@@ -247,7 +281,7 @@ export default function Sky({ sky, animate = true, useFog = true, onBuck }) {
 
   return (
     <>
-      <SkyDome top={sky.top} horizon={sky.horizon} />
+      <SkyDome top={sky.top} horizon={sky.horizon} sunDir={sky.sunDir} glow={sky.glow} glowI={sky.glowI} />
       <Stars opacity={sky.stars} animate={animate} />
       <BuckConstellation visible={sky.isNight && sky.stars > 0.5} animate={animate} onTap={onBuck} />
       <Clouds color={sky.cloud} animate={animate} />

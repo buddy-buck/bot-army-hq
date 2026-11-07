@@ -33,7 +33,8 @@ Handy test switches (add to the URL):
 | `?weather=test` | Cycle the weather effects: storm over the pier, rainbow, double rainbow. Off by default |
 | `?claude=test` | Claude walks down from the tower to the cabana, lanai or pier and back, every 40 seconds |
 | `?plane=test` | Buddy's seaplane flies over right away, every visit |
-| `?surf=test` | Echo goes surfing every 30 seconds or so instead of every 3 to 5 minutes |
+| `?surf=test` | Echo's jet ski comes by every 30 seconds or so instead of every 3 to 5 minutes |
+| `?rare=test` | Rare sights (whale, UFO, northern lights, rainbow, bottle, fireworks, plane landings, helicopter and more) come around every 20 to 40 seconds |
 
 Note: if npm prints a warning that esbuild's install script was skipped, the build still works. If `npm run dev` ever fails because esbuild is missing, run `npm rebuild esbuild`.
 
@@ -47,10 +48,9 @@ Note: if npm prints a warning that esbuild's install script was skipped, the bui
 | Networking Tiki Hut | South, in the palms | Trace, Scout, Nudge |
 | Money Desk | Between dock and cabana | Benji |
 | Launch's Pier | West | Launch |
-| Flo's Bungalow | Behind the tower, screened by palms | Flo |
+| Flo's Bungalow | East, an overwater villa on a boardwalk | Flo |
 | Research Lookout | Next to the tower | Recon, Brobot |
 | Nasty's Chair | On the sand | Nasty |
-| Guest Bungalow | Near the tower | Claude (visiting, with a lei and a mai tai) |
 
 How it behaves:
 
@@ -69,7 +69,7 @@ How it behaves:
 - **Radar** (bottom right, drawn in SVG so the island is the only WebGL context): Chief is the planet, teams ride the rings. Tap it for a bigger card with each ring labeled by team and how many of its bots are working. Tap a ring, a label or a row to fly to that team.
 - **Clock**: the sun is the clock. It rides an arc across the top of the view on Duvall time: left at 6 AM, highest at noon, right at 6 PM. The moon (a crescent) does the same from 6 PM to 6 AM. Hover or tap it for the time, with the date in a little cloud underneath. There is no clock chip.
 - **Kiosk mode** (screen button, or `?kiosk=1`): keeps the screen awake with the Screen Wake Lock API where the browser supports it, hides the secondary buttons, keeps the sun clock and score, and slowly drifts the camera tilt and the panels a few pixels so nothing burns in.
-- **Sea life and the living world**: two great white shark fins circling with wakes, a blue marlin that leaps every 40 to 90 seconds with a splash, salmon hopping off Launch's Pier, fish schools in the shallows, seagulls, a sailboat on the horizon, a sea turtle that surfaces now and then, dolphins at sunrise, fireflies at night and a faint bioluminescent shimmer along the shore. All purely decorative.
+- **Sea life and the living world**: two great white shark fins circling with wakes, a blue marlin that leaps every 40 to 90 seconds with a splash, salmon hopping off Launch's Pier, fish schools in the shallows that dart away from boats, seagulls, two sea turtles that surface to breathe, dolphins leaping in pairs, a rare breaching whale, fireflies at night and bioluminescent water at night. Boats: a sailboat with a reading bot, a glass-bottom tour boat and a tugboat with a barge of prompt crates. All purely decorative. See the changelog's Island Mega Upgrade for the full list of sky, building and bot extras.
 - **Drinks**: chillin' bots hold big mai tais, margaritas and coconuts. Two chillin' bots standing together clink glasses now and then, and a bot that just finished a task does a happy sip-hop. Claude keeps the lei and mai tai; Nasty keeps the coconut.
 - **Sound** is off by default. The speaker button plays a soft ocean and breeze sound, generated in the browser (no audio files).
 - **Reduced motion**: if the phone or computer has "Reduce Motion" turned on, you get a still top-down view with all the same data, plus a "Recent handoffs" list. Sea life, confetti and other effects are skipped; the numbers and lists all still work.
@@ -172,14 +172,15 @@ Easter eggs, not clutter. Only one travel animation (drone, seaplane, surfer) an
 - **Weather.** See `feed[].type` above.
 - **Buddy's seaplane.** Once per browser session (`sessionStorage` key `bah-flyover-seen`), a seaplane with the BB logo on its tail crosses the sky trailing a "Buck's Island" banner.
 - **Campfire mode.** From 9 PM to 6 AM Duvall time, working bots gather around a campfire on the south-west side of the island, with a thought bubble showing what one of them is working on (a few at once when zoomed in). Everyone else sleeps in a hammock with ZZZs.
-- **Message in a bottle.** On a first visit a bottle washes up on the south beach. Tap it for a note from Chief. Tapping sets `localStorage` key `bah-bottle-seen`, so it never comes back.
-- **Treasure chest.** It moves to a new spot every day. Tap it for a line from Nasty.
-- **Echo surfing.** Every 3 to 5 minutes, Echo rides a wave past the far side of the island.
+- **Message in a bottle.** On a first visit a bottle washes up on the south beach. Tap it for a note from Chief (`localStorage` key `bah-bottle-seen`). After that, a bottle washes up every 4 to 8 minutes with a note from one of the bots.
+- **Treasure chest.** It moves to a new spot every day. Tap it: it glows gold and gives a bot tip or a Build Your Own Bot ("BYOB") fact.
+- **Echo's jet ski.** Every 3 to 5 minutes, Echo carves past the far side of the island on a jet ski with a rooster-tail spray.
+- **Lighthouse.** On the north-west point, with a sweeping beam at night. Tap it for a foghorn.
 - **Delivery drones.** Handoffs between far-apart zones (like the Research Lookout to the Content Cabana) fly by drone, one drone at a time. Nearby handoffs still walk.
 - **Launch's Pier.** Long and wide, with Buddy's cabin cruiser (blue hull, gold trim) moored on one side and Buddy's dock office, a floating BB houseboat, on the other. Tap the houseboat for the minutes-saved drawer.
 - **Photo booth.** A camera on a tripod on the south beach. Tap it: the camera glides to a clean angle, the buttons and labels hide, everyone waves for a couple of seconds (screenshot time), then a soft flash and the UI comes back.
 
-Reduced motion skips the drone, seaplane, surfer and weather; Claude simply appears where the status says.
+Reduced motion skips the drone, seaplane, jet ski, boats, sky show and weather; Claude simply appears where the status says.
 
 ### Avatars
 
@@ -217,7 +218,8 @@ outputs/                   screenshots
 public/avatars/            drop <id>.png files here
 src/main.jsx               React entry
 src/App.jsx                scene, camera rig, HUD layout
-src/components/Island.jsx  terrain, water, foam, sand paths, palms, all buildings, zone tags
+src/components/Island.jsx  terrain, sand paths, palms, all zone buildings, helipad, zone tags
+src/components/Water.jsx   Gerstner waves, beach foam, night glow, ripples
 src/components/Bot.jsx     bot mesh, poses, drinks, lei, hammock, lantern, name tag
 src/components/labels.js   which name tags show (zoom, hover, no overlaps)
 src/components/Feed.jsx    activity drawer: Past / Now / Next
@@ -225,17 +227,21 @@ src/components/Roster.jsx  "Find a bot" panel
 src/components/Handoff.jsx handoff schedule, walking couriers, glowing orbs with trails
 src/components/Sky.jsx     sky dome, sun/moon, stars, buck constellation, clouds, lights, fog
 src/components/Scoreboard.jsx compact minutes-saved chip, odometer, drawer
-src/components/SeaLife.jsx sharks, marlin, salmon, fish, gulls, sailboat, turtle, dolphins, fireflies
+src/components/SeaLife.jsx sharks, marlin, salmon, fish, gulls, turtles, dolphins, whale, fireflies
+src/wild/                  timed extras: weather, seaplane, jet ski, campfire, Easter eggs, and
+                           Boats, Wakes, SkyShow, Landmarks, IslandLife, BotAntics (each with a
+                           folder of parts); MiniBot (extra bots); world.js (shared boat state)
 src/components/Radar.jsx   Saturn minimap
 src/components/BotCard.jsx tap-a-bot card
 src/components/UI.jsx      demo note, clock, buttons, sound, toast
 src/hooks/useData.js       fetch + 5-minute refresh + change detection
 src/hooks/useSunPosition.js Duvall time → sky palette and sun direction
-src/utils/paths.js         terrain height, zones, bot slots, bezier walking routes
+src/utils/paths.js         terrain height, zones, landmark SITES, bot slots, bezier walking routes
+src/utils/StaticMerge.jsx  bakes still scenery into a few draw calls
 src/utils/ticker.js        number and date formatting
 src/utils/time.js          Pacific time clock, countdowns
 src/utils/safe.js          public-safe mode
 src/styles.css             light UI panels, big readable type
 ```
 
-Performance notes: one WebGL context (the island; the radar is SVG); three.js, the React 3D layer and React are split into their own cached chunks, and sea life loads lazily; palms, flowers, rocks, fish and trails are instanced; waves run in a vertex shader; pixel ratio is capped at 2 (1.5 on touch devices); the view drops to about 30fps after a minute without input; rendering stops when the tab is hidden.
+Performance notes: one WebGL context (the island; the radar is SVG); three.js, the React 3D layer and React are split into their own cached chunks, and sea life loads lazily; palms, flowers, rocks, fish and trails are instanced; buildings that never move are merged into a few draw calls (`StaticMerge`); waves run in a vertex shader; pixel ratio is capped at 2 (1.5 on touch devices); the view drops to about 30fps after a minute without input; rendering stops when the tab is hidden.
