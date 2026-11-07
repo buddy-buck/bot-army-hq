@@ -22,7 +22,9 @@ const CLINK_LEN = 2.4;
 const WALK_SPEED = 1.3; // units per second
 export const WAVE_SECONDS = 2.4;
 
-const GEO = {
+// GEO and MAT are shared with the ambient extras (src/wild/MiniBot.jsx), so
+// every bot on the island looks the same.
+export const GEO = {
   body: new THREE.CapsuleGeometry(0.17, 0.2, 3, 8),
   head: new THREE.IcosahedronGeometry(0.19, 1),
   eye: new THREE.SphereGeometry(0.032, 6, 5),
@@ -81,7 +83,7 @@ GEO.hammock = (() => {
 
 const std = (color, extra = {}) => new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: 0.6, ...extra });
 
-const MAT = {
+export const MAT = {
   face: std('#fff8ec', { roughness: 0.5 }),
   eye: new THREE.MeshBasicMaterial({ color: '#1d2230' }),
   foot: std('#4a4f5c'),
@@ -118,7 +120,7 @@ const DRINK_TYPES = ['maitai', 'margarita', 'coconut'];
 // Chief and Claude always have a mai tai up in the tower chairs.
 const ALWAYS_DRINK = { nasty: 'coconut', claude: 'maitai', chief: 'maitai' };
 
-function Drink({ type }) {
+export function Drink({ type }) {
   if (type === 'margarita') {
     return (
       <group>

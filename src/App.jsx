@@ -58,6 +58,13 @@ function useTabHidden() {
 
 // Sea life is decoration, so it loads after the island in its own small chunk.
 const SeaLife = lazy(() => import('./components/SeaLife.jsx'));
+// The bigger island's extras, each in its own chunk.
+const Wakes = lazy(() => import('./wild/Wakes.jsx'));
+const Boats = lazy(() => import('./wild/Boats.jsx'));
+const SkyShow = lazy(() => import('./wild/SkyShow.jsx'));
+const Landmarks = lazy(() => import('./wild/Landmarks.jsx'));
+const IslandLife = lazy(() => import('./wild/IslandLife.jsx'));
+const BotAntics = lazy(() => import('./wild/BotAntics.jsx'));
 
 // Device hints for battery and GPU budget.
 const IS_TOUCH = typeof navigator !== 'undefined' && (navigator.maxTouchPoints > 1 || /iPad|iPhone|Android/.test(navigator.userAgent));
@@ -844,6 +851,14 @@ export default function App() {
                 <SeaLife sky={sky} lowPower={LOW_POWER} />
               </Suspense>
             )}
+            <Suspense fallback={null}>
+              <Landmarks sky={sky} animate={!reduced} lowPower={LOW_POWER} bots={sceneBots} layout={layout} />
+              <IslandLife sky={sky} animate={!reduced} lowPower={LOW_POWER} bots={sceneBots} layout={layout} />
+              <BotAntics sky={sky} animate={!reduced} lowPower={LOW_POWER} bots={sceneBots} layout={layout} />
+              {!reduced && <Boats sky={sky} animate lowPower={LOW_POWER} bots={sceneBots} layout={layout} />}
+              {!reduced && <Wakes sky={sky} animate lowPower={LOW_POWER} bots={sceneBots} layout={layout} />}
+              {!reduced && <SkyShow sky={sky} animate lowPower={LOW_POWER} bots={sceneBots} layout={layout} />}
+            </Suspense>
             {sceneBots.map((b) =>
               layout[b.id] ? (
                 <Bot

@@ -9,7 +9,7 @@ import { DOCK, SPREAD, islandE } from '../utils/paths.js';
 //   A blue marlin that leaps every 40 to 90 seconds, with splashes
 //   Salmon hopping off the end of Launch's Pier
 //   Small fish schools in the shallows
-//   Seagulls overhead, a sailboat on the horizon, a sea turtle surfacing
+//   Seagulls overhead, a sea turtle surfacing (boats live in src/wild/Boats.jsx)
 //   Dolphins at sunrise, fireflies at night
 // Purely ambient: none of it says anything about the bots or the data.
 // Not rendered at all when reduced motion is on.
@@ -326,27 +326,6 @@ function Seagulls() {
 
 // --- Sailboat on the horizon ---------------------------------------------------
 
-function Sailboat() {
-  const ref = useRef();
-  useFrame((state) => {
-    const t = state.clock.elapsedTime;
-    const a = 2.4 + t * 0.008;
-    ref.current.position.set(Math.cos(a) * 64, 0.05 + Math.sin(t * 0.9) * 0.08, Math.sin(a) * 64);
-    ref.current.rotation.set(Math.sin(t * 0.7) * 0.03, -a, Math.sin(t * 0.8) * 0.05);
-  });
-  return (
-    <group ref={ref} scale={2.6}>
-      <mesh geometry={BODY_GEO} material={MAT.hull} scale={[0.9, 0.22, 0.32]} />
-      <mesh geometry={BODY_GEO} material={MAT.hullStripe} position={[0, 0.06, 0]} scale={[0.92, 0.05, 0.33]} />
-      <mesh material={MAT.mast} position={[0, 1.05, 0]}>
-        <cylinderGeometry args={[0.025, 0.03, 2, 5]} />
-      </mesh>
-      <mesh geometry={TRI_GEO} material={MAT.sail} position={[0.05, 0.2, 0.02]} scale={[0.85, 1.8, 1]} />
-      <mesh geometry={TRI_GEO} material={MAT.sail} position={[0.05, 0.3, 0.02]} rotation={[0, Math.PI, 0]} scale={[0.6, 1.5, 1]} />
-    </group>
-  );
-}
-
 // --- Sea turtle surfacing --------------------------------------------------------
 
 function Turtle() {
@@ -494,7 +473,6 @@ export default function SeaLife({ sky, lowPower = false }) {
       <Salmon />
       <FishSchools count={lowPower ? 2 : 4} />
       <Seagulls />
-      <Sailboat />
       <Turtle />
       {sky.phase === 'sunrise' && <Dolphins />}
       {night && <Fireflies count={lowPower ? 24 : 46} strength={Math.min(1, sky.stars)} />}
