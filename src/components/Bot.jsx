@@ -8,6 +8,7 @@ import { botHash, groundY } from '../utils/paths.js';
 import { aimArm } from '../world/antics/rig.js';
 import { applyAntic, makePoseOut, resetPoseOut } from '../world/antics/botPose.js';
 import { PROP_GEO, PROP_MAT } from '../world/antics/props.js';
+import { CATCH_SPEED, LOCK, conga, congaBeat, congaSpot } from '../world/life/conga.js';
 
 // One bot: a small rounded robot in its team color. Status always comes from
 // data.json:
@@ -21,6 +22,10 @@ import { PROP_GEO, PROP_MAT } from '../world/antics/props.js';
 // Two little arms (same as the crew's MiniBot) hang at rest, hold the drink
 // or the tablet, wave in the photo booth and act out antics: high-fives,
 // trips, push-ups, selfies and fishing (src/world/Antics.jsx directs them).
+//
+// Conga line (src/world/life/conga.js): while "Conga!" plays, every bot joins
+// a line around the sand paths, hands on the shoulders of the bot ahead; the
+// leader shakes maracas. Status, cheers and handoffs keep running meanwhile.
 
 export const BOT_SCALE = 1.35;
 const DRINK_SCALE = 1.6; // big, easy-to-see drinks
@@ -68,6 +73,10 @@ const GEO = {
   // lei
   leiRing: new THREE.TorusGeometry(0.155, 0.022, 5, 18).rotateX(Math.PI / 2),
   flower: new THREE.IcosahedronGeometry(0.042, 0),
+  // maracas (point along the arm, past the hand)
+  maracaHandle: new THREE.CylinderGeometry(0.014, 0.018, 0.13, 5).translate(0, -0.09, 0),
+  maracaHead: new THREE.SphereGeometry(0.06, 8, 6).scale(1, 1.25, 1).translate(0, -0.2, 0),
+  maracaBand: new THREE.TorusGeometry(0.058, 0.011, 4, 12).rotateX(Math.PI / 2).translate(0, -0.2, 0),
 };
 
 // Bot of the Day: a small low-poly gold crown (band, five points, gems) and a
@@ -222,6 +231,22 @@ const easeSpin = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 const REST = { lx: -0.23, ly: 0.2, lz: 0.02, rx: 0.23, ry: 0.2, rz: 0.02 };
 const PO = makePoseOut(); // scratch for antic poses, shared (bots update one at a time)
 const tipV = new THREE.Vector3();
+const CG = { x: 0, y: 0, z: 0, heading: 0, place: 0, leader: false, moving: false }; // conga spot scratch
+const MARACA_MAT = {
+  red: new THREE.MeshStandardMaterial({ color: '#e8402f', flatShading: true, roughness: 0.45 }),
+  green: new THREE.MeshStandardMaterial({ color: '#2fb35a', flatShading: true, roughness: 0.45 }),
+  band: new THREE.MeshStandardMaterial({ color: '#ffd23f', flatShading: true, roughness: 0.4 }),
+  handle: new THREE.MeshStandardMaterial({ color: '#8a5a32', flatShading: true }),
+};
+function Maraca({ head }) {
+  return (
+    <>
+      <mesh geometry={GEO.maracaHandle} material={MARACA_MAT.handle} />
+      <mesh geometry={GEO.maracaHead} material={head} />
+      <mesh geometry={GEO.maracaBand} material={MARACA_MAT.band} />
+    </>
+  );
+}
 
 function hashPhase(id) {
   return ((botHash(id) % 1000) / 1000) * Math.PI * 2;
@@ -258,6 +283,7 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
   const rodTipRef = useRef();
   const zzzRef = useRef();
   const crownGlow = useRef();
+  const maracas = [useRef(), useRef()];
   const pulseStart = useRef(null);
   const cur = useRef(null);
   const curRaised = useRef(false);
@@ -315,7 +341,13 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
 
     // Antics: a high-five, a trip, push-ups, a selfie, fishing. Only while
     // chillin' (or a courier's quick high-five), and never mid-delivery.
+    // Conga line: everyone in except a bot mid-delivery (it rejoins after).
+    const cg = animate && !c ? congaSpot(bot.id, CG) : null;
     let an = antics.get(bot.id);
+    if (cg && an && !an.courier) {
+      antics.delete(bot.id);
+      an = undefined;
+    }
     if (an && (!animate || fx >= an.end || (c ? !an.courier : mode !== 'chill' && !an.courier))) {
       antics.delete(bot.id);
       an = undefined;
@@ -326,18 +358,39 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
     // Cheers: two chillin' bots standing together clink drinks now and then.
     // Both bots read the same wall clock, so they raise their glasses together.
     let clinkK = -1;
-    if (clink && animate && mode === 'chill' && !c && !an) {
+    if (clink && animate && mode === 'chill' && !c && !an && !cg) {
       const k = (fx + clink.seed * CLINK_PERIOD) % CLINK_PERIOD;
       if (k < CLINK_LEN) clinkK = k / CLINK_LEN;
     }
 
     // Position: carrying a handoff, walking to a new spot, or settled.
     let walking = false;
+    let inConga = false;
     if (c) {
       pos.set(c.x, c.y, c.z);
       curRaised.current = false;
       g.rotation.y = lerpAngle(g.rotation.y, c.heading, Math.min(1, dt * 8));
       walking = !c.ride && !(an && an.courier); // riding in a boat: sit still
+    } else if (cg) {
+      const dx = cg.x - pos.x;
+      const dz = cg.z - pos.z;
+      const d = Math.hypot(dx, dz);
+      curRaised.current = false; // off the tower or lookout: just hop down
+      if (d < LOCK || d > 30 || (conga.locked.has(bot.id) && d < 0.8)) {
+        conga.locked.add(bot.id);
+        pos.set(cg.x, cg.y, cg.z);
+        g.rotation.y = lerpAngle(g.rotation.y, cg.heading, Math.min(1, dt * 10));
+        inConga = true;
+      } else {
+        // hurry to my place in the line
+        conga.locked.delete(bot.id);
+        const step = Math.min(d, CATCH_SPEED * dt);
+        pos.x += (dx / d) * step;
+        pos.z += (dz / d) * step;
+        pos.y = groundY(pos.x, pos.z);
+        g.rotation.y = lerpAngle(g.rotation.y, Math.atan2(dx, dz), Math.min(1, dt * 10));
+      }
+      walking = true;
     } else {
       const dx = target.x - pos.x;
       const dz = target.z - pos.z;
@@ -386,7 +439,39 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
 
     let sip = 0;
     let swing = 0;
-    if (walking) {
+    let kick = 0; // conga kick: -1 left leg out, +1 right leg out
+    const leading = inConga && cg.leader;
+    if (inConga) {
+      // 1, 2, 3, kick! Little steps on the beat, a side kick on 4.
+      const { beat, k, bar } = congaBeat();
+      const side = bar % 2 ? 1 : -1;
+      const hit = beat === 3 ? Math.sin(Math.PI * k) : 0;
+      kick = side * hit;
+      lift = (beat === 3 ? 0.04 : Math.abs(Math.sin(Math.PI * k)) * 0.05) + hit * 0.03;
+      p.rotation.z = Math.sin(((beat + k) * Math.PI) / 2) * 0.09 - kick * 0.08;
+      swing = beat === 3 ? 0 : Math.sin(Math.PI * k) * (beat % 2 ? 0.06 : -0.06);
+      h.rotation.x = -0.08;
+      h.rotation.z = Math.sin(((beat + k) * Math.PI) / 2) * 0.12;
+      if (leading) {
+        // maracas up high, shaking on every beat
+        const sh = Math.sin(fx * Math.PI * 8);
+        lx = -0.3;
+        ly = 0.86 + sh * 0.06;
+        lz = 0.12 + sh * 0.04;
+        rx = 0.3;
+        ry = 0.86 - sh * 0.06;
+        rz = 0.12 - sh * 0.04;
+        h.rotation.y = Math.sin(fx * 1.6) * 0.35;
+      } else {
+        // hands on the shoulders of the bot ahead
+        lx = -0.16;
+        ly = 0.56;
+        lz = 0.4;
+        rx = 0.16;
+        ry = 0.56;
+        rz = 0.4;
+      }
+    } else if (walking) {
       const w = clock * 9;
       lift = Math.abs(Math.sin(w)) * 0.06;
       p.rotation.z = Math.sin(w) * 0.07;
@@ -559,12 +644,22 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
     p.position.y += lift;
     feet[0].current.position.set(-0.08, PO.footY, PO.footZ + swing);
     feet[1].current.position.set(0.08, PO.footY, PO.footZ - swing);
+    if (kick) {
+      const f = feet[kick < 0 ? 0 : 1].current.position;
+      const a = Math.abs(kick);
+      f.x += Math.sign(kick) * 0.13 * a;
+      f.y += 0.11 * a;
+    }
+    if (maracas[0].current) {
+      maracas[0].current.visible = leading;
+      maracas[1].current.visible = leading;
+    }
     eyes[0].current.scale.y = eyeScale * PO.eyeL;
     eyes[1].current.scale.y = eyeScale * PO.eyeR;
 
     // Drink: in hand while standing or walking, resting on the bot when lying back.
     const hd = handDrink.current;
-    let drinkInHand = !!hd && !lying && !lounging;
+    let drinkInHand = !!hd && !lying && !lounging && !inConga;
     if (hd) {
       hd.rotation.set(0, 0, 0);
       if (PO.drink === 'pose') {
@@ -645,7 +740,7 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
       }
     }
 
-    if (tabletRef.current) tabletRef.current.visible = working;
+    if (tabletRef.current) tabletRef.current.visible = working && !inConga;
     if (lanternRef.current) {
       lanternRef.current.parent.visible = working && isNight && !walking;
       if (animate) lanternRef.current.scale.setScalar(1 + Math.sin(clock * 7 + phase) * 0.06 + Math.sin(clock * 11.3) * 0.04);
@@ -729,6 +824,9 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
             <mesh ref={limbs.L} geometry={GEO.limb} material={bodyMat} />
             <group ref={hands.L} position={[0, -0.31, 0]}>
               <mesh geometry={GEO.palm} material={MAT.face} />
+              <group ref={maracas[0]} visible={false}>
+                <Maraca head={MARACA_MAT.red} />
+              </group>
               <group ref={peaceRef} visible={false}>
                 <mesh geometry={PROP_GEO.peace} material={MAT.face} rotation={[0, 0, 0.32]} />
                 <mesh geometry={PROP_GEO.peace} material={MAT.face} rotation={[0, 0, -0.32]} />
@@ -739,6 +837,9 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
             <mesh ref={limbs.R} geometry={GEO.limb} material={bodyMat} />
             <group ref={hands.R} position={[0, -0.31, 0]}>
               <mesh geometry={GEO.palm} material={MAT.face} />
+              <group ref={maracas[1]} visible={false}>
+                <Maraca head={MARACA_MAT.green} />
+              </group>
             </group>
           </group>
           {/* selfie phone: screen toward the bot, flash on the back */}

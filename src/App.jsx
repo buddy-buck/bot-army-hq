@@ -17,6 +17,7 @@ import BotCard from './components/BotCard.jsx';
 import Feed from './components/Feed.jsx';
 import Roster from './components/Roster.jsx';
 import SpotifyPlayer from './components/SpotifyPlayer.jsx';
+import { onCongaChange, setCongaRoster } from './world/life/conga.js';
 import UI, { IslandNote, LoadingNotice, RecentHandoffs, Toast } from './components/UI.jsx';
 import { botFx, fxNow, LabelDirector, labelState } from './components/labels.js';
 import useData, { HAS_LIVE, headlineMinutes, initialMode, saveMode } from './hooks/useData.js';
@@ -699,6 +700,8 @@ export default function App() {
   const clinks = useMemo(() => clinkPairs(layout), [layout]);
   const selected = bots.find((b) => b.id === selectedId) || null;
   const crownId = useMemo(() => botOfTheDayId(bots), [bots]);
+  // Conga line: Bot of the Day leads (with maracas), everyone else follows.
+  useEffect(() => setCongaRoster(sceneBots.map((b) => b.id), crownId), [sceneBots, crownId]);
   const isExample = !!data?.isExample;
 
   useEffect(() => {
@@ -920,6 +923,14 @@ export default function App() {
   const closeNote = useCallback(() => setNote(null), []);
   // Spotify didn't load: the DJ booth (lazy chunk) plays its own beat instead.
   const djFallback = useCallback(() => window.dispatchEvent(new CustomEvent('island:dj-beat')), []);
+  // Conga line starts and ends (world/life/conga.js).
+  useEffect(
+    () =>
+      onCongaChange((on) =>
+        showToast(on ? 'Conga line! The whole crew is dancing around the island. Work keeps running.' : 'Song over. Everybody back to their spots!')
+      ),
+    [showToast]
+  );
   const openOffice = useCallback(() => setScoreOpen(true), []);
 
   // Photo booth: fly to a clean angle, hide the UI and have everyone wave

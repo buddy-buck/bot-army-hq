@@ -44,7 +44,7 @@ Handy test switches (add to the URL):
 | Boats | `tug`, `tour`, `jetski`, `jetboat`, `race`, plus close-up cameras `camtug`, `camtour`, `camsail`, `camjet`, `camjetboat`, `camrival` |
 | Sky | `pelicans`, `stars`, `meteors`, `fireworks`, `aurora`, `ufo`, `rainbow`, `byob`, `drop` |
 | Buildings | `plane2` (airstrip plane), `heli` (helicopter on Chief's helipad), `vane` (lighthouse weather vane gusts), `pool` (bots visit Flo's pool) |
-| Island life | `concert`, `yoga`, `shaveice` |
+| Island life | `concert`, `conga`, `yoga`, `shaveice` |
 | Bots | `highfive`, `trip`, `selfie`, `pushups`, `antics` (all four), `fishing`, `armwrestle`, `sandcastle`, `bottle` |
 
 Note: if npm prints a warning that esbuild's install script was skipped, the build still works. If `npm run dev` ever fails because esbuild is missing, run `npm rebuild esbuild`.
@@ -205,7 +205,7 @@ The island grew (it's about 20% wider and 40% deeper) to make room for a whole r
   - A helipad on top of Chief's Tower, where Chief's magenta helicopter visits now and then.
   - A Visitor Center by the pier, whose counter shows how many bots are on the island, working and chillin' right now. Tap it for the breakdown by team.
 - **Flo's overwater bungalow.** A Maldives-style villa on stilts off the north shore, reached by a boardwalk, with a layered thatched roof, a sun deck with a plunge pool, a ladder into the lagoon and a glass floor panel with coral and fish below (it glows at night). Flo's porch chair looks west to the sunset.
-- **Island life.** Tiki bar regulars on stools and a bartender sliding drinks down the counter. The BYTE BITES food truck with a line that shuffles forward. A napping bot in a hammock. Two-on-two beach volleyball. A DJ booth with music notes floating over a light-up dance floor. Tap it for a small Spotify player with a lo-fi playlist (set your own with `VITE_SPOTIFY_PLAYLIST`, the playlist id); if Spotify isn't available, the booth plays its own lo-fi beat made in the browser. Waiters carrying trays to Nasty's chair, the tiki hut and the lanai. At bedtime the crew goes home: the bar closes down to one sleepy bartender, the truck shutters, the DJ goes quiet.
+- **Island life.** Tiki bar regulars on stools and a bartender sliding drinks down the counter. The BYTE BITES food truck with a line that shuffles forward. A napping bot in a hammock. Two-on-two beach volleyball. A DJ booth with music notes floating over a light-up dance floor. Tap it for a small Spotify player with Buddy's Bot Island Radio playlist (set your own with `VITE_SPOTIFY_PLAYLIST`, the playlist id); if Spotify isn't available, the booth plays its own lo-fi beat made in the browser. When "Conga!" comes on, every bot forms a conga line around the island's paths behind the Bot of the Day and its maracas, then scatters home when the song ends (see EASTER-EGGS.md). Waiters carrying trays to Nasty's chair, the tiki hut and the lanai. At bedtime the crew goes home: the bar closes down to one sleepy bartender, the truck shutters, the DJ goes quiet.
 - **Campfire.** Working bots at the night campfire now sit on logs and stumps in roomier rings, with tiki torches and a guitar.
 - **Bot personality.** Chillin' team bots now have arms and get up to things now and then (roughly every 20 to 40 seconds somewhere on the island, by day only):
   - high-fives

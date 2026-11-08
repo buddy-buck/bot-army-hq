@@ -76,7 +76,7 @@ Every easter egg, interaction, rare event and timed moment on the island, with w
 ### Island life
 | Where | What happens |
 |---|---|
-| **Beach Beats DJ booth** (next to the tiki bar) | **Tap** to open a small floating **Spotify player** (Spotify's "lofi beats" playlist; press play in the player, since browsers don't let embeds autoplay). Close it with ×, Esc or another tap on the booth. **Fallback:** if Spotify isn't available (offline, or the player hasn't loaded after 8 s), or you tap **"Island beat"** in the player, the booth plays its own lo-fi beat, generated in the browser (80 BPM, jazzy chords, vinyl crackle); tap again to stop. While music is on, the floor flashes, notes float up and the DJ bobs harder. Tapping at bedtime brings the DJ and dancers back out |
+| **Beach Beats DJ booth** (next to the tiki bar) | **Tap** to open a small floating **Spotify player** (Buddy's **Bot Island Radio** playlist; press play in the player, since browsers don't let embeds autoplay). Close it with ×, Esc or another tap on the booth. **Fallback:** if Spotify isn't available (offline, or the player hasn't loaded after 8 s), or you tap **"Island beat"** in the player, the booth plays its own lo-fi beat, generated in the browser (80 BPM, jazzy chords, vinyl crackle); tap again to stop. While music is on, the floor flashes, notes float up and the DJ bobs harder. Tapping at bedtime brings the DJ and dancers back out |
 | **Byte Bites menu board** (or the rooftop sign) | Full menu note: Byte Taco, **Buck Taco** ("the house special. Buck yeah."), **Shave Ice** in six flavors (or "the Rainbow"), chips and salsa, coconut |
 | **Hot air balloons** (day) | **Tap or hold the burner** for a flame burst and a whoosh. Hold to climb (up to +6 units, auto-stops after 8 s). Release and it drifts back down |
 | **Launch's jet boat** (red/white/blue cigarette boat, south side of the pier) | **Tap:** it roars off for a lap around the island (~40 s) with a random toast like "zero to 60 in 'just one more feature'." 6 s cooldown. During a race it tells you to cheer from the south beach (`?test=jetboat`) |
@@ -133,6 +133,15 @@ Every easter egg, interaction, rare event and timed moment on the island, with w
 | **9 PM to 6 AM** | **Bedtime**: idle bots sleep in hammocks with ZZZs; working bots gather at the **campfire**. Only one band member, a busker, stays strumming on the stage edge |
 | **Night** | **Campfire stories**: parchment speech bubbles showing what each bot accomplished ("Saved 12 min: Drafted the newsletter"). 2 at the default zoom (4 zoomed in), rotating every 5.5 s; the speaker gestures and nods (`?hour=21`) |
 
+### Conga line (when "Conga!" plays)
+- Play **"Conga!"** (Gloria Estefan & Miami Sound Machine) in the DJ booth's Spotify player and **every bot drops what it's doing and forms a conga line**. The player tells the island which track is on, through Spotify's iFrame API.
+- **Bot of the Day leads**, crown on, shaking a red and a green **maraca**. Everyone else follows with hands on the shoulders of the bot ahead, stepping 1, 2, 3 and kicking on 4.
+- The line dances around the ring at the foot of Chief's Tower and out and back along every zone's sand path, like the petals of a flower.
+- **When the song ends** (the next track starts, or it's paused for 3 s, or the player closes), everybody scatters back to their spots.
+- **Work keeps running:** the feed, statuses, "+X min" cheers and handoffs carry on. A bot with a handoff to deliver leaves the line, delivers it and dances back in.
+- Logged-out visitors only get Spotify's 30-second preview, so their conga is a short one.
+- `?test=conga` starts a one-minute conga 6 s after load, then one every 2.5 minutes.
+
 ### Bot antics (day, chillin' bots)
 - One big antic somewhere every 20 to 40 s:
   - a high-five
@@ -160,7 +169,7 @@ Every easter egg, interaction, rare event and timed moment on the island, with w
 
 ## All `?test=` switches
 
-`all`, `antics`, `armwrestle`, `aurora`, `bigfoot`, `bottle`, `byob`, `camjet`, `camjetboat`, `camrival`, `camsail`, `camtour`, `camtug`, `concert`, `dolphins`, `drop`, `fireworks`, `fish`, `fishing`, `heli`, `highfive`, `jetboat`, `jetski`, `meteors`, `nessie`, `pelicans`, `plane2`, `pool`, `pushups`, `race`, `rainbow`, `sandcastle`, `selfie`, `shaveice`, `stars`, `tide`, `tour`, `trip`, `tug`, `turtles`, `ufo`, `vane`, `wake`, `whale`, `yoga`
+`all`, `antics`, `armwrestle`, `aurora`, `bigfoot`, `bottle`, `byob`, `camjet`, `camjetboat`, `camrival`, `camsail`, `camtour`, `camtug`, `concert`, `conga`, `dolphins`, `drop`, `fireworks`, `fish`, `fishing`, `heli`, `highfive`, `jetboat`, `jetski`, `meteors`, `nessie`, `pelicans`, `plane2`, `pool`, `pushups`, `race`, `rainbow`, `sandcastle`, `selfie`, `shaveice`, `stars`, `tide`, `tour`, `trip`, `tug`, `turtles`, `ufo`, `vane`, `wake`, `whale`, `yoga`
 
 Other switches: `?hour=N`, `?weather=test`, `?claude=test`, `?plane=test`, `?surf=test`, `?reduced=1`, `?lite=1`, `?safe=0`, `?demo=1`, `?kiosk=1`.
 
