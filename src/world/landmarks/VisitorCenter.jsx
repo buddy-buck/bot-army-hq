@@ -3,9 +3,11 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { SITES, ZONES, DECKS, groundY, islandWobble, ISLAND, teamLabel } from '../../utils/paths.js';
 import { botOfTheDay } from '../../utils/botOfDay.js';
+import { DEFAULT_TESTIMONIALS, loadTestimonials } from '../../utils/testimonials.js';
 import { BambooPost, Beam, Box, Cone, Cyl, Fringe, Lantern, M, Roof, canvasTexture, hash2, pointer, std, tap } from './kit.jsx';
 
-// The Visitor Center near the head of Launch's Pier: an open tropical
+// The Visitor Center just north of the welcome arch (moved in round 4 so the
+// arch is the hero shot from the default camera): an open tropical
 // pavilion with brochure racks, a map of the island, potted palms, a bench,
 // and a scoreboard on posts beside it with the live bot count (on the
 // island, working, chillin'/snoozing). Digits roll like a flip board when a
@@ -505,14 +507,10 @@ function Easel() {
 // Guest book: a cork board of pinned notes. One big note features a quote
 // and flips to the next one every 12 seconds; tap to read them all.
 
-const QUOTES = [
-  ['My listing captions write themselves now. I just sip my coffee.', 'Happy BYOB owner, Duvall'],
-  ['Got two hours of my Tuesday back. Spent them on the river.', 'Weekend kayaker, Carnation'],
-  ['The bots never forget a follow-up. I used to forget lunch.', 'Busy agent, Monroe'],
-  ['They drafted my newsletter before my latte cooled.', 'Small business owner, Fall City'],
-  ['Tiny robots, huge help. Would visit the island again.', 'First-time visitor, Snoqualmie'],
-  ['Best part? They wave at you on the paths.', 'Island regular, Woodinville'],
-];
+// Quotes come from public/testimonials.json (see utils/testimonials.js), so
+// new ones can be added without touching code. Built-in list until it loads.
+let QUOTES = DEFAULT_TESTIMONIALS.map((t) => [t.quote, t.who]);
+const MAX_DOTS = 12;
 const QUOTE_SECONDS = 12;
 const FLIP_SECONDS = 0.6;
 const GB_W = 768;
@@ -630,7 +628,7 @@ function drawGuestBook(x, back, idx, prev, flip) {
   x.drawImage(back, 0, 0);
   const k = flip >= 1 ? 1 : Math.abs(Math.cos(flip * Math.PI));
   const show = flip < 0.5 ? prev : idx;
-  const [quote, who] = QUOTES[show];
+  const [quote, who] = QUOTES[show % QUOTES.length];
   const cx = GB_W / 2;
   const cy = 284;
   x.save();
@@ -661,10 +659,12 @@ function drawGuestBook(x, back, idx, prev, flip) {
   x.restore();
   pin(x, cx, cy - 166, '#e0393e');
   // which quote is up: a row of dots
-  for (let i = 0; i < QUOTES.length; i++) {
-    x.fillStyle = i === idx ? '#ffffff' : 'rgba(255,255,255,0.4)';
+  const dots = Math.min(QUOTES.length, MAX_DOTS);
+  for (let i = 0; i < dots; i++) {
+    const on = i === idx % dots;
+    x.fillStyle = on ? '#ffffff' : 'rgba(255,255,255,0.4)';
     x.beginPath();
-    x.arc(cx + (i - (QUOTES.length - 1) / 2) * 22, GB_H - 22, i === idx ? 7 : 5, 0, Math.PI * 2);
+    x.arc(cx + (i - (dots - 1) / 2) * 22, GB_H - 22, on ? 7 : 5, 0, Math.PI * 2);
     x.fill();
   }
 }
@@ -698,6 +698,23 @@ function GuestBook({ p, rotY, ctx }) {
     return st;
   }, []);
   useEffect(() => () => (gb.tex.dispose(), gb.mat.dispose()), [gb]);
+  // Swap in the testimonials from public/testimonials.json once they load.
+  useEffect(() => {
+    let live = true;
+    loadTestimonials().then((list) => {
+      if (!live || !list.length) return;
+      QUOTES = list.map((t) => [t.quote, t.who]);
+      gb.idx = 0;
+      gb.prev = 0;
+      gb.flip = 1;
+      drawGuestBook(gb.x, gb.back, 0, 0, 1);
+      gb.tex.needsUpdate = true;
+      invalidate();
+    });
+    return () => {
+      live = false;
+    };
+  }, [gb, invalidate]);
   useEffect(() => {
     gb.mat.emissiveIntensity = night * 0.35;
     invalidate();

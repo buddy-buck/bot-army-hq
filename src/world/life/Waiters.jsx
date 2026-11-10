@@ -25,9 +25,9 @@ const HUT_STOP = { x: ZONES.tikihut.x + 1.75, z: ZONES.tikihut.z + 1.75 };
 const ROUTES = [
   {
     color: CREW_COLORS[6],
-    // west along z ~8.8: north of the DJ booth's dance floor (its north
-    // edge is at z ~10.4), south of the Tiki Hut's torches
-    pts: [[BAR_PICKUPS.front.x, BAR_PICKUPS.front.z], [10.95, 8.05], [9.6, 8.95], [7.6, 8.8], [5.0, 9.1], [HUT_STOP.x, HUT_STOP.z]],
+    // west along z ~8.5: north of the DJ booth's band stage (its north
+    // edge is at z ~9.1 since the floor grew), south of the Tiki Hut's torches
+    pts: [[BAR_PICKUPS.front.x, BAR_PICKUPS.front.z], [10.95, 8.05], [9.6, 8.5], [7.6, 8.4], [5.0, 8.65], [HUT_STOP.x, HUT_STOP.z]],
     stops: [
       { at: 0, kind: 'pickup', face: BAR_PICKUPS.front.face, wait: 3.5 },
       { at: 1, kind: 'serve', face: -1.75, wait: 3.2, give: 1 }, // Nasty, lying back in the beach chair

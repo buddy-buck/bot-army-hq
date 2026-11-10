@@ -4,9 +4,9 @@
 // Coordinates: x = east (+) / west (-), z = south (+) / north (-), y = up.
 // The default camera sits to the south looking north.
 import * as THREE from 'three';
-import { BOT_HAMMOCKS, FLO, SAND_PATCHES, SITES } from './sites.js';
+import { BOT_HAMMOCKS, BOT_STATIONS, FLO, SAND_PATCHES, SITES } from './sites.js';
 
-export { BOT_HAMMOCKS, FLO, SAND_PATCHES, SEA_LANES, SITES } from './sites.js';
+export { BOT_HAMMOCKS, BOT_STATIONS, FLO, SAND_PATCHES, SEA_LANES, SITES } from './sites.js';
 
 // Zones are laid out 20% wider than the original island so they have
 // breathing room. Building and bot sizes don't change, only spacing.
@@ -390,12 +390,14 @@ export function layoutBots(bots) {
   const placedHammocks = [];
   for (const [key, list] of Object.entries(byZone)) {
     const zone = ZONES[key];
-    const normal = list.filter((l) => !l.extra);
+    const own = list.filter((l) => !l.extra && BOT_STATIONS[l.bot.id]);
+    const normal = list.filter((l) => !l.extra && !BOT_STATIONS[l.bot.id]);
     const extras = list.filter((l) => l.extra);
     const slots = SLOT_RULES[key](normal.length);
     const extraSlots = arc(0, 0, 4.3, 200, 340, extras.length);
     const all = [
       ...normal.map((l, i) => ({ l, s: slots[i] })),
+      ...own.map((l) => ({ l, s: { ...BOT_STATIONS[l.bot.id], fixedRot: true } })),
       ...extras.map((l, i) => ({ l, s: extraSlots[i] })),
     ];
     const spots = [...(HAMMOCK_SPOTS[key] || [])];

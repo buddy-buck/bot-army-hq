@@ -44,7 +44,7 @@ Handy test switches (add to the URL):
 | Boats | `tug`, `tour`, `jetski`, `jetboat`, `race`, plus close-up cameras `camtug`, `camtour`, `camsail`, `camjet`, `camjetboat`, `camrival` |
 | Sky | `pelicans`, `stars`, `meteors`, `fireworks`, `aurora`, `ufo`, `rainbow`, `byob`, `drop` |
 | Buildings | `plane2` (airstrip plane), `heli` (helicopter on Chief's helipad), `vane` (lighthouse weather vane gusts), `pool` (bots visit Flo's pool) |
-| Island life | `concert`, `conga`, `yoga`, `shaveice` |
+| Island life | `concert`, `conga`, `yoga`, `shaveice`, `arrivals` (recruits arrive often), `mail` (the seagull mailman every ~15 s), `wave` (bots wave at the camera every few seconds) |
 | Bots | `highfive`, `trip`, `selfie`, `pushups`, `antics` (all four), `fishing`, `armwrestle`, `sandcastle`, `bottle` |
 
 Note: if npm prints a warning that esbuild's install script was skipped, the build still works. If `npm run dev` ever fails because esbuild is missing, run `npm rebuild esbuild`.
@@ -193,6 +193,19 @@ Easter eggs, not clutter. Only one travel animation (drone, seaplane, surfer) an
 
 Reduced motion skips the drone, seaplane, jet ski and weather; Claude simply appears where the status says.
 
+### Round 4: arrivals, boards and the fourth wall
+
+- **Lei greeting.** A greeter on the lawn just inside the welcome arch puts a lei on every new arrival (about 3 seconds). Only new arrivals get one.
+- **The tourist is you.** When the page opens, a small tourist with a sun hat and camera (no name) rides in on the water taxi, gets a lei and wanders the sights: the Visitor Center, Chief's whiteboard, the dance floor (by day) and the end of the pier. If the tab is hidden for more than a minute, the tourist has gone home and a new one arrives when you come back. Tap the tourist: "That's you!"
+- **Recruits.** Now and then a recruit steps off the island-hopper or the water taxi, gets a lei, and a chillin' teammate meets them at their new team's spot and points out the place. Then they join up (painted in team colors, a cheer, a toast) and head in.
+- **Chief's whiteboard** at the foot of the tower shows today's priorities from the data: who's working on what (`bots[].job`), what just got done (`feed`) and what's next (`nextUp`). Tap it for the full list.
+- **Stadium board** by the volleyball court: minutes saved this week (`minutesSaved.week`, or the sum of `daily`), counting up when it grows. Tap it for the minutes drawer.
+- **Wall of Fame** on the beach between the DJ booth and the tiki bar: framed achievements from the data. Tap it to read them.
+- **Pier mailbox.** A seagull drops off a letter every few minutes and the red flag goes up. Tap the mailbox for a BYOB fact or a customer shoutout.
+- **Fourth wall.** One bot (Chief, if he's awake) salutes you right after the page loads; every minute or two by day, a bot on screen turns and waves at the camera.
+- **Testimonials** are in `public/testimonials.json`: copy a `{ "quote": "...", "who": "..." }` block to add one. They rotate on the Visitor Center guest book and appear as mailbox shoutouts. No rebuild needed.
+- **Layout fixes.** A bigger dance floor at the DJ booth, Trace's own quiet nook (desk and hammock) west of the tiki hut away from the band, and the Visitor Center moved north of the arch so the arch is the first thing you see.
+
 ### Bot Island HQ
 
 The island grew (it's about 20% wider and 40% deeper) to make room for a whole resort. Everything below is decoration: none of it changes data, and the background crew (tiki bar regulars, tourists, waiters) wear their own colors so nobody mistakes them for a team bot. Rare and attention-grabbing moments take turns: one aircraft at a time, one big sky show at a time, one rare easter egg at a time and one big bot antic at a time. Timed extras only advance while the island is on screen.
@@ -203,7 +216,7 @@ The island grew (it's about 20% wider and 40% deeper) to make room for a whole r
   - A lifeguard watchtower on the south beach, with a lifeguard bot on binoculars by day.
   - An inland airstrip on the east side of the island (BOT AIR hangar, control tower, windsock, edge lights) where a little island-hopper plane takes off and lands over the east shore every few minutes. The north beach is the lounge beach: loungers, volleyball and sunrise yoga.
   - A helipad on top of Chief's Tower, where Chief's magenta helicopter visits now and then.
-  - A Visitor Center by the pier, whose counter shows how many bots are on the island, working and chillin' right now. Tap it for the breakdown by team.
+  - A Visitor Center just north of the welcome arch, whose counter shows how many bots are on the island, working and chillin' right now. Tap it for the breakdown by team.
 - **Flo's overwater bungalow.** A Maldives-style villa on stilts off the north shore, reached by a boardwalk, with a layered thatched roof, a sun deck with a plunge pool, a ladder into the lagoon and a glass floor panel with coral and fish below (it glows at night). Flo's porch chair looks west to the sunset.
 - **Island life.** Tiki bar regulars on stools and a bartender sliding drinks down the counter. The BYTE BITES food truck with a line that shuffles forward. A napping bot in a hammock. Two-on-two beach volleyball. A DJ booth with music notes floating over a light-up dance floor. Tap it for a small Spotify player with Buddy's Bot Island Radio playlist (set your own with `VITE_SPOTIFY_PLAYLIST`, the playlist id); if Spotify isn't available, the booth plays its own lo-fi beat made in the browser. When "Conga!" comes on, every bot forms a conga line around the island's paths behind the Bot of the Day and its maracas, then scatters home when the song ends (see EASTER-EGGS.md). Waiters carrying trays to Nasty's chair, the tiki hut and the lanai. At bedtime the crew goes home: the bar closes down to one sleepy bartender, the truck shutters, the DJ goes quiet.
 - **Campfire.** Working bots at the night campfire now sit on logs and stumps in roomier rings, with tiki torches and a guitar.

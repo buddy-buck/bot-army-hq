@@ -1,5 +1,25 @@
 # Changelog
 
+## Bot Island round 4
+
+Fixes:
+- **Bigger dance floor.** The DJ booth's floor grew from 3.0 x 2.1 to 4.6 x 2.4 with ten dancers spread out; the night band stage and the waiter's route moved to fit.
+- **Trace has her own quiet nook.** A little desk (card file, mug, lamp) west of the tiki hut, with her hammock beside it, far from the band stage. Per-bot stations live in `BOT_STATIONS` (`src/utils/sites.js`).
+- **The welcome arch is the hero shot.** The Visitor Center moved to the north side of the arch, and the sand in front of the arch is kept clear of palms.
+
+New:
+1. **Lei greeting.** A greeter on the lawn inside the arch puts a lei on every new arrival (about 3 seconds). Only new arrivals get one.
+2. **Recruits.** Now and then a recruit steps off the island-hopper (or the water taxi), gets a lei, is met by a chillin' teammate who shows them their team's spot, then joins up in team colors with a toast.
+3. **The tourist is you.** When the page opens, a small anonymous tourist (sun hat, camera, no name) rides in on a water taxi, gets a lei and wanders the sights. Hide the tab for over a minute and they've gone home; come back and a new one arrives. Tap them for "That's you!"
+4. **Chief's whiteboard** at the foot of the tower: today's priorities from the live data (who's working on what, what just got done, what's next).
+5. **Pier mailbox.** A seagull delivers a letter every few minutes and the flag pops up. Tap for a BYOB fact or a customer shoutout, rotating.
+6. **Stadium board** by the volleyball court: minutes saved this week, counting up when it grows. Tap for the minutes drawer.
+7. **Fourth wall.** A bot salutes you right after the page loads, and every minute or two an on-screen bot turns and waves at the camera.
+8. **Wall of Fame** on the beach by the tiki bar: framed achievements (minute club, top bot this week, Bot of the Day, best day, biggest win, busiest crew, team size).
+9. **Testimonials** live in `public/testimonials.json`. They rotate on the Visitor Center guest book and show up as mailbox shoutouts. Add one by copying a `{ "quote", "who" }` block; no rebuild needed.
+
+Test switches: `?test=arrivals` (recruits often), `?test=mail` (a gull every ~15 s), `?test=wave` (waves every few seconds).
+
 ## Bot Island HQ
 
 The island grew (rx 15.6 to 18.5, rz 11.4 to 16) into a full resort. The Real Estate Lanai and Launch's Pier moved out to the new shoreline; every new landmark has a reserved spot in `src/utils/sites.js`, and palms, flowers, rocks and hammocks keep clear of them.

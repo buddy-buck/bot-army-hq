@@ -1,0 +1,11 @@
+{
+  "_howTo": "Add a testimonial by copying one { quote, who } block below and editing it. Keep quotes short (under ~120 characters). They rotate on the Visitor Center guest book and show up as shoutouts in the pier mailbox. Changes show on the next page load, no rebuild needed.",
+  "testimonials": [
+    { "quote": "My listing captions write themselves now. I just sip my coffee.", "who": "Happy BYOB owner, Duvall" },
+    { "quote": "Got two hours of my Tuesday back. Spent them on the river.", "who": "Weekend kayaker, Carnation" },
+    { "quote": "The bots never forget a follow-up. I used to forget lunch.", "who": "Busy agent, Monroe" },
+    { "quote": "They drafted my newsletter before my latte cooled.", "who": "Small business owner, Fall City" },
+    { "quote": "Tiny robots, huge help. Would visit the island again.", "who": "First-time visitor, Snoqualmie" },
+    { "quote": "Best part? They wave at you on the paths.", "who": "Island regular, Woodinville" }
+  ]
+}

@@ -20,18 +20,37 @@ export const SITES = {
   // for the lounge loungers and the volleyball court.
   runway: { x: 10.3, z: -3.3, hx: 4.7, hz: 1.35, rotY: 0 },
   runwayApproach: { x: 17.0, z: -3.6, hx: 1.6, hz: 1.4, rotY: 0 }, // no palms on the climb-out / final approach line
-  visitor: { x: -13.4, z: 9.2, r: 2.1, rotY: 0.25 }, // Visitor Center near the head of Launch's Pier
+  // Visitor Center (round 4): moved well north of the welcome arch, so the
+  // arch stands alone as the first thing you see from the default camera. It
+  // faces south-south-east, toward the gate.
+  visitor: { x: -15.1, z: -0.9, r: 2.1, rotY: 0.45 },
   // Island life
   tikibar: { x: 12.8, z: 9.6, r: 2.4 },
   foodtruck: { x: -3.6, z: 11.6, r: 3.6 }, // bigger truck; the line forms toward the east (+x)
-  dj: { x: 7.0, z: 12.0, r: 2.9 }, // next to the tiki bar (drink, then dance); booth faces north onto a big dance floor
+  dj: { x: 7.0, z: 12.0, r: 3.2 }, // next to the tiki bar (drink, then dance); booth faces north onto a big dance floor (bigger in round 4)
   volleyball: { x: 4.2, z: -12.8, hx: 2.3, hz: 1.4, rotY: 0 }, // north lounge beach, all sand
-  napHammock: { x: -14.6, z: -3.6, r: 1.5 },
+  napHammock: { x: -13.2, z: -5.4, r: 1.5 }, // moved a little east in round 4 to make room for the Visitor Center
   yoga: { x: -10.0, z: -10.85, r: 1.8 }, // sunrise yoga mats, west end of the north lounge beach
   // Bot antics (set pieces)
   sandcastle: { x: -8.8, z: 12.6, r: 1.3 },
   armWrestle: { x: 2.6, z: -9.0, r: 1.2 },
   pushups: { x: -6.2, z: -9.6, r: 1.1 },
+  // Round 4 extras
+  welcomeLawn: { x: -13.4, z: 5.6, r: 0.9 }, // where the lei greeter stands, just inside the arch (kept clear of palms)
+  visitorLawn: { x: -14.4, z: 2.3, r: 1.0 }, // open lawn in front of the Visitor Center
+  archView: { x: -14.9, z: 8.4, r: 1.6 }, // open sand in front of the arch so nothing blocks it from the default camera
+  traceNook: { x: -2.75, z: 6.75, r: 0.5 }, // Trace's quiet writing desk, west of the tiki hut, far from the band
+  whiteboard: { x: -1.75, z: 3.95, r: 0.7, rotY: 0.12 }, // today's priorities, at the foot of Chief's Tower
+  mailbox: { x: -16.45, z: 4.45, r: 0.3 }, // on Launch's Pier, north edge near the head
+  stadium: { x: 7.3, z: -13.75, r: 1.0, rotY: -0.4 }, // "minutes saved this week" board by the volleyball court
+  fameWall: { x: 10.6, z: 11.85, r: 0.85, rotY: -0.3 }, // wall of fame, on the beach between the DJ booth and the tiki bar
+};
+
+// Per-bot stations that override the zone's automatic slots (same team and
+// zone, own spot). Trace works at a quiet desk instead of the tiki hut arc,
+// which sits right next to the night band stage.
+export const BOT_STATIONS = {
+  trace: { x: -2.1, z: 6.8, rotY: 0 },
 };
 
 // Extra beach: areas painted as sand even though they sit inland of the
@@ -47,6 +66,7 @@ export const SAND_PATCHES = [
 // under a palm in a quiet corner of the north-west woods, far from Byte Bites.
 export const BOT_HAMMOCKS = {
   nudge: { x: -13.0, z: -8.0, rotY: 0.75, palm: { x: -13.7, z: -8.75 } },
+  trace: { x: -1.2, z: 8.4, rotY: 0.3 }, // beside her nook, well away from the DJ booth
 };
 
 // Flo's overwater bungalow (Maldives style) off the north shore: a boardwalk

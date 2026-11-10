@@ -6,6 +6,8 @@ import { DECKS, groundY, islandE, siteDistance } from '../utils/paths.js';
 import { aliveClock, claimSlot, releaseSlot, slotBusy, testOn } from '../wild/director.js';
 import { DriftBottle } from '../wild/Easter.jsx';
 import ArmWrestle from './antics/ArmWrestle.jsx';
+import CameraWaves from './antics/CameraWaves.jsx';
+import Arrivals from './welcome/Arrivals.jsx';
 import { ANTIC_TIMES, HELP_LEN, PUSHUP_LEN, SELFIE_FLASHES } from './antics/botPose.js';
 import Fishing, { FISH_SPOT } from './antics/Fishing.jsx';
 import Fx, { fxBurst, fxCount } from './antics/Fx.jsx';
@@ -84,6 +86,8 @@ export default function Antics({ ctx }) {
       <Pushups ctx={ctx} />
       <Sandcastle ctx={ctx} />
       <DriftBottle onNote={ctx.onNote} test={testOn('bottle')} />
+      <CameraWaves ctx={ctx} />
+      <Arrivals ctx={ctx} />
     </group>
   );
 }

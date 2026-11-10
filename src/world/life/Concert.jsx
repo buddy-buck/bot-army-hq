@@ -64,11 +64,11 @@ const KIT_Z = DRUMS.z - 0.36;
 
 // Watchers gather on the sand beside the floor, near the stage.
 const WATCHERS = [
-  { x: FLOOR.x0 - 0.35, z: 1.2, color: CREW_COLORS[7], move: 'glow' },
-  { x: FLOOR.x1 + 0.35, z: 1.15, color: CREW_COLORS[3], move: 'clap' },
-  { x: FLOOR.x0 - 0.3, z: 0.4, color: CREW_COLORS[9], move: 'clap' },
-  { x: FLOOR.x1 + 0.3, z: 0.35, color: CREW_COLORS[0], move: 'glow' },
-].map((w) => ({ ...w, y: localGround(w.x, w.z), face: Math.atan2(0 - w.x, 2.1 - w.z) }));
+  { x: FLOOR.x0 - 0.35, z: FLOOR.z1 - 0.3, color: CREW_COLORS[7], move: 'glow' },
+  { x: FLOOR.x1 + 0.35, z: FLOOR.z1 - 0.35, color: CREW_COLORS[3], move: 'clap' },
+  { x: FLOOR.x0 - 0.3, z: FLOOR.z1 - 1.1, color: CREW_COLORS[9], move: 'clap' },
+  { x: FLOOR.x1 + 0.3, z: FLOOR.z1 - 1.15, color: CREW_COLORS[0], move: 'glow' },
+].map((w) => ({ ...w, y: localGround(w.x, w.z), face: Math.atan2(0 - w.x, (BAND.z0 + BAND.z1) / 2 - w.z) }));
 
 // Guitar in the player's pose frame: neck up toward the left hand.
 function Guitar() {

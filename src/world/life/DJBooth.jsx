@@ -26,7 +26,7 @@ import Concert from './Concert.jsx';
 const IDLE_BPM = 100; // the imagined groove when the speakers are quiet
 const TEST_CONCERT = testOn('concert');
 
-const COLS = 7;
+const COLS = 9;
 const ROWS = 5;
 const TILE_W = (FLOOR.x1 - FLOOR.x0) / COLS;
 const TILE_D = (FLOOR.z1 - FLOOR.z0) / ROWS;
@@ -71,17 +71,20 @@ const NOTE_GLYPHS = ['♪', '♫', '♬', '♪', '♫'];
 const NOTE_COLORS = ['#ff5fa2', '#ffd23f', '#38d6c6', '#9b7bff', '#ff8a3d', '#7fe3ff'];
 const NOTE_MAX = 12;
 
-// Dancers on the floor (local x, z) and their moves. The first five dance
-// on low-power devices too.
+// Dancers on the floor (local x, z) and their moves, spread out over the
+// big floor with room between them. The first five dance on low-power
+// devices too.
 const DANCERS = [
-  { x: -0.95, z: -0.25, color: CREW_COLORS[5], move: 'bounce', ph: 0 },
-  { x: 0.05, z: -0.3, color: CREW_COLORS[2], move: 'wave', ph: 0.25 },
-  { x: 1.0, z: -0.2, color: CREW_COLORS[4], move: 'robot', ph: 0.75 },
-  { x: -0.5, z: 0.4, color: CREW_COLORS[9], move: 'spin', ph: 0.5 },
-  { x: 0.55, z: 0.45, color: CREW_COLORS[6], move: 'bounce', ph: 0.4 },
-  { x: -1.15, z: 1.0, color: CREW_COLORS[3], move: 'wave', ph: 0.6 },
-  { x: 0.05, z: 1.05, color: CREW_COLORS[8], move: 'robot', ph: 0.15 },
-  { x: 1.15, z: 0.95, color: CREW_COLORS[0], move: 'spin', ph: 0.9 },
+  { x: -0.95, z: -0.2, color: CREW_COLORS[5], move: 'bounce', ph: 0 },
+  { x: 0.05, z: -0.25, color: CREW_COLORS[2], move: 'wave', ph: 0.25 },
+  { x: 1.0, z: -0.15, color: CREW_COLORS[4], move: 'robot', ph: 0.75 },
+  { x: -0.5, z: 0.55, color: CREW_COLORS[9], move: 'spin', ph: 0.5 },
+  { x: 0.6, z: 0.6, color: CREW_COLORS[6], move: 'bounce', ph: 0.4 },
+  { x: -1.75, z: 0.25, color: CREW_COLORS[3], move: 'wave', ph: 0.6 },
+  { x: 1.8, z: 0.3, color: CREW_COLORS[8], move: 'robot', ph: 0.15 },
+  { x: -1.3, z: 1.3, color: CREW_COLORS[0], move: 'spin', ph: 0.9 },
+  { x: 0.05, z: 1.35, color: CREW_COLORS[7], move: 'bounce', ph: 0.3 },
+  { x: 1.3, z: 1.25, color: CREW_COLORS[1], move: 'wave', ph: 0.85 },
 ];
 
 const SPEAKER_Z = -1.3;
@@ -243,7 +246,7 @@ export default function DJBooth({ animate, night, bedtime, lowPower }) {
           } else if (pattern === 1) {
             k = (c + beatI) % TILE_COLORS.length;
           } else {
-            const ring = Math.max(Math.abs(c - 3), Math.abs(r - 2));
+            const ring = Math.max(Math.abs(c - (COLS - 1) / 2), Math.abs(r - (ROWS - 1) / 2));
             on = ring === beatI % 4;
             k = (ring + bar) % TILE_COLORS.length;
           }

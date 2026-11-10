@@ -219,7 +219,9 @@ function layoutBubbles(camera, size, dt, invalidate, obstacles) {
 //   sipHop : this bot just finished a task (happy hop and a sip)
 //   wave   : photo booth: wave at the camera
 //   talk   : campfire story: this bot is telling it (hand gestures, nods)
-export const botFx = { cheer: new Map(), sipHop: new Map(), wave: new Map(), talk: new Map() };
+//   salute : a crisp little salute (one bot, right after the page loads)
+//   look   : turn to face the camera while waving or saluting (fourth wall)
+export const botFx = { cheer: new Map(), sipHop: new Map(), wave: new Map(), talk: new Map(), salute: new Map(), look: new Map() };
 export const fxNow = () => performance.now() / 1000;
 
 // Bot antics (src/world/Antics.jsx), keyed by bot id. The antics director

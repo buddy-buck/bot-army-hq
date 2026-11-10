@@ -3,7 +3,7 @@ import { BOT_SCALE } from '../../components/Bot.jsx';
 import { toWorld } from './common.jsx';
 
 // Shared layout for the DJ booth and the night concert (DJBooth.jsx,
-// Concert.jsx). Everything lives inside the SITES.dj circle (r 2.9) on the
+// Concert.jsx). Everything lives inside the SITES.dj circle (r 3.2) on the
 // south-east beach, next to the tiki bar.
 //
 // Local frame: +z points north. From south to north (toward the default
@@ -30,8 +30,8 @@ function groundRange(x0, x1, z0, z1) {
 
 // Footprints in local units.
 export const STAGE = { x0: -1.5, x1: 1.5, z0: -2.0, z1: -0.85 }; // DJ booth
-export const FLOOR = { x0: -1.5, x1: 1.5, z0: -0.6, z1: 1.5 }; // 3.0 x 2.1 (2x the old floor)
-export const BAND = { x0: -1.0, x1: 1.0, z0: 1.72, z1: 2.5 }; // concert stage
+export const FLOOR = { x0: -2.3, x1: 2.3, z0: -0.6, z1: 1.8 }; // 4.6 x 2.4 (round 4: ~75% more room to dance)
+export const BAND = { x0: -1.0, x1: 1.0, z0: 2.02, z1: 2.8 }; // concert stage, just past the floor
 
 const [sLo, sHi] = groundRange(STAGE.x0, STAGE.x1, STAGE.z0, STAGE.z1);
 export const STAGE_Y = sHi + 0.1;

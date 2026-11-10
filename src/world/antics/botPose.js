@@ -100,6 +100,8 @@ export function applyAntic(an, k, p, h, o, t) {
       return selfie(an, k, p, h, o, t);
     case 'fish':
       return fish(an, k, p, h, o, t);
+    case 'guide':
+      return guide(an, k, p, h, o, t);
     default:
       return undefined;
   }
@@ -313,4 +315,13 @@ function fish(an, k, p, h, o, t) {
   h.rotation.x = 0.2 - r * 0.35 + Math.sin(t * 0.5) * 0.04;
   h.rotation.y = Math.sin(t * 0.23) * 0.2;
   if (k < 0) return;
+}
+
+// Showing a new recruit around (welcome/Arrivals.jsx): point the way with the
+// free hand, chatty little head bobs.
+function guide(an, k, p, h, o, t) {
+  if (!an.point) return;
+  setL(o, -0.3, 0.78, 0.36);
+  h.rotation.x = -0.1 + Math.sin(t * 4) * 0.05;
+  h.rotation.y = 0.25;
 }

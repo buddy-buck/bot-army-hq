@@ -33,6 +33,7 @@ const CLINK_PERIOD = 26; // seconds between cheers for a pair of chillin' bots
 const CLINK_LEN = 2.4;
 const WALK_SPEED = 1.3; // units per second
 export const WAVE_SECONDS = 2.4;
+export const SALUTE_SECONDS = 2.2;
 export const CHEER_SECONDS = 1.5; // "+X min" jump: crouch, leap with a full spin, land, settle
 export const TALK_SECONDS = 5.5; // campfire story gestures
 
@@ -401,6 +402,12 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
         curRaised.current = !!home.raised;
         let faceTo = clinkK >= 0 ? Math.atan2(clink.x - pos.x, clink.z - pos.z) : home.rotY;
         if (an) faceTo = an.face ? Math.atan2(an.face.x - pos.x, an.face.z - pos.z) : an.faceY ?? home.rotY;
+        // Fourth wall: turn to the camera for a wave or a salute.
+        const lk = botFx.look.get(bot.id);
+        if (lk !== undefined) {
+          if (fx >= lk) botFx.look.delete(bot.id);
+          else if (!an && clinkK < 0 && (mode === 'station' || mode === 'chill')) faceTo = Math.atan2(state.camera.position.x - pos.x, state.camera.position.z - pos.z);
+        }
         g.rotation.y = animate && !jump ? lerpAngle(g.rotation.y, faceTo, Math.min(1, dt * (an ? 7 : 4))) : home.rotY;
       } else {
         const step = Math.min(d, WALK_SPEED * dt);
@@ -635,6 +642,20 @@ function Bot({ bot, slot, isNight, selected, spotlight, onSelect, pulseKey, anim
       lx = THREE.MathUtils.lerp(lx, -0.34 - (animate ? Math.sin(waveK * Math.PI * 10) * 0.12 : 0), up);
       ly = THREE.MathUtils.lerp(ly, 0.92, up);
       lz = THREE.MathUtils.lerp(lz, 0.1, up);
+    }
+
+    // Salute: hand snaps up to the brow, holds, snaps back down.
+    const sl = botFx.salute.get(bot.id);
+    if (sl !== undefined) {
+      const k = (fx - sl) / SALUTE_SECONDS;
+      if (k >= 0 && k < 1 && !lying && !lounging && !sleeping) {
+        const up = Math.min(1, k * 7, (1 - k) * 7);
+        lx = THREE.MathUtils.lerp(lx, -0.09, up);
+        ly = THREE.MathUtils.lerp(ly, 0.9, up);
+        lz = THREE.MathUtils.lerp(lz, 0.2, up);
+        h.rotation.x -= 0.08 * up;
+        if (animate) lift += k < 0.15 ? Math.sin((k / 0.15) * Math.PI) * 0.04 : 0;
+      } else if (k >= 1) botFx.salute.delete(bot.id);
     }
 
     // Antic pose, once the bot has reached its spot.

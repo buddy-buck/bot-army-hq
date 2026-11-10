@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { SITES, groundY } from '../../utils/paths.js';
 import { aliveClock, claimTravel, releaseTravel, testOn } from '../../wild/director.js';
+import { arrivalsBus } from '../state.js';
 import { Beam, Box, Cone, Cyl, GLOW_GEO, M, canvasTexture, duskFactor, glowMaterial, std } from './kit.jsx';
 
 // Bot Air: a short island landing strip inland on the east-middle of the
@@ -727,6 +728,7 @@ function Plane({ ctx, night }) {
           st.nextAt = t + (test ? 5 : 40 + Math.random() * 40);
         } else {
           st.phase = 'parked';
+          arrivalsBus.planeLanded += 1; // sometimes a new recruit steps off
           st.heading = PARK_H;
           place(PARK_W[0], PARK_W[1], PARK_W[2], PARK_H, 0, 0, 1);
           st.nextAt = t + (test ? 4 : 150 + Math.random() * 110);

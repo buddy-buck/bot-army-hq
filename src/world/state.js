@@ -36,3 +36,7 @@ export const skyRequests = { fireworks: 0 };
 export function requestFireworks() {
   skyRequests.fireworks += 1;
 }
+
+// Arrivals (welcome/Arrivals.jsx) listen here: the airstrip bumps planeLanded
+// each time the island-hopper parks, so a recruit can step off.
+export const arrivalsBus = { planeLanded: 0 };

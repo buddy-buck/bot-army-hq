@@ -1013,8 +1013,12 @@ export default function App() {
 
   // Everything the Bot Island HQ extras need to know about the scene.
   const worldCtx = useMemo(
-    () => ({ sky, animate: !reduced, reduced, lowPower: LOW_POWER, bots, sceneBots, layout, bedtime, onNote: openChest, onToast: showToast, onShot }),
-    [sky, reduced, bots, sceneBots, layout, bedtime, openChest, showToast, onShot]
+    () => ({
+      sky, animate: !reduced, reduced, lowPower: LOW_POWER, bots, sceneBots, layout, bedtime, onNote: openChest, onToast: showToast, onShot,
+      // Round 4 boards (whiteboard, stadium board, wall of fame) read these.
+      minutesSaved: data?.minutesSaved, feed: data?.feed, nextUp: data?.nextUp, demoAdded: isExample ? demoAdded : 0, onScore: openOffice,
+    }),
+    [sky, reduced, bots, sceneBots, layout, bedtime, openChest, showToast, onShot, data, isExample, demoAdded, openOffice]
   );
 
   return (
