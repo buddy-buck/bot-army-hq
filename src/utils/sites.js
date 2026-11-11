@@ -40,9 +40,7 @@ export const SITES = {
   visitorLawn: { x: -14.4, z: 2.3, r: 1.0 }, // open lawn in front of the Visitor Center
   archView: { x: -14.9, z: 8.4, r: 1.6 }, // open sand in front of the arch so nothing blocks it from the default camera
   traceNook: { x: -2.75, z: 6.75, r: 0.5 }, // Trace's quiet writing desk, west of the tiki hut, far from the band
-  whiteboard: { x: -1.75, z: 3.95, r: 0.7, rotY: 0.12 }, // today's priorities, at the foot of Chief's Tower
   mailbox: { x: -16.45, z: 4.45, r: 0.3 }, // on Launch's Pier, north edge near the head
-  stadium: { x: 7.3, z: -13.75, r: 1.0, rotY: -0.4 }, // "minutes saved this week" board by the volleyball court
   fameWall: { x: 10.6, z: 11.85, r: 0.85, rotY: -0.3 }, // wall of fame, on the beach between the DJ booth and the tiki bar
 };
 

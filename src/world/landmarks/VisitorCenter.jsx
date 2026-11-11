@@ -872,7 +872,7 @@ export default function VisitorCenter({ ctx }) {
   const HZ = 1.05;
   const floorY = 0.14;
   const beamY = floorY + 2.0;
-  const posts = [[-HX, -HZ], [HX, -HZ], [-HX, HZ], [HX, HZ], [0, HZ]];
+  const posts = [[-HX, -HZ], [HX, -HZ], [-HX, HZ], [HX, HZ]]; // corners only, so the front stays open to the map
   // The live counter is a marquee across the front of the roof, facing the
   // default camera. It used to stand on tall posts behind the pavilion,
   // right where the floating "Visitor Center" tag sits, so the tag hid it.

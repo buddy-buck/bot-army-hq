@@ -13,7 +13,7 @@ import { hullGeometry, ridePose } from '../boats/kit.js';
 import { fxBurst } from '../antics/Fx.jsx';
 import { LM, SIT_DROP, glowMat, lerpAngle, makePath, resetBot, sitPose, smooth, std, walkPose } from '../life/common.jsx';
 import { dedupe, tripPoints } from './route.js';
-import { FROM_TAXI, GATE_STOP, GREETER_HOME, GREET_AT, MEET, PLANE_DOOR, SIGHTS, TAXI_X, TEAM_STOPS } from './stops.js';
+import { FROM_TAXI, GATE_STOP, GREETER_HOME, GREET_AT, MEET, PLANE_DOOR, SIGHTS, TAXI_X, TEAM_STOPS, TOWER_STOP } from './stops.js';
 
 // Arrivals at Bot Island.
 //
@@ -24,7 +24,7 @@ import { FROM_TAXI, GATE_STOP, GREETER_HOME, GREET_AT, MEET, PLANE_DOOR, SIGHTS,
 //
 // The tourist: when the page opens, a small anonymous tourist (sun hat,
 // camera, no name) rides in on the water taxi, gets a lei, and wanders the
-// sights: the Visitor Center, Chief's whiteboard, the dance floor, the end of
+// sights: the Visitor Center, the dance floor, the end of
 // the pier. It's the person looking at the page. If the tab is hidden for a
 // while (closed, or they went somewhere else) the tourist has gone home, and
 // coming back brings a fresh one on the next taxi. Tap it: "That's you."
@@ -547,7 +547,7 @@ export default function Arrivals({ ctx }) {
   const startTour = (w) => {
     const teams = teamsOnIsland();
     if (!teams.length) {
-      w.steps = [walk(tripPoints(GATE_STOP, SIGHTS[1]), 0.9), ...joinSteps(w, null, null)];
+      w.steps = [walk(tripPoints(GATE_STOP, TOWER_STOP), 0.9), ...joinSteps(w, null, null)];
       w.i = 0;
       return;
     }

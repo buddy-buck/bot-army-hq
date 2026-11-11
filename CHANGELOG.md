@@ -1,5 +1,10 @@
 # Changelog
 
+## Bot Island round 4.1
+
+- Removed the stadium board by the volleyball court and Chief's whiteboard.
+- The Visitor Center's front center pole is gone, so the island map is in clear view.
+
 ## Bot Island round 4
 
 Fixes:

@@ -196,10 +196,8 @@ Reduced motion skips the drone, seaplane, jet ski and weather; Claude simply app
 ### Round 4: arrivals, boards and the fourth wall
 
 - **Lei greeting.** A greeter on the lawn just inside the welcome arch puts a lei on every new arrival (about 3 seconds). Only new arrivals get one.
-- **The tourist is you.** When the page opens, a small tourist with a sun hat and camera (no name) rides in on the water taxi, gets a lei and wanders the sights: the Visitor Center, Chief's whiteboard, the dance floor (by day) and the end of the pier. If the tab is hidden for more than a minute, the tourist has gone home and a new one arrives when you come back. Tap the tourist: "That's you!"
+- **The tourist is you.** When the page opens, a small tourist with a sun hat and camera (no name) rides in on the water taxi, gets a lei and wanders the sights: the Visitor Center, the dance floor (by day) and the end of the pier. If the tab is hidden for more than a minute, the tourist has gone home and a new one arrives when you come back. Tap the tourist: "That's you!"
 - **Recruits.** Now and then a recruit steps off the island-hopper or the water taxi, gets a lei, and a chillin' teammate meets them at their new team's spot and points out the place. Then they join up (painted in team colors, a cheer, a toast) and head in.
-- **Chief's whiteboard** at the foot of the tower shows today's priorities from the data: who's working on what (`bots[].job`), what just got done (`feed`) and what's next (`nextUp`). Tap it for the full list.
-- **Stadium board** by the volleyball court: minutes saved this week (`minutesSaved.week`, or the sum of `daily`), counting up when it grows. Tap it for the minutes drawer.
 - **Wall of Fame** on the beach between the DJ booth and the tiki bar: framed achievements from the data. Tap it to read them.
 - **Pier mailbox.** A seagull drops off a letter every few minutes and the red flag goes up. Tap the mailbox for a BYOB fact or a customer shoutout.
 - **Fourth wall.** One bot (Chief, if he's awake) salutes you right after the page loads; every minute or two by day, a bot on screen turns and waves at the camera.

@@ -1015,10 +1015,10 @@ export default function App() {
   const worldCtx = useMemo(
     () => ({
       sky, animate: !reduced, reduced, lowPower: LOW_POWER, bots, sceneBots, layout, bedtime, onNote: openChest, onToast: showToast, onShot,
-      // Round 4 boards (whiteboard, stadium board, wall of fame) read these.
-      minutesSaved: data?.minutesSaved, feed: data?.feed, nextUp: data?.nextUp, demoAdded: isExample ? demoAdded : 0, onScore: openOffice,
+      // The wall of fame reads these.
+      minutesSaved: data?.minutesSaved, demoAdded: isExample ? demoAdded : 0,
     }),
-    [sky, reduced, bots, sceneBots, layout, bedtime, openChest, showToast, onShot, data, isExample, demoAdded, openOffice]
+    [sky, reduced, bots, sceneBots, layout, bedtime, openChest, showToast, onShot, data, isExample, demoAdded]
   );
 
   return (

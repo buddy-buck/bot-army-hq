@@ -30,10 +30,11 @@ export const PLANE_DOOR = { x: R.x - R.hx + 2.1 - 0.62, z: R.z - 0.45 };
 const VC = SITES.visitor;
 export const SIGHTS = [
   { key: 'visitor', zone: 'dock', at: [-13.85, 1.85], look: [VC.x, VC.z], pose: 'photo' },
-  { key: 'whiteboard', zone: 'tower', at: [-0.95, 5.05], look: [SITES.whiteboard.x, SITES.whiteboard.z], pose: 'read' },
   { key: 'dj', zone: 'tikihut', via: [[4.7, 6.3], [5.0, 8.3], [4.7, 9.5], [4.15, 10.5]], at: [3.7, 11.6], look: [6.8, 11.3], pose: 'dance', day: true },
   { key: 'pier', zone: 'dock', via: [[DOCK.x1 - 0.6, PIER_LINE], [DOCK.x0 + 2.2, PIER_LINE]], at: [DOCK.x0 + 1.8, 5.2], look: [DOCK.x0 - 6, 5.0], pose: 'photo' },
 ];
+// A recruit with no team on the island just strolls up toward the tower.
+export const TOWER_STOP = { zone: 'tower', at: [-0.95, 5.05] };
 // From the gate to the first sight.
 export const GATE_STOP = { zone: 'dock', at: [MEET.x, MEET.z] };
 
